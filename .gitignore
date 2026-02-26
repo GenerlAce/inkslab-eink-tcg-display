@@ -1,0 +1,23 @@
+# Card images (too large for git - download with scripts/download_cards.py)
+pokemon_cards/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Waveshare compiled binaries (platform-specific)
+lib/waveshare_epd/*.so
+lib/waveshare_epd/__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~

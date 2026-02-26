@@ -1,0 +1,14 @@
+[Unit]
+Description=InkSlab - e-Ink TCG Card Display
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab.py
+WorkingDirectory=/home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

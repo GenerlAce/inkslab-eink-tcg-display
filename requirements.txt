@@ -1,0 +1,8 @@
+# Core dependencies (install via apt on Raspberry Pi OS)
+# sudo apt install python3-pil python3-numpy python3-spidev python3-gpiozero python3-requests
+#
+# If you prefer pip:
+Pillow
+requests
+spidev
+gpiozero
