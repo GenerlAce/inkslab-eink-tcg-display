@@ -246,13 +246,20 @@ Edit the top of `inkslab.py` to customize:
 | `DAY_START` / `DAY_END` | `7` / `23` | Day mode hours (24h format) |
 | `COLOR_SATURATION` | `2.5` | Color boost for e-paper (higher = more vivid) |
 
-## Updating Metadata
+## Adding New Sets
 
-Re-run the metadata updater to pick up any newly released sets:
+When new sets release, re-run both scripts to download the new cards and update metadata:
 
 ```bash
 cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
+python3 scripts/download_cards.py
 python3 scripts/update_metadata.py
+```
+
+Then restart the service so it picks up the new cards:
+
+```bash
+sudo systemctl restart inkslab.service
 ```
 
 ## Troubleshooting
