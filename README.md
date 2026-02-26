@@ -1,6 +1,6 @@
 # InkSlab — e-Ink TCG Card Display
 
-A Raspberry Pi + e-ink display that cycles through every TCG card ever printed in a graded-slab-style layout — showing the set name, year, card number, and market price on a 7-color Waveshare Spectra 6 screen.
+A Raspberry Pi + e-ink display that cycles through every TCG card ever printed in a graded-slab-style layout — showing the set name, year, card number, and rarity on a 7-color Waveshare Spectra 6 screen.
 
 Cards rotate every **10 minutes** during the day and every **hour** at night to preserve the display.
 
@@ -28,7 +28,7 @@ The frame holds the Pi and e-paper screen in a clean, desk-friendly package. Jus
 ## How It Works
 
 1. `scripts/download_cards.py` downloads card images from the [PokemonTCG open data repo](https://github.com/PokemonTCG/pokemon-tcg-data)
-2. `scripts/update_metadata.py` fetches set names, card numbers, rarities, and TCGPlayer market prices
+2. `scripts/update_metadata.py` fetches set names, card numbers, and rarities
 3. `inkslab.py` shuffles all cards into a "deck", processes each image for the 7-color e-paper palette (Floyd-Steinberg dithering), and displays them in a loop
 4. A systemd service keeps it running as a daemon on boot
 
@@ -38,7 +38,7 @@ Each card is shown in a graded-slab style:
 ```
 ┌──────────────────────┐
 │  2023 OBSIDIAN FLAMES │
-│    #201  •  $45.00    │
+│    #201  •  HOLO      │
 │ ┌──────────────────┐  │
 │ │                  │  │
 │ │    Card Image    │  │
@@ -171,7 +171,7 @@ cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-dis
 python3 scripts/update_metadata.py
 ```
 
-This creates `master_index.json` (set names/years) and `_data.json` in each set folder (card names, numbers, rarities, and market prices).
+This creates `master_index.json` (set names/years) and `_data.json` in each set folder (card names, numbers, and rarities).
 
 ### 8. Test It
 
@@ -218,7 +218,7 @@ inkslab-eink-tcg-display/
 │       └── epdconfig.py      # Hardware config (SPI/GPIO)
 └── scripts/
     ├── download_cards.py     # Download all card images
-    └── update_metadata.py    # Fetch set names, prices, rarities
+    └── update_metadata.py    # Fetch set names, numbers, rarities
 ```
 
 Card images are stored at `/home/pi/pokemon_cards/` (not in the repo — too large):
@@ -246,9 +246,9 @@ Edit the top of `inkslab.py` to customize:
 | `DAY_START` / `DAY_END` | `7` / `23` | Day mode hours (24h format) |
 | `COLOR_SATURATION` | `2.5` | Color boost for e-paper (higher = more vivid) |
 
-## Updating Prices
+## Updating Metadata
 
-Re-run the metadata updater to refresh TCGPlayer market prices:
+Re-run the metadata updater to pick up any newly released sets:
 
 ```bash
 cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display

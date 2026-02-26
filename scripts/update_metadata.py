@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 """
-Update card metadata (names, numbers, rarities, prices) for all downloaded sets.
+Update card metadata (names, numbers, rarities) for all downloaded sets.
 Creates/updates _data.json in each set folder and master_index.json in the library root.
-Run this after downloading cards, or periodically to refresh prices.
 """
 
 import os
@@ -16,18 +15,6 @@ LIBRARY_DIR = "/home/pi/pokemon_cards"
 # Data sources
 SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 CARDS_BASE_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/cards/en/"
-
-
-def get_price_from_card(card_data):
-    """Extract market price from TCGPlayer pricing data."""
-    if 'tcgplayer' in card_data and 'prices' in card_data['tcgplayer']:
-        prices = card_data['tcgplayer']['prices']
-        for style in ['holofoil', 'reverseHolofoil', 'normal']:
-            if style in prices and 'market' in prices[style]:
-                return prices[style]['market']
-            if style in prices and 'mid' in prices[style]:
-                return prices[style]['mid']
-    return None
 
 
 def update_master_index():
@@ -54,7 +41,7 @@ def update_master_index():
 
 
 def update_card_data():
-    """Update _data.json for each set with names, numbers, rarities, and prices."""
+    """Update _data.json for each set with names, numbers, and rarities."""
     print("\nUpdating card metadata...")
 
     sets = sorted(d for d in os.listdir(LIBRARY_DIR) if os.path.isdir(os.path.join(LIBRARY_DIR, d)))
@@ -74,12 +61,10 @@ def update_card_data():
             slim_db = {}
             for card in full_data:
                 c_id = card['id']
-                price = get_price_from_card(card)
                 slim_db[c_id] = {
                     "name": card.get('name', 'Unknown'),
                     "number": card.get('number', '00'),
                     "rarity": card.get('rarity', 'Common'),
-                    "price": f"${price:.2f}" if price else None
                 }
 
             with open(data_file, 'w') as f:

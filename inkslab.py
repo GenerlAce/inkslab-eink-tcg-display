@@ -5,7 +5,7 @@ InkSlab - e-Ink TCG Card Display
 https://github.com/costamesatechsolutions/inkslab-eink-tcg-display
 
 Displays random TCG cards on a Waveshare 4" e-Paper (E) / Spectra 6 color display
-in a graded-slab-style layout with set name, year, card number, and market price.
+in a graded-slab-style layout with set name, year, card number, and rarity.
 Cards rotate every 10 minutes during the day (7am-11pm) and every hour at night.
 
 By Costa Mesa Tech Solutions (a brand of Pine Heights Ventures LLC)
@@ -73,7 +73,7 @@ else:
 
 
 def get_card_metadata(img_path):
-    """Extract set name, card number, price/rarity from card image path."""
+    """Extract set name, card number, and rarity from card image path."""
     info = {"set_info": "", "stats": ""}
     try:
         folder_path = os.path.dirname(img_path)
@@ -101,10 +101,7 @@ def get_card_metadata(img_path):
                     entry = data[card_id]
                     num = entry.get("number", "00")
 
-                    # Price takes priority, fall back to rarity
-                    if entry.get("price"):
-                        extra = entry["price"]
-                    elif entry.get("rarity"):
+                    if entry.get("rarity"):
                         extra = entry["rarity"].upper()
                         extra = extra.replace("RARE HOLO", "HOLO").replace("DOUBLE RARE", "DBL RARE")
 
@@ -114,7 +111,7 @@ def get_card_metadata(img_path):
             if parts[-1].isdigit():
                 num = parts[-1]
 
-        # Format: "#201  *  $45.00" or just "#201"
+        # Format: "#201  •  HOLO" or just "#201"
         if extra:
             info["stats"] = f"#{num}  \u2022  {extra}"
         else:
