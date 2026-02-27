@@ -18,6 +18,7 @@ import random
 import json
 import gc
 import logging
+import signal
 from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageOps
 
 # --- DEFAULT CONFIGURATION ---
@@ -396,91 +397,123 @@ def main():
         logger.error(f"Display init failed: {e}")
         return
 
-    while True:
-        card_path = deck.draw()
-        if not card_path:
-            logger.warning(f"No cards available for {active_tcg}. Checking for changes...")
-            write_status({
-                "card_path": "",
-                "set_name": "",
-                "set_info": f"No {active_tcg.upper()} cards available",
-                "card_num": "",
-                "rarity": "",
-                "timestamp": int(time.time()),
-                "tcg": active_tcg,
-                "total_cards": 0,
-                "error": f"No {active_tcg.upper()} cards found. Download cards or switch TCG.",
-            })
-            config, _ = wait_with_polling(60)
-            new_tcg = config["active_tcg"]
-            if new_tcg != active_tcg:
-                active_tcg = new_tcg
-                library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
-                master_index = load_master_index(library_dir)
-                collection = None
-                if config["collection_only"]:
-                    collection = load_collection(active_tcg)
-                    if not collection:
-                        collection = None
-                deck = ShuffleDeck(library_dir, collection)
+    # Graceful shutdown: ensure display is put to sleep on exit
+    _shutdown = False
+
+    def _handle_shutdown(signum, frame):
+        nonlocal _shutdown
+        logger.info(f"Received signal {signum}, shutting down...")
+        _shutdown = True
+
+    signal.signal(signal.SIGTERM, _handle_shutdown)
+    signal.signal(signal.SIGINT, _handle_shutdown)
+
+    try:
+        while not _shutdown:
+            card_path = deck.draw()
+            if not card_path:
+                logger.warning(f"No cards available for {active_tcg}. Checking for changes...")
+                write_status({
+                    "card_path": "",
+                    "set_name": "",
+                    "set_info": f"No {active_tcg.upper()} cards available",
+                    "card_num": "",
+                    "rarity": "",
+                    "timestamp": int(time.time()),
+                    "tcg": active_tcg,
+                    "total_cards": 0,
+                    "error": f"No {active_tcg.upper()} cards found. Download cards or switch TCG.",
+                })
+                config, _ = wait_with_polling(60)
+                new_tcg = config["active_tcg"]
+                if new_tcg != active_tcg:
+                    active_tcg = new_tcg
+                    library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
+                    master_index = load_master_index(library_dir)
+                    collection = None
+                    if config["collection_only"]:
+                        collection = load_collection(active_tcg)
+                        if not collection:
+                            collection = None
+                    deck = ShuffleDeck(library_dir, collection)
+                else:
+                    # Same TCG — reshuffle in case cards were just downloaded
+                    deck.reshuffle()
+                continue
+
+            logger.info(f"Displaying: {os.path.basename(card_path)}")
+            final_img, card_info = process_image(card_path, master_index, config)
+
+            if final_img:
+                # Write status BEFORE display refresh so web dashboard updates instantly
+                # (e-paper refresh takes 15-30 seconds; don't make the web wait)
+                write_status({
+                    "card_path": card_path,
+                    "set_name": card_info.get("set_name", ""),
+                    "set_info": card_info.get("set_info", ""),
+                    "card_num": card_info.get("card_num", ""),
+                    "rarity": card_info.get("rarity", ""),
+                    "timestamp": int(time.time()),
+                    "tcg": active_tcg,
+                    "total_cards": deck.total,
+                })
+
+                try:
+                    epd.init()
+                    epd.display(epd.getbuffer(final_img))
+                except Exception as e:
+                    logger.error(f"Display error: {e}")
+                finally:
+                    # Always put display to sleep to protect the hardware
+                    try:
+                        epd.sleep()
+                    except Exception:
+                        pass
+
+                # Day mode: rotate every 10 min | Night mode: every hour
+                hr = time.localtime().tm_hour
+                wait = config["day_interval"] if config["day_start"] <= hr < config["day_end"] else config["night_interval"]
+                logger.info(f"Next card in {wait // 60} minutes")
+
+                # Poll during wait — picks up config changes and skip triggers
+                config, needs_reshuffle = wait_with_polling(wait)
+
+                # If TCG changed or collection settings changed, rebuild the deck
+                new_tcg = config["active_tcg"]
+                if new_tcg != active_tcg or needs_reshuffle:
+                    active_tcg = new_tcg
+                    library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
+                    master_index = load_master_index(library_dir)
+                    collection = None
+                    if config["collection_only"]:
+                        collection = load_collection(active_tcg)
+                        if not collection:
+                            collection = None
+                    deck = ShuffleDeck(library_dir, collection)
+                    if deck.total == 0:
+                        logger.warning(f"Switched to {active_tcg} but no cards found. "
+                                       f"Will wait for download or TCG change.")
+
+                del final_img
+                gc.collect()
             else:
-                # Same TCG — reshuffle in case cards were just downloaded
-                deck.reshuffle()
-            continue
+                logger.warning(f"Skipping bad image: {card_path}")
+                time.sleep(5)
 
-        logger.info(f"Displaying: {os.path.basename(card_path)}")
-        final_img, card_info = process_image(card_path, master_index, config)
-
-        if final_img:
-            # Write status BEFORE display refresh so web dashboard updates instantly
-            # (e-paper refresh takes 15-30 seconds; don't make the web wait)
-            write_status({
-                "card_path": card_path,
-                "set_name": card_info.get("set_name", ""),
-                "set_info": card_info.get("set_info", ""),
-                "card_num": card_info.get("card_num", ""),
-                "rarity": card_info.get("rarity", ""),
-                "timestamp": int(time.time()),
-                "tcg": active_tcg,
-                "total_cards": deck.total,
-            })
-
-            try:
-                epd.init()
-                epd.display(epd.getbuffer(final_img))
-                epd.sleep()
-            except Exception as e:
-                logger.error(f"Display error: {e}")
-
-            # Day mode: rotate every 10 min | Night mode: every hour
-            hr = time.localtime().tm_hour
-            wait = config["day_interval"] if config["day_start"] <= hr < config["day_end"] else config["night_interval"]
-            logger.info(f"Next card in {wait // 60} minutes")
-
-            # Poll during wait — picks up config changes and skip triggers
-            config, needs_reshuffle = wait_with_polling(wait)
-
-            # If TCG changed or collection settings changed, rebuild the deck
-            new_tcg = config["active_tcg"]
-            if new_tcg != active_tcg or needs_reshuffle:
-                active_tcg = new_tcg
-                library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
-                master_index = load_master_index(library_dir)
-                collection = None
-                if config["collection_only"]:
-                    collection = load_collection(active_tcg)
-                    if not collection:
-                        collection = None
-                deck = ShuffleDeck(library_dir, collection)
-                if deck.total == 0:
-                    logger.warning(f"Switched to {active_tcg} but no cards found. "
-                                   f"Will wait for download or TCG change.")
-
-            del final_img
-            gc.collect()
-        else:
-            logger.warning(f"Skipping bad image: {card_path}")
-            time.sleep(5)
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+    finally:
+        # Always clean up the display on exit
+        logger.info("Cleaning up display...")
+        try:
+            epd.sleep()
+        except Exception:
+            pass
+        try:
+            epd.Dev_exit()
+        except Exception:
+            pass
+        logger.info("InkSlab stopped.")
 
 
 if __name__ == '__main__':

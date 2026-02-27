@@ -103,6 +103,8 @@ def fetch_cards_for_set(set_code):
     Returns a list of card dicts. Memory-friendly: only one page (~175 cards) at a time."""
     cards = []
     url = f"{SEARCH_URL}?q=set%3A{set_code}+lang%3Aen&unique=prints&order=set"
+    retries = 0
+    max_retries = 5
 
     while url:
         time.sleep(API_DELAY)
@@ -113,11 +115,16 @@ def fetch_cards_for_set(set_code):
                 break
             r.raise_for_status()
             page = r.json()
+            retries = 0  # Reset on success
         except requests.exceptions.HTTPError as e:
             if hasattr(e, 'response') and e.response is not None and e.response.status_code == 429:
-                # Rate limited -- back off and retry
-                print("     Rate limited, waiting 2s...")
-                time.sleep(2)
+                retries += 1
+                if retries > max_retries:
+                    print(f"     Rate limited {max_retries} times, skipping rest of set.")
+                    break
+                wait = 2 * retries  # Exponential backoff: 2s, 4s, 6s, 8s, 10s
+                print(f"     Rate limited, waiting {wait}s (retry {retries}/{max_retries})...")
+                time.sleep(wait)
                 continue
             print(f"     API error for set {set_code}: {e}")
             break

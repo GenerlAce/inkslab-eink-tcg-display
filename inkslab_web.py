@@ -48,7 +48,19 @@ DEFAULTS = {
 # Track running download process
 _download_proc = None
 _download_tcg = None
+_download_log_fh = None
 _download_lock = threading.Lock()
+
+
+def _close_download_log():
+    """Close the download log file handle if open."""
+    global _download_log_fh
+    if _download_log_fh:
+        try:
+            _download_log_fh.close()
+        except Exception:
+            pass
+        _download_log_fh = None
 
 
 # --- HELPERS ---
@@ -104,6 +116,9 @@ def api_status():
                 status = json.load(f)
         except Exception:
             pass
+    # Auto-clear stale pending status (e.g. if daemon crashed mid-update)
+    if status.get('pending') and time.time() - status.get('timestamp', 0) > 60:
+        status.pop('pending', None)
     return jsonify(status)
 
 
@@ -360,11 +375,14 @@ def api_collection_clear():
 
 @app.route('/api/download/start', methods=['POST'])
 def api_download_start():
-    global _download_proc, _download_tcg
+    global _download_proc, _download_tcg, _download_log_fh
 
     with _download_lock:
         if _download_proc and _download_proc.poll() is None:
             return jsonify({"ok": False, "error": "Download already running"})
+
+        # Close any leftover file handle from a previous download
+        _close_download_log()
 
         data = request.get_json(force=True) if request.data else {}
         tcg = data.get("tcg", "pokemon")
@@ -379,16 +397,11 @@ def api_download_start():
         else:
             return jsonify({"ok": False, "error": "Unknown TCG"})
 
-        try:
-            open(DOWNLOAD_LOG, 'w').close()
-        except Exception:
-            pass
-
-        log_file = open(DOWNLOAD_LOG, 'w')
+        _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
         _download_proc = subprocess.Popen(
-            cmd, stdout=log_file, stderr=subprocess.STDOUT,
+            cmd, stdout=_download_log_fh, stderr=subprocess.STDOUT,
             cwd=SCRIPT_DIR, env=env
         )
         _download_tcg = tcg
@@ -412,6 +425,7 @@ def api_download_stop():
                     pass
             _download_proc = None
             _download_tcg = None
+            _close_download_log()
             return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "No download running"})
 
@@ -425,6 +439,10 @@ def api_download_status():
     with _download_lock:
         if _download_proc and _download_proc.poll() is None:
             running = True
+        elif _download_proc:
+            # Process finished — close log file handle
+            _close_download_log()
+            tcg = None
         else:
             tcg = None
 
