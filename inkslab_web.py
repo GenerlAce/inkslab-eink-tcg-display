@@ -96,6 +96,21 @@ def save_collection(data):
         json.dump(data, f)
 
 
+def rarity_sort_key(rarity):
+    """Sort key for rarities — rarest first."""
+    order = {
+        "special": 1, "mythic rare": 2, "bonus": 3,
+        "hyper rare": 1, "special illustration rare": 2, "rare secret": 3,
+        "rare rainbow": 4, "illustration rare": 5, "shiny ultra rare": 6,
+        "rare ultra": 7, "ultra rare": 7, "double rare": 8, "ace spec rare": 8,
+        "rare holo vstar": 9, "rare holo vmax": 9, "rare holo v": 10,
+        "rare holo gx": 10, "rare holo ex": 10, "shiny rare": 11,
+        "rare holo": 12, "rare prism star": 12, "rare": 15,
+        "uncommon": 20, "common": 30, "promo": 25,
+    }
+    return order.get(rarity.lower().strip(), 15)
+
+
 def get_local_ip():
     try:
         result = subprocess.run(['hostname', '-I'], capture_output=True, text=True, timeout=5)
@@ -373,6 +388,84 @@ def api_collection_clear():
     return jsonify({"ok": True})
 
 
+@app.route('/api/rarities')
+def api_rarities():
+    """Return all unique rarity values for the active TCG, sorted rarest first."""
+    config = load_config()
+    tcg = request.args.get('tcg', config['active_tcg'])
+    library = TCG_LIBRARIES.get(tcg)
+    rarities = set()
+    if library and os.path.isdir(library):
+        for d in os.listdir(library):
+            data_file = os.path.join(library, d, "_data.json")
+            if os.path.exists(data_file):
+                try:
+                    with open(data_file, 'r') as f:
+                        data = json.load(f)
+                    for card in data.values():
+                        r = card.get("rarity", "")
+                        if r:
+                            rarities.add(r)
+                except Exception:
+                    pass
+    return jsonify(sorted(rarities, key=rarity_sort_key))
+
+
+@app.route('/api/collection/toggle_rarity', methods=['POST'])
+def api_collection_toggle_rarity():
+    """Select or deselect all cards of a given rarity. Optionally scoped to a single set."""
+    body = request.get_json(force=True)
+    rarity = body.get("rarity")
+    owned = body.get("owned", True)
+    set_id = body.get("set_id")  # optional — None means all sets
+
+    if not rarity:
+        return jsonify({"error": "rarity required"}), 400
+
+    config = load_config()
+    tcg = body.get("tcg", config["active_tcg"])
+    library = TCG_LIBRARIES.get(tcg)
+    if not library or not os.path.isdir(library):
+        return jsonify({"error": "invalid tcg or no data"}), 400
+
+    # Find all card IDs matching the rarity
+    matching_ids = []
+    if set_id:
+        dirs_to_scan = [set_id]
+    else:
+        dirs_to_scan = [d for d in os.listdir(library)
+                        if os.path.isdir(os.path.join(library, d))]
+    for d in dirs_to_scan:
+        data_file = os.path.join(library, d, "_data.json")
+        if not os.path.exists(data_file):
+            continue
+        try:
+            with open(data_file, 'r') as f:
+                cards_data = json.load(f)
+            for card_id, card_info in cards_data.items():
+                if card_info.get("rarity") == rarity:
+                    matching_ids.append(card_id)
+        except Exception:
+            pass
+
+    # Update collection
+    collection = load_collection()
+    if tcg not in collection:
+        collection[tcg] = []
+
+    if owned:
+        existing = set(collection[tcg])
+        for cid in matching_ids:
+            if cid not in existing:
+                collection[tcg].append(cid)
+    else:
+        remove_set = set(matching_ids)
+        collection[tcg] = [cid for cid in collection[tcg] if cid not in remove_set]
+
+    save_collection(collection)
+    return jsonify({"rarity": rarity, "owned": owned, "count": len(matching_ids)})
+
+
 @app.route('/api/download/start', methods=['POST'])
 def api_download_start():
     global _download_proc, _download_tcg, _download_log_fh
@@ -482,6 +575,15 @@ def api_storage():
             }
         else:
             info[tcg] = {"path": path, "size_mb": 0, "card_count": 0, "set_count": 0}
+    # Add free disk space
+    try:
+        usage = shutil.disk_usage('/home/pi')
+        info['_disk'] = {
+            'free_mb': round(usage.free / (1024 * 1024)),
+            'total_mb': round(usage.total / (1024 * 1024)),
+        }
+    except Exception:
+        pass
     return jsonify(info)
 
 
@@ -557,6 +659,10 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .card-row label { flex: 1; cursor: pointer; display: flex; align-items: center; gap: 6px; color: #D8E6E4; }
 .card-row input[type=checkbox] { accent-color: #36A5CA; }
 .card-rarity { color: #6BCCBD; font-size: 11px; }
+.rarity-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0 6px; }
+.rarity-chip { padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; background: #1F333F; color: #6BCCBD; border: 1px solid #36A5CA33; transition: all 0.15s; }
+.rarity-chip:hover { background: #263f4d; }
+.rarity-chip:active { background: #36A5CA; color: #FCFDF0; transform: scale(0.95); }
 .card-preview-btn { cursor: pointer; color: #36A5CA; font-size: 11px; margin-left: 6px; text-decoration: underline; }
 .log-box { background: #0a1a22; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #6BCCBD; border: 1px solid #1F333F; }
 .badge { display: inline-block; background: #6BCCBD; color: #010001; border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
@@ -674,6 +780,19 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Mark the cards you own. Enable "collection mode" in Settings to only display owned cards. Tap a card name to preview it.</p>
     <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
   </div>
+  <div class="card">
+    <h3>Filter by Rarity</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Quickly select or deselect all cards of a specific rarity across all sets.</p>
+    <div class="form-group">
+      <label>Rarity</label>
+      <select id="rarity-filter"><option value="">Loading...</option></select>
+    </div>
+    <div class="flex-row">
+      <button class="btn btn-secondary btn-sm" onclick="selectByRarity(true)">Select All of Rarity</button>
+      <button class="btn btn-secondary btn-sm" onclick="selectByRarity(false)">Deselect All of Rarity</button>
+    </div>
+    <div id="rarity-result" style="color:#6BCCBD;font-size:12px;margin-top:6px"></div>
+  </div>
   <div id="sets-list"></div>
 </div>
 
@@ -711,8 +830,8 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <h3>Delete Data</h3>
     <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Remove all downloaded card images for a TCG.</p>
     <div class="flex-row">
-      <button class="btn btn-danger btn-block btn-sm" onclick="deleteData('pokemon')">Delete Pokemon</button>
-      <button class="btn btn-danger btn-block btn-sm" onclick="deleteData('mtg')">Delete MTG</button>
+      <button class="btn btn-danger btn-block btn-sm" onclick="deleteData('pokemon', this)">Delete Pokemon</button>
+      <button class="btn btn-danger btn-block btn-sm" onclick="deleteData('mtg', this)">Delete MTG</button>
     </div>
   </div>
 </div>
@@ -744,7 +863,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'collection') loadSets();
+  if (name === 'collection') { loadSets(); loadRarities(); }
   if (name === 'settings') loadSettings();
   if (name === 'downloads') { loadStorage(); pollDownload(); }
   if (name === 'display') refreshStatus();
@@ -964,12 +1083,25 @@ function toggleSet(setId) {
   el.innerHTML = '<div style="padding:8px;color:#6BCCBD;font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + setId + '/cards').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
-    let html = '<div style="padding:4px 0 6px;display:flex;gap:4px">';
+    // Extract unique rarities for chips
+    var rarities = [];
+    var seen = {};
+    cards.forEach(function(c) { if (c.rarity && !seen[c.rarity]) { seen[c.rarity] = 1; rarities.push(c.rarity); } });
+    let html = '<div style="padding:4px 0 6px;display:flex;gap:4px;flex-wrap:wrap">';
     html += `<button class="btn btn-secondary btn-sm" onclick="toggleSetAll('${setId}',true)">Select All</button>`;
     html += `<button class="btn btn-secondary btn-sm" onclick="toggleSetAll('${setId}',false)">Deselect All</button>`;
     html += '</div>';
+    // Per-set rarity chips
+    if (rarities.length > 1) {
+      html += '<div class="rarity-chips">';
+      rarities.forEach(function(r) {
+        var safeR = r.replace(/'/g, "\\\\'");
+        html += '<span class="rarity-chip" onclick="toggleSetRarity(\\'' + setId + '\\',\\'' + safeR + '\\',true)" title="Select all ' + r + '">' + r + '</span>';
+      });
+      html += '</div>';
+    }
     html += cards.map(c => `
-      <div class="card-row">
+      <div class="card-row" data-rarity="${c.rarity}">
         <label>
           <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${c.id}')">
           <span class="card-preview-btn" onclick="event.preventDefault();showPreview('${c.set_id}','${c.id}','${c.name.replace(/'/g,"\\\\'")} #${c.number}')">#${c.number} ${c.name}</span>
@@ -995,7 +1127,45 @@ function toggleSetAll(setId, owned) {
 
 function clearCollection() {
   if (!confirm('Clear your entire collection for the active TCG?')) return;
-  fetch(API + '/api/collection/clear', {method:'POST'}).then(() => loadSets());
+  fetch(API + '/api/collection/clear', {method:'POST'}).then(() => { loadSets(); loadRarities(); });
+}
+
+// --- Rarity filtering ---
+function loadRarities() {
+  fetch(API + '/api/rarities').then(r => r.json()).then(rarities => {
+    var sel = document.getElementById('rarity-filter');
+    sel.innerHTML = '<option value="">-- Select Rarity --</option>' + rarities.map(function(r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
+  });
+}
+
+function selectByRarity(owned) {
+  var rarity = document.getElementById('rarity-filter').value;
+  if (!rarity) { showToast('Select a rarity first'); return; }
+  var resultEl = document.getElementById('rarity-result');
+  resultEl.textContent = (owned ? 'Selecting' : 'Deselecting') + ' all ' + rarity + '...';
+  fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rarity: rarity, owned: owned})})
+    .then(r => r.json()).then(d => {
+      resultEl.textContent = (owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' ' + rarity + ' cards';
+      showToast((owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' cards');
+      // Reload sets to update badges and checkboxes
+      loadSets();
+    }).catch(function() { resultEl.textContent = 'Error'; });
+}
+
+function toggleSetRarity(setId, rarity, owned) {
+  fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({set_id: setId, rarity: rarity, owned: owned})})
+    .then(r => r.json()).then(d => {
+      if (d.count !== undefined) {
+        showToast((owned ? 'Selected ' : 'Deselected ') + d.count + ' ' + rarity + ' cards');
+        // Update checkboxes in this set
+        var el = document.getElementById('set-' + setId);
+        el.querySelectorAll('.card-row').forEach(function(row) {
+          if (row.dataset.rarity === rarity) {
+            row.querySelector('input[type=checkbox]').checked = owned;
+          }
+        });
+      }
+    });
 }
 
 // --- Card preview modal ---
@@ -1014,9 +1184,15 @@ function closePreview() {
 function loadStorage() {
   fetch(API + '/api/storage').then(r => r.json()).then(info => {
     const el = document.getElementById('storage-info');
-    el.innerHTML = Object.entries(info).map(([tcg, d]) =>
-      `<div class="stat"><span class="stat-label">${tcg.toUpperCase()}</span><span class="stat-value">${d.card_count} cards (${d.set_count} sets, ${d.size_mb} MB)</span></div>`
-    ).join('');
+    var html = '';
+    if (info._disk) {
+      html += '<div class="stat"><span class="stat-label">Disk Free</span><span class="stat-value">' + info._disk.free_mb + ' MB / ' + info._disk.total_mb + ' MB</span></div>';
+    }
+    Object.entries(info).filter(function(e) { return !e[0].startsWith('_'); }).forEach(function(e) {
+      var tcg = e[0], d = e[1];
+      html += '<div class="stat"><span class="stat-label">' + tcg.toUpperCase() + '</span><span class="stat-value">' + d.card_count + ' cards (' + d.set_count + ' sets, ' + d.size_mb + ' MB)</span></div>';
+    });
+    el.innerHTML = html;
   });
 }
 
@@ -1080,12 +1256,21 @@ function checkDownload() {
   });
 }
 
-function deleteData(tcg) {
+function deleteData(tcg, btn) {
   if (!confirm('Delete ALL ' + tcg.toUpperCase() + ' card images? This cannot be undone.')) return;
-  fetch(API + '/api/delete', {method:'POST', body: JSON.stringify({tcg: tcg})})
+  var origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Deleting...';
+  fetch(API + '/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg})})
     .then(r => r.json()).then(d => {
-      if (d.ok) loadStorage();
-      else alert(d.error || 'Delete failed');
+      btn.disabled = false;
+      btn.textContent = origText;
+      if (d.ok) { showToast(tcg.toUpperCase() + ' data deleted'); loadStorage(); }
+      else showToast(d.error || 'Delete failed');
+    }).catch(function() {
+      btn.disabled = false;
+      btn.textContent = origText;
+      showToast('Delete failed');
     });
 }
 
