@@ -120,6 +120,12 @@ def api_set_config():
         if key in updates:
             config[key] = updates[key]
     save_config(config)
+    # Wake the display daemon immediately so it picks up the change within ~1 second
+    try:
+        with open(NEXT_TRIGGER, 'w') as f:
+            f.write('1')
+    except OSError:
+        pass
     return jsonify(config)
 
 
@@ -706,6 +712,9 @@ function showToast(msg, duration) {
 }
 
 // --- Display ---
+var _lastStatus = {};
+var _rapidPoll = null;
+
 function refreshStatus() {
   fetch(API + '/api/status').then(r => r.json()).then(d => {
     document.getElementById('st-card').textContent = d.card_num || '\\u2014';
@@ -722,14 +731,32 @@ function refreshStatus() {
     } else {
       errRow.style.display = 'none';
     }
-    // Refresh preview image with cache buster
-    const img = document.getElementById('st-preview');
+    // Refresh preview image with cache buster (only if card changed)
+    var img = document.getElementById('st-preview');
     if (d.card_path) {
-      img.src = '/api/card_image?t=' + Date.now();
+      if (d.card_path !== _lastStatus.card_path || d.timestamp !== _lastStatus.timestamp) {
+        img.src = '/api/card_image?t=' + Date.now();
+      }
     } else {
       img.style.display = 'none';
     }
+    // Stop rapid polling once status actually changed
+    if (_rapidPoll && d.timestamp !== _lastStatus.timestamp) {
+      clearInterval(_rapidPoll);
+      _rapidPoll = null;
+    }
+    _lastStatus = d;
   }).catch(() => {});
+}
+
+// After user actions, poll every 2s for ~30s to catch the daemon's response quickly
+function startRapidPoll() {
+  if (_rapidPoll) clearInterval(_rapidPoll);
+  _rapidPoll = setInterval(refreshStatus, 2000);
+  // Stop rapid polling after 30s regardless (e-paper takes up to ~30s)
+  setTimeout(function() {
+    if (_rapidPoll) { clearInterval(_rapidPoll); _rapidPoll = null; }
+  }, 30000);
 }
 
 function nextCard(btn) {
@@ -740,8 +767,8 @@ function nextCard(btn) {
     .then(function() {
       btn.textContent = orig;
       btn.disabled = false;
-      showToast('Card change sent');
-      setTimeout(refreshStatus, 3000);
+      showToast('Updating display...');
+      startRapidPoll();
     })
     .catch(function() {
       btn.textContent = orig;
@@ -760,8 +787,8 @@ function switchTCG(tcg, activeBtn) {
     .then(function() {
       activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
-      showToast('Switched to ' + tcg.toUpperCase());
-      setTimeout(refreshStatus, 2000);
+      showToast('Switching to ' + tcg.toUpperCase() + '...');
+      startRapidPoll();
     })
     .catch(function() {
       activeBtn.textContent = orig;
@@ -796,7 +823,7 @@ function saveSettings() {
     collection_only: document.getElementById('cfg-collection').checked,
   };
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify(cfg)})
-    .then(() => alert('Settings saved! Changes take effect within 30 seconds.'));
+    .then(function() { showToast('Settings saved!'); startRapidPoll(); });
 }
 
 // --- Collection ---
@@ -961,7 +988,7 @@ function deleteData(tcg) {
   } else {
     refreshStatus();
   }
-  setInterval(refreshStatus, 30000);
+  setInterval(refreshStatus, 10000);
   // Load IP for footer
   fetch(API + '/api/ip').then(r => r.json()).then(d => {
     if (d.ip) document.getElementById('footer-ip').textContent = 'Also available at http://' + d.ip;

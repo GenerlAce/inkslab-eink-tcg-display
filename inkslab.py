@@ -306,8 +306,8 @@ class ShuffleDeck:
         return self.deck.pop(0)
 
 
-def wait_with_polling(seconds, config_check_interval=30):
-    """Sleep for `seconds`, but check for next-card trigger every 1s and config every 30s."""
+def wait_with_polling(seconds, config_check_interval=5):
+    """Sleep for `seconds`, but check for next-card trigger every 1s and config every 5s."""
     config = load_config()
     last_config_check = time.time()
 
@@ -432,14 +432,8 @@ def main():
         final_img, card_info = process_image(card_path, master_index, config)
 
         if final_img:
-            try:
-                epd.init()
-                epd.display(epd.getbuffer(final_img))
-                epd.sleep()
-            except Exception as e:
-                logger.error(f"Display error: {e}")
-
-            # Write status for web dashboard
+            # Write status BEFORE display refresh so web dashboard updates instantly
+            # (e-paper refresh takes 15-30 seconds; don't make the web wait)
             write_status({
                 "card_path": card_path,
                 "set_name": card_info.get("set_name", ""),
@@ -450,6 +444,13 @@ def main():
                 "tcg": active_tcg,
                 "total_cards": deck.total,
             })
+
+            try:
+                epd.init()
+                epd.display(epd.getbuffer(final_img))
+                epd.sleep()
+            except Exception as e:
+                logger.error(f"Display error: {e}")
 
             # Day mode: rotate every 10 min | Night mode: every hour
             hr = time.localtime().tm_hour
