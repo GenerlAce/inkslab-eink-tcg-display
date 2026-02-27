@@ -120,6 +120,21 @@ def api_set_config():
         if key in updates:
             config[key] = updates[key]
     save_config(config)
+    # Write interim status so the web UI reflects the change instantly,
+    # even if the display daemon is blocked on a 15-30s e-paper refresh.
+    if 'active_tcg' in updates:
+        try:
+            status = {}
+            if os.path.exists(STATUS_FILE):
+                with open(STATUS_FILE, 'r') as f:
+                    status = json.load(f)
+            status['tcg'] = updates['active_tcg']
+            status['pending'] = 'Switching to ' + updates['active_tcg'].upper() + '...'
+            status['timestamp'] = int(time.time())
+            with open(STATUS_FILE, 'w') as f:
+                json.dump(status, f)
+        except Exception:
+            pass
     # Wake the display daemon immediately so it picks up the change within ~1 second
     try:
         with open(NEXT_TRIGGER, 'w') as f:
@@ -134,6 +149,18 @@ def api_next():
     try:
         with open(NEXT_TRIGGER, 'w') as f:
             f.write('1')
+        # Write interim status so web UI shows "loading" immediately
+        try:
+            status = {}
+            if os.path.exists(STATUS_FILE):
+                with open(STATUS_FILE, 'r') as f:
+                    status = json.load(f)
+            status['pending'] = 'Loading next card...'
+            status['timestamp'] = int(time.time())
+            with open(STATUS_FILE, 'w') as f:
+                json.dump(status, f)
+        except Exception:
+            pass
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -714,49 +741,63 @@ function showToast(msg, duration) {
 // --- Display ---
 var _lastStatus = {};
 var _rapidPoll = null;
+var _pendingAction = false;
 
 function refreshStatus() {
   fetch(API + '/api/status').then(r => r.json()).then(d => {
-    document.getElementById('st-card').textContent = d.card_num || '\\u2014';
-    document.getElementById('st-set').textContent = d.set_info || '\\u2014';
-    document.getElementById('st-rarity').textContent = d.rarity || '\\u2014';
     document.getElementById('st-tcg').textContent = (d.tcg || '\\u2014').toUpperCase();
-    document.getElementById('st-total').textContent = d.total_cards || '\\u2014';
-    // Show error status if present
+    // Show pending state or real card data
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
-    if (d.error) {
+    if (d.pending) {
+      errEl.textContent = d.pending;
+      errRow.style.display = 'flex';
+      errEl.style.color = '#36A5CA';
+      errRow.querySelector('.stat-label').style.color = '#36A5CA';
+      errRow.querySelector('.stat-label').textContent = 'Status';
+    } else if (d.error) {
       errEl.textContent = d.error;
       errRow.style.display = 'flex';
+      errEl.style.color = '#ff6b6b';
+      errRow.querySelector('.stat-label').style.color = '#ff6b6b';
+      errRow.querySelector('.stat-label').textContent = 'Status';
     } else {
       errRow.style.display = 'none';
     }
-    // Refresh preview image with cache buster (only if card changed)
-    var img = document.getElementById('st-preview');
-    if (d.card_path) {
-      if (d.card_path !== _lastStatus.card_path || d.timestamp !== _lastStatus.timestamp) {
-        img.src = '/api/card_image?t=' + Date.now();
+    if (!d.pending) {
+      document.getElementById('st-card').textContent = d.card_num || '\\u2014';
+      document.getElementById('st-set').textContent = d.set_info || '\\u2014';
+      document.getElementById('st-rarity').textContent = d.rarity || '\\u2014';
+      document.getElementById('st-total').textContent = d.total_cards || '\\u2014';
+      // Refresh preview image (only if card changed)
+      var img = document.getElementById('st-preview');
+      if (d.card_path) {
+        if (d.card_path !== _lastStatus.card_path) {
+          img.src = '/api/card_image?t=' + Date.now();
+        }
+      } else {
+        img.style.display = 'none';
       }
-    } else {
-      img.style.display = 'none';
     }
-    // Stop rapid polling once status actually changed
-    if (_rapidPoll && d.timestamp !== _lastStatus.timestamp) {
+    // Stop rapid polling once daemon has processed (pending cleared and new card)
+    if (_rapidPoll && !d.pending && d.card_path !== _lastStatus.card_path) {
       clearInterval(_rapidPoll);
       _rapidPoll = null;
+      _pendingAction = false;
     }
     _lastStatus = d;
   }).catch(() => {});
 }
 
-// After user actions, poll every 2s for ~30s to catch the daemon's response quickly
+// After user actions, poll fast to catch changes quickly
 function startRapidPoll() {
+  _pendingAction = true;
   if (_rapidPoll) clearInterval(_rapidPoll);
   _rapidPoll = setInterval(refreshStatus, 2000);
-  // Stop rapid polling after 30s regardless (e-paper takes up to ~30s)
+  // Stop rapid polling after 60s max (display can take a while if daemon was mid-refresh)
   setTimeout(function() {
-    if (_rapidPoll) { clearInterval(_rapidPoll); _rapidPoll = null; }
-  }, 30000);
+    if (_rapidPoll) { clearInterval(_rapidPoll); _rapidPoll = null; _pendingAction = false; }
+  }, 60000);
 }
 
 function nextCard(btn) {
@@ -768,6 +809,17 @@ function nextCard(btn) {
       btn.textContent = orig;
       btn.disabled = false;
       showToast('Updating display...');
+      // Optimistic: show pending state in UI immediately
+      document.getElementById('st-card').textContent = '\\u2014';
+      document.getElementById('st-set').textContent = '\\u2014';
+      document.getElementById('st-rarity').textContent = '\\u2014';
+      var errRow = document.getElementById('st-error-row');
+      errRow.style.display = 'flex';
+      errRow.querySelector('.stat-label').textContent = 'Status';
+      errRow.querySelector('.stat-label').style.color = '#36A5CA';
+      var errEl = document.getElementById('st-error');
+      errEl.textContent = 'Loading next card...';
+      errEl.style.color = '#36A5CA';
       startRapidPoll();
     })
     .catch(function() {
@@ -788,6 +840,18 @@ function switchTCG(tcg, activeBtn) {
       activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
       showToast('Switching to ' + tcg.toUpperCase() + '...');
+      // Optimistic: update TCG label and show pending state immediately
+      document.getElementById('st-tcg').textContent = tcg.toUpperCase();
+      document.getElementById('st-card').textContent = '\\u2014';
+      document.getElementById('st-set').textContent = '\\u2014';
+      document.getElementById('st-rarity').textContent = '\\u2014';
+      var errRow = document.getElementById('st-error-row');
+      errRow.style.display = 'flex';
+      errRow.querySelector('.stat-label').textContent = 'Status';
+      errRow.querySelector('.stat-label').style.color = '#36A5CA';
+      var errEl = document.getElementById('st-error');
+      errEl.textContent = 'Switching to ' + tcg.toUpperCase() + '...';
+      errEl.style.color = '#36A5CA';
       startRapidPoll();
     })
     .catch(function() {
