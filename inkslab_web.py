@@ -25,6 +25,7 @@ CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
+COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
 DOWNLOAD_LOG = "/tmp/inkslab_download.log"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -120,6 +121,12 @@ def load_collection():
 def save_collection(data):
     with open(COLLECTION_FILE, 'w') as f:
         json.dump(data, f)
+    # Signal daemon that collection changed so it can rebuild its deck
+    try:
+        with open(COLLECTION_TRIGGER, 'w') as f:
+            f.write('1')
+    except OSError:
+        pass
 
 
 def rarity_sort_key(rarity):
@@ -691,6 +698,81 @@ def api_search():
     return jsonify({"results": results[:200], "total": total, "sets_searched": sets_searched})
 
 
+@app.route('/api/collection/favorites')
+def api_favorites_get():
+    """Return the favorites list for the active TCG."""
+    config = load_config()
+    tcg = config["active_tcg"]
+    collection = load_collection()
+    favs = collection.get("_favorites", {}).get(tcg, [])
+    return jsonify(favs)
+
+
+@app.route('/api/collection/favorites', methods=['POST'])
+def api_favorites_set():
+    """Add or remove a favorite name. Also batch-adds/removes all matching card IDs."""
+    body = request.get_json(force=True)
+    name = body.get("name", "").strip()
+    owned = body.get("owned", True)
+    if not name:
+        return jsonify({"error": "name required"}), 400
+
+    config = load_config()
+    tcg = body.get("tcg", config["active_tcg"])
+    collection = load_collection()
+
+    # Manage favorites list
+    if "_favorites" not in collection:
+        collection["_favorites"] = {}
+    if tcg not in collection["_favorites"]:
+        collection["_favorites"][tcg] = []
+
+    favs = collection["_favorites"][tcg]
+    key = name.lower()
+
+    if owned:
+        # Add to favorites if not already there
+        if not any(f.lower() == key for f in favs):
+            favs.append(name)
+    else:
+        # Remove from favorites
+        collection["_favorites"][tcg] = [f for f in favs if f.lower() != key]
+
+    # Also add/remove all matching card IDs
+    library = TCG_LIBRARIES.get(tcg)
+    matching_ids = []
+    if library and os.path.isdir(library):
+        for d in os.listdir(library):
+            data_file = os.path.join(library, d, "_data.json")
+            if not os.path.exists(data_file):
+                continue
+            try:
+                with open(data_file, 'r') as f:
+                    data = json.load(f)
+                for card_id, card in data.items():
+                    if card.get("name", "").lower() == key:
+                        matching_ids.append(card_id)
+            except Exception:
+                pass
+
+    if tcg not in collection:
+        collection[tcg] = []
+
+    if owned:
+        existing = set(collection[tcg])
+        for cid in matching_ids:
+            if cid not in existing:
+                collection[tcg].append(cid)
+                existing.add(cid)
+    else:
+        remove = set(matching_ids)
+        collection[tcg] = [c for c in collection[tcg] if c not in remove]
+
+    save_collection(collection)
+    _cache_invalidate('rarities_' + tcg)
+    return jsonify({"name": name, "owned": owned, "count": len(matching_ids)})
+
+
 @app.route('/api/download/start', methods=['POST'])
 def api_download_start():
     global _download_proc, _download_tcg, _download_log_fh
@@ -1183,7 +1265,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'collection') { loadSets(); loadRarities(); }
+  if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
   if (name === 'settings') loadSettings();
   if (name === 'downloads') { loadStorage(); pollDownload(); }
   if (name === 'display') refreshStatus();
@@ -1632,39 +1714,34 @@ function closePreview() {
 
 // --- Search ---
 var _searchTimer = null;
-var _searchAdded = {}; // {name_lower: {name, count}} — tracks names added via search
 
 function debounceSearch() {
   if (_searchTimer) clearTimeout(_searchTimer);
   _searchTimer = setTimeout(doSearch, 350);
 }
 
-function renderSearchFilters() {
-  var el = document.getElementById('search-filters');
-  var names = Object.values(_searchAdded);
-  if (!names.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = 'flex';
-  el.innerHTML = names.map(function(f) {
-    var safeN = f.name.replace(/'/g, "\\\\'");
-    return '<span class="search-filter-chip">' + f.name + ' <span class="sfc-count">(' + f.count + ')</span><span class="sfc-x" onclick="removeSearchFilter(\\'' + safeN + '\\')">&times;</span></span>';
-  }).join('');
+function loadFavorites() {
+  fetch(API + '/api/collection/favorites').then(function(r) { return r.json(); }).then(function(favs) {
+    var el = document.getElementById('search-filters');
+    if (!favs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = 'flex';
+    el.innerHTML = favs.map(function(name) {
+      var safeN = name.replace(/'/g, "\\\\'");
+      return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\\'' + safeN + '\\')">&times;</span></span>';
+    }).join('');
+  });
 }
 
-function removeSearchFilter(name) {
-  var key = name.toLowerCase();
-  if (!_searchAdded[key]) return;
+function removeFavorite(name) {
   var chip = event.target.parentElement;
   chip.style.opacity = '0.5';
-  fetch(API + '/api/search?q=' + encodeURIComponent(name)).then(function(r) { return r.json(); }).then(function(data) {
-    var ids = data.results.filter(function(c) { return c.name.toLowerCase() === key; }).map(function(c) { return c.id; });
-    return fetch(API + '/api/collection/toggle_batch', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_ids: ids, owned: false})});
-  }).then(function(r) { return r.json(); }).then(function(d) {
-    delete _searchAdded[key];
-    renderSearchFilters();
-    showToast('Removed ' + (d.count || 0) + ' ' + name + ' cards');
-    doSearch();
-    loadRarities();
-  }).catch(function() { chip.style.opacity = '1'; });
+  fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: false})})
+    .then(function(r) { return r.json(); }).then(function(d) {
+      showToast('Removed ' + (d.count || 0) + ' ' + name + ' cards');
+      loadFavorites();
+      doSearch();
+      loadRarities();
+    }).catch(function() { chip.style.opacity = '1'; });
 }
 
 function doSearch() {
@@ -1712,23 +1789,13 @@ function doSearch() {
 function toggleSearchGroup(btn, name, owned) {
   btn.disabled = true;
   btn.textContent = owned ? 'Adding...' : 'Removing...';
-  var q = document.getElementById('search-input').value.trim();
-  fetch(API + '/api/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(data) {
-    var matching = data.results.filter(function(c) { return c.name.toLowerCase() === name.toLowerCase(); });
-    var ids = matching.map(function(c) { return c.id; });
-    return fetch(API + '/api/collection/toggle_batch', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_ids: ids, owned: owned})}).then(function(r) { return r.json(); }).then(function(d) { return {d: d, count: matching.length}; });
-  }).then(function(res) {
-    var key = name.toLowerCase();
-    if (owned) {
-      _searchAdded[key] = {name: name, count: res.count};
-    } else {
-      delete _searchAdded[key];
-    }
-    renderSearchFilters();
-    showToast((owned ? 'Added ' : 'Removed ') + (res.d.count || 0) + ' ' + name + ' cards');
-    doSearch();
-    loadRarities();
-  }).catch(function() { btn.disabled = false; btn.textContent = owned ? 'Add All' : 'Remove All'; });
+  fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: owned})})
+    .then(function(r) { return r.json(); }).then(function(d) {
+      showToast((owned ? 'Added ' : 'Removed ') + (d.count || 0) + ' ' + name + ' cards');
+      loadFavorites();
+      doSearch();
+      loadRarities();
+    }).catch(function() { btn.disabled = false; btn.textContent = owned ? 'Add All' : 'Remove All'; });
 }
 
 // --- Downloads ---

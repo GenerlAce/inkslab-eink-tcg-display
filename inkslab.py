@@ -45,6 +45,7 @@ STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
 PREV_TRIGGER = "/tmp/inkslab_prev"
 PAUSE_FILE = "/tmp/inkslab_pause"
+COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
 
 # Image processing (not configurable via web — these are display-specific)
 DISPLAY_WIDTH = 400
@@ -286,15 +287,8 @@ class ShuffleDeck:
                                 continue
                         temp.append(os.path.join(root, f))
 
-        # Auto-fallback: if collection mode found 0 matching cards, show all
         if self.collection is not None and len(temp) == 0:
-            logger.warning("Collection mode active but no matching cards on disk — showing all cards")
-            self.collection = None
-            if os.path.isdir(self.root_dir):
-                for root, dirs, files in os.walk(self.root_dir):
-                    for f in files:
-                        if f.endswith(".png") and not f.startswith("_"):
-                            temp.append(os.path.join(root, f))
+            logger.info("Collection mode: no matching cards on disk yet")
 
         random.shuffle(temp)
         self.deck = temp
@@ -351,6 +345,15 @@ def wait_with_polling(seconds, config_check_interval=5):
             logger.info("Previous card trigger detected")
             return load_config(), "prev"
 
+        # Check for collection change trigger
+        if os.path.exists(COLLECTION_TRIGGER):
+            try:
+                os.remove(COLLECTION_TRIGGER)
+            except OSError:
+                pass
+            logger.info("Collection changed trigger detected")
+            return load_config(), "collection_changed"
+
         # Check for skip/next trigger
         if os.path.exists(NEXT_TRIGGER):
             try:
@@ -388,12 +391,9 @@ def main():
     # Load collection if collection mode is on
     collection = None
     if config["collection_only"]:
-        collection = load_collection(active_tcg)
-        if collection:
-            logger.info(f"Collection mode: {len(collection)} owned cards")
-        else:
-            logger.info("Collection mode on but no cards marked — showing all")
-            collection = None
+        loaded = load_collection(active_tcg)
+        collection = loaded if loaded else []
+        logger.info(f"Collection mode: {len(collection)} owned cards")
 
     deck = ShuffleDeck(library_dir, collection)
     _deck_collection_only = config["collection_only"]
@@ -402,29 +402,34 @@ def main():
     while deck.total == 0:
         logger.warning(f"No cards found for {active_tcg} in {library_dir}. "
                        f"Waiting for cards to be downloaded or TCG to be changed...")
+        err_msg = (f"Collection mode is on but no cards selected. Add cards from the Collection tab."
+                   if config["collection_only"] else
+                   f"No {active_tcg.upper()} cards found. Download cards from the web dashboard.")
         write_status({
             "card_path": "",
             "set_name": "",
-            "set_info": f"No {active_tcg.upper()} cards downloaded",
+            "set_info": f"No {active_tcg.upper()} cards available",
             "card_num": "",
             "rarity": "",
             "timestamp": int(time.time()),
             "tcg": active_tcg,
             "total_cards": 0,
-            "error": f"No {active_tcg.upper()} cards found. Download cards from the web dashboard.",
+            "error": err_msg,
         })
         config, action = wait_with_polling(60)
         new_tcg = config["active_tcg"]
-        if new_tcg != active_tcg or config["collection_only"] != _deck_collection_only:
+        if (new_tcg != active_tcg
+                or config["collection_only"] != _deck_collection_only
+                or action == "collection_changed"):
             active_tcg = new_tcg
             _deck_collection_only = config["collection_only"]
             library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
             master_index = load_master_index(library_dir)
-            collection = None
             if config["collection_only"]:
-                collection = load_collection(active_tcg)
-                if not collection:
-                    collection = None
+                loaded = load_collection(active_tcg)
+                collection = loaded if loaded else []
+            else:
+                collection = None
             deck = ShuffleDeck(library_dir, collection)
         else:
             # Same TCG — reshuffle in case cards were just downloaded
@@ -450,17 +455,17 @@ def main():
     signal.signal(signal.SIGINT, _handle_shutdown)
 
     def rebuild_deck():
-        """Helper to rebuild the deck when TCG or collection changes."""
+        """Helper to rebuild the deck when TCG, collection mode, or collection content changes."""
         nonlocal active_tcg, library_dir, master_index, collection, deck, _deck_collection_only
         active_tcg = config["active_tcg"]
         _deck_collection_only = config["collection_only"]
         library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
         master_index = load_master_index(library_dir)
-        collection = None
         if config["collection_only"]:
-            collection = load_collection(active_tcg)
-            if not collection:
-                collection = None
+            loaded = load_collection(active_tcg)
+            collection = loaded if loaded else []  # empty list = 0 cards, not fallback to all
+        else:
+            collection = None  # None = show all cards
         deck = ShuffleDeck(library_dir, collection)
 
     consecutive_failures = 0
@@ -470,14 +475,19 @@ def main():
             card_path = deck.draw()
             if not card_path:
                 logger.warning(f"No cards available for {active_tcg}. Checking for changes...")
+                err_msg = (f"Collection mode is on but no cards selected. Add cards from the Collection tab."
+                           if config["collection_only"] else
+                           f"No {active_tcg.upper()} cards found. Download cards or switch TCG.")
                 write_status({
                     "card_path": "", "set_name": "", "card_num": "", "rarity": "",
                     "set_info": f"No {active_tcg.upper()} cards available",
                     "timestamp": int(time.time()), "tcg": active_tcg, "total_cards": 0,
-                    "error": f"No {active_tcg.upper()} cards found. Download cards or switch TCG.",
+                    "error": err_msg,
                 })
                 config, action = wait_with_polling(60)
-                if config["active_tcg"] != active_tcg or config["collection_only"] != _deck_collection_only:
+                if (config["active_tcg"] != active_tcg
+                        or config["collection_only"] != _deck_collection_only
+                        or action == "collection_changed"):
                     rebuild_deck()
                 else:
                     deck.reshuffle()
@@ -500,7 +510,9 @@ def main():
                     })
                     config, action = wait_with_polling(60)
                     consecutive_failures = 0
-                    if config["active_tcg"] != active_tcg or config["collection_only"] != _deck_collection_only:
+                    if (config["active_tcg"] != active_tcg
+                            or config["collection_only"] != _deck_collection_only
+                            or action == "collection_changed"):
                         rebuild_deck()
                 else:
                     time.sleep(2)
@@ -571,9 +583,12 @@ def main():
                     deck.deck.insert(0, previous)
                 continue
 
-            # If TCG or collection mode changed, rebuild the deck
+            # If TCG, collection mode, or collection contents changed, rebuild the deck
             new_tcg = config["active_tcg"]
-            if new_tcg != active_tcg or config["collection_only"] != _deck_collection_only:
+            needs_rebuild = (new_tcg != active_tcg
+                             or config["collection_only"] != _deck_collection_only
+                             or action == "collection_changed")
+            if needs_rebuild:
                 rebuild_deck()
                 if deck.total == 0:
                     logger.warning(f"No cards found for {active_tcg}. Will retry.")
