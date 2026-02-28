@@ -396,6 +396,7 @@ def main():
             collection = None
 
     deck = ShuffleDeck(library_dir, collection)
+    _deck_collection_only = config["collection_only"]
 
     # If no cards available, wait and poll for config changes or new downloads
     while deck.total == 0:
@@ -414,8 +415,9 @@ def main():
         })
         config, action = wait_with_polling(60)
         new_tcg = config["active_tcg"]
-        if new_tcg != active_tcg:
+        if new_tcg != active_tcg or config["collection_only"] != _deck_collection_only:
             active_tcg = new_tcg
+            _deck_collection_only = config["collection_only"]
             library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
             master_index = load_master_index(library_dir)
             collection = None
@@ -449,8 +451,9 @@ def main():
 
     def rebuild_deck():
         """Helper to rebuild the deck when TCG or collection changes."""
-        nonlocal active_tcg, library_dir, master_index, collection, deck
+        nonlocal active_tcg, library_dir, master_index, collection, deck, _deck_collection_only
         active_tcg = config["active_tcg"]
+        _deck_collection_only = config["collection_only"]
         library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
         master_index = load_master_index(library_dir)
         collection = None
@@ -474,7 +477,7 @@ def main():
                     "error": f"No {active_tcg.upper()} cards found. Download cards or switch TCG.",
                 })
                 config, action = wait_with_polling(60)
-                if config["active_tcg"] != active_tcg:
+                if config["active_tcg"] != active_tcg or config["collection_only"] != _deck_collection_only:
                     rebuild_deck()
                 else:
                     deck.reshuffle()
@@ -497,7 +500,7 @@ def main():
                     })
                     config, action = wait_with_polling(60)
                     consecutive_failures = 0
-                    if config["active_tcg"] != active_tcg:
+                    if config["active_tcg"] != active_tcg or config["collection_only"] != _deck_collection_only:
                         rebuild_deck()
                 else:
                     time.sleep(2)
@@ -568,12 +571,12 @@ def main():
                     deck.deck.insert(0, previous)
                 continue
 
-            # If TCG changed, rebuild the deck
+            # If TCG or collection mode changed, rebuild the deck
             new_tcg = config["active_tcg"]
-            if new_tcg != active_tcg:
+            if new_tcg != active_tcg or config["collection_only"] != _deck_collection_only:
                 rebuild_deck()
                 if deck.total == 0:
-                    logger.warning(f"Switched to {active_tcg} but no cards found.")
+                    logger.warning(f"No cards found for {active_tcg}. Will retry.")
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")

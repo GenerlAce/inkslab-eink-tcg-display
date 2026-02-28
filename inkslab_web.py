@@ -516,6 +516,69 @@ def api_rarities():
     return jsonify(result)
 
 
+@app.route('/api/collection/toggle_all', methods=['POST'])
+def api_collection_toggle_all():
+    """Select or deselect ALL cards for the active TCG in one request."""
+    body = request.get_json(force=True)
+    owned = body.get("owned", True)
+    config = load_config()
+    tcg = body.get("tcg", config["active_tcg"])
+    library = TCG_LIBRARIES.get(tcg)
+    if not library or not os.path.isdir(library):
+        return jsonify({"error": "invalid tcg"}), 400
+
+    collection = load_collection()
+    if tcg not in collection:
+        collection[tcg] = []
+
+    if not owned:
+        count = len(collection[tcg])
+        collection[tcg] = []
+    else:
+        all_ids = set()
+        for d in os.listdir(library):
+            set_path = os.path.join(library, d)
+            if not os.path.isdir(set_path):
+                continue
+            for f in os.listdir(set_path):
+                if f.endswith('.png') and not f.startswith('_'):
+                    all_ids.add(os.path.splitext(f)[0])
+        collection[tcg] = list(all_ids)
+        count = len(all_ids)
+
+    save_collection(collection)
+    _cache_invalidate('rarities_' + tcg)
+    return jsonify({"owned": owned, "count": count})
+
+
+@app.route('/api/collection/toggle_batch', methods=['POST'])
+def api_collection_toggle_batch():
+    """Add or remove a specific list of card_ids in one request."""
+    body = request.get_json(force=True)
+    card_ids = body.get("card_ids", [])
+    owned = body.get("owned", True)
+    config = load_config()
+    tcg = body.get("tcg", config["active_tcg"])
+
+    collection = load_collection()
+    if tcg not in collection:
+        collection[tcg] = []
+
+    if owned:
+        existing = set(collection[tcg])
+        for cid in card_ids:
+            if cid not in existing:
+                collection[tcg].append(cid)
+                existing.add(cid)
+    else:
+        remove = set(card_ids)
+        collection[tcg] = [c for c in collection[tcg] if c not in remove]
+
+    save_collection(collection)
+    _cache_invalidate('rarities_' + tcg)
+    return jsonify({"owned": owned, "count": len(card_ids)})
+
+
 @app.route('/api/collection/toggle_rarity', methods=['POST'])
 def api_collection_toggle_rarity():
     """Select or deselect all cards of a given rarity. Optionally scoped to a single set."""
@@ -1510,19 +1573,15 @@ function toggleRarityChip(chipEl, rarity, owned) {
 
 function selectAllRarities(owned) {
   var resultEl = document.getElementById('rarity-result');
-  resultEl.textContent = (owned ? 'Selecting' : 'Deselecting') + ' all rarities...';
-  var chain = Promise.resolve();
-  _rarityData.forEach(function(r) {
-    chain = chain.then(function() {
-      return fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rarity: r.name, owned: owned})}).then(function(resp) { return resp.json(); });
-    });
-  });
-  chain.then(function() {
-    resultEl.textContent = owned ? 'All rarities selected' : 'All rarities deselected';
-    showToast(owned ? 'All rarities selected' : 'All rarities deselected');
-    loadRarities();
-    loadSets();
-  }).catch(function() { resultEl.textContent = 'Error'; });
+  resultEl.textContent = (owned ? 'Selecting' : 'Deselecting') + ' all...';
+  fetch(API + '/api/collection/toggle_all', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({owned: owned})})
+    .then(function(r) { return r.json(); }).then(function(d) {
+      resultEl.textContent = (owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' cards';
+      showToast((owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' cards');
+      loadRarities();
+      document.querySelectorAll('.set-cards').forEach(function(sc) { sc.removeAttribute('data-loaded'); });
+      loadSets();
+    }).catch(function() { resultEl.textContent = 'Error'; });
 }
 
 function toggleSetRarityChip(chipEl, setId, rarity, owned) {
@@ -1609,19 +1668,12 @@ function toggleSearchGroup(btn, name, owned) {
   btn.textContent = owned ? 'Adding...' : 'Removing...';
   var q = document.getElementById('search-input').value.trim();
   fetch(API + '/api/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(results) {
-    var matching = results.filter(function(c) { return c.name.toLowerCase() === name.toLowerCase(); });
-    var chain = Promise.resolve();
-    matching.forEach(function(c) {
-      if ((owned && !c.owned) || (!owned && c.owned)) {
-        chain = chain.then(function() {
-          return fetch(API + '/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: c.id})});
-        });
-      }
-    });
-    return chain;
-  }).then(function() {
-    showToast((owned ? 'Added' : 'Removed') + ' all ' + name);
+    var ids = results.filter(function(c) { return c.name.toLowerCase() === name.toLowerCase(); }).map(function(c) { return c.id; });
+    return fetch(API + '/api/collection/toggle_batch', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_ids: ids, owned: owned})});
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    showToast((owned ? 'Added ' : 'Removed ') + (d.count || 0) + ' ' + name + ' cards');
     doSearch();
+    loadRarities();
   }).catch(function() { btn.disabled = false; btn.textContent = owned ? 'Add All' : 'Remove All'; });
 }
 
