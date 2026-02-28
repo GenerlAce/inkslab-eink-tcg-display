@@ -43,6 +43,8 @@ CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
+PREV_TRIGGER = "/tmp/inkslab_prev"
+PAUSE_FILE = "/tmp/inkslab_pause"
 
 # Image processing (not configurable via web — these are display-specific)
 DISPLAY_WIDTH = 400
@@ -267,6 +269,7 @@ class ShuffleDeck:
         self.collection = collection
         self.deck = []
         self.total = 0
+        self.history = []  # Recently shown cards (newest first)
         self.reshuffle()
 
     def reshuffle(self):
@@ -303,37 +306,75 @@ class ShuffleDeck:
             self.reshuffle()
         if not self.deck:
             return None
-        return self.deck.pop(0)
+        card = self.deck.pop(0)
+        self.history.insert(0, card)
+        if len(self.history) > 4:
+            self.history = self.history[:4]
+        return card
+
+    def peek(self, n=3):
+        """Return the next n cards without removing them."""
+        return self.deck[:n]
+
+
+def card_summary(card_path, master_index):
+    """Extract minimal card info for the status file (used for prev/next queue)."""
+    set_id = os.path.basename(os.path.dirname(card_path))
+    card_id = os.path.splitext(os.path.basename(card_path))[0]
+    info = get_card_metadata(card_path, master_index)
+    return {
+        "set_id": set_id,
+        "card_id": card_id,
+        "set_info": info.get("set_info", ""),
+        "card_num": info.get("card_num", ""),
+        "rarity": info.get("rarity", ""),
+    }
 
 
 def wait_with_polling(seconds, config_check_interval=5):
-    """Sleep for `seconds`, but check for next-card trigger every 1s and config every 5s."""
+    """Sleep for `seconds`, checking triggers every 1s and config every 5s.
+
+    While PAUSE_FILE exists, the countdown freezes (stays in loop indefinitely).
+    Returns (config, action) where action is 'next', 'prev', 'tcg_changed', or None.
+    """
     config = load_config()
     last_config_check = time.time()
+    elapsed = 0
 
-    for _ in range(seconds):
-        # Check for skip trigger
+    while elapsed < seconds or os.path.exists(PAUSE_FILE):
+        # Check for prev trigger
+        if os.path.exists(PREV_TRIGGER):
+            try:
+                os.remove(PREV_TRIGGER)
+            except OSError:
+                pass
+            logger.info("Previous card trigger detected")
+            return load_config(), "prev"
+
+        # Check for skip/next trigger
         if os.path.exists(NEXT_TRIGGER):
             try:
                 os.remove(NEXT_TRIGGER)
             except OSError:
                 pass
             logger.info("Skip trigger detected — advancing to next card")
-            return load_config(), True  # config, tcg_changed
+            return load_config(), "next"
 
         # Periodically re-read config
         if time.time() - last_config_check >= config_check_interval:
             new_config = load_config()
-            tcg_changed = new_config["active_tcg"] != config["active_tcg"]
-            if tcg_changed:
+            if new_config["active_tcg"] != config["active_tcg"]:
                 logger.info(f"TCG changed to {new_config['active_tcg']}")
-                return new_config, True
+                return new_config, "tcg_changed"
             config = new_config
             last_config_check = time.time()
 
         time.sleep(1)
+        # Only count elapsed time when not paused
+        if not os.path.exists(PAUSE_FILE):
+            elapsed += 1
 
-    return config, False
+    return config, None
 
 
 def main():
@@ -371,7 +412,7 @@ def main():
             "total_cards": 0,
             "error": f"No {active_tcg.upper()} cards found. Download cards from the web dashboard.",
         })
-        config, _ = wait_with_polling(60)
+        config, action = wait_with_polling(60)
         new_tcg = config["active_tcg"]
         if new_tcg != active_tcg:
             active_tcg = new_tcg
@@ -406,96 +447,133 @@ def main():
     signal.signal(signal.SIGTERM, _handle_shutdown)
     signal.signal(signal.SIGINT, _handle_shutdown)
 
+    def rebuild_deck():
+        """Helper to rebuild the deck when TCG or collection changes."""
+        nonlocal active_tcg, library_dir, master_index, collection, deck
+        active_tcg = config["active_tcg"]
+        library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
+        master_index = load_master_index(library_dir)
+        collection = None
+        if config["collection_only"]:
+            collection = load_collection(active_tcg)
+            if not collection:
+                collection = None
+        deck = ShuffleDeck(library_dir, collection)
+
+    consecutive_failures = 0
+
     try:
         while not _shutdown:
             card_path = deck.draw()
             if not card_path:
                 logger.warning(f"No cards available for {active_tcg}. Checking for changes...")
                 write_status({
-                    "card_path": "",
-                    "set_name": "",
+                    "card_path": "", "set_name": "", "card_num": "", "rarity": "",
                     "set_info": f"No {active_tcg.upper()} cards available",
-                    "card_num": "",
-                    "rarity": "",
-                    "timestamp": int(time.time()),
-                    "tcg": active_tcg,
-                    "total_cards": 0,
+                    "timestamp": int(time.time()), "tcg": active_tcg, "total_cards": 0,
                     "error": f"No {active_tcg.upper()} cards found. Download cards or switch TCG.",
                 })
-                config, _ = wait_with_polling(60)
-                new_tcg = config["active_tcg"]
-                if new_tcg != active_tcg:
-                    active_tcg = new_tcg
-                    library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
-                    master_index = load_master_index(library_dir)
-                    collection = None
-                    if config["collection_only"]:
-                        collection = load_collection(active_tcg)
-                        if not collection:
-                            collection = None
-                    deck = ShuffleDeck(library_dir, collection)
+                config, action = wait_with_polling(60)
+                if config["active_tcg"] != active_tcg:
+                    rebuild_deck()
                 else:
-                    # Same TCG — reshuffle in case cards were just downloaded
                     deck.reshuffle()
                 continue
 
             logger.info(f"Displaying: {os.path.basename(card_path)}")
             final_img, card_info = process_image(card_path, master_index, config)
 
-            if final_img:
-                # Write status BEFORE display refresh so web dashboard updates instantly
-                # (e-paper refresh takes 15-30 seconds; don't make the web wait)
-                write_status({
-                    "card_path": card_path,
-                    "set_name": card_info.get("set_name", ""),
-                    "set_info": card_info.get("set_info", ""),
-                    "card_num": card_info.get("card_num", ""),
-                    "rarity": card_info.get("rarity", ""),
-                    "timestamp": int(time.time()),
-                    "tcg": active_tcg,
-                    "total_cards": deck.total,
-                })
+            if not final_img:
+                consecutive_failures += 1
+                logger.warning(f"Skipping bad image ({consecutive_failures}): {card_path}")
+                if consecutive_failures >= 10:
+                    logger.warning("Too many consecutive bad images. Waiting 60s...")
+                    write_status({
+                        "card_path": "", "set_name": "", "card_num": "", "rarity": "",
+                        "set_info": f"Too many bad images in {active_tcg.upper()}",
+                        "timestamp": int(time.time()), "tcg": active_tcg,
+                        "total_cards": deck.total,
+                        "error": f"Many corrupt images found. Try re-downloading {active_tcg.upper()} cards.",
+                    })
+                    config, action = wait_with_polling(60)
+                    consecutive_failures = 0
+                    if config["active_tcg"] != active_tcg:
+                        rebuild_deck()
+                else:
+                    time.sleep(2)
+                continue
 
+            consecutive_failures = 0
+
+            # Build prev/next card queue for the web dashboard
+            prev_cards = []
+            for p in deck.history[1:2]:
                 try:
-                    epd.init()
-                    epd.display(epd.getbuffer(final_img))
-                except Exception as e:
-                    logger.error(f"Display error: {e}")
-                finally:
-                    # Always put display to sleep to protect the hardware
-                    try:
-                        epd.sleep()
-                    except Exception:
-                        pass
+                    prev_cards.append(card_summary(p, master_index))
+                except Exception:
+                    pass
+            next_cards = []
+            for n in deck.peek(3):
+                try:
+                    next_cards.append(card_summary(n, master_index))
+                except Exception:
+                    pass
 
-                # Day mode: rotate every 10 min | Night mode: every hour
-                hr = time.localtime().tm_hour
-                wait = config["day_interval"] if config["day_start"] <= hr < config["day_end"] else config["night_interval"]
-                logger.info(f"Next card in {wait // 60} minutes")
+            # Calculate wait time and next change
+            hr = time.localtime().tm_hour
+            wait = config["day_interval"] if config["day_start"] <= hr < config["day_end"] else config["night_interval"]
+            paused = os.path.exists(PAUSE_FILE)
+            next_change = 0 if paused else int(time.time()) + wait
 
-                # Poll during wait — picks up config changes and skip triggers
-                config, needs_reshuffle = wait_with_polling(wait)
+            # Write status BEFORE display refresh so web dashboard updates instantly
+            write_status({
+                "card_path": card_path,
+                "set_name": card_info.get("set_name", ""),
+                "set_info": card_info.get("set_info", ""),
+                "card_num": card_info.get("card_num", ""),
+                "rarity": card_info.get("rarity", ""),
+                "timestamp": int(time.time()),
+                "tcg": active_tcg,
+                "total_cards": deck.total,
+                "prev_cards": prev_cards,
+                "next_cards": next_cards,
+                "next_change": next_change,
+                "paused": paused,
+                "interval": wait,
+            })
 
-                # If TCG changed or collection settings changed, rebuild the deck
-                new_tcg = config["active_tcg"]
-                if new_tcg != active_tcg or needs_reshuffle:
-                    active_tcg = new_tcg
-                    library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
-                    master_index = load_master_index(library_dir)
-                    collection = None
-                    if config["collection_only"]:
-                        collection = load_collection(active_tcg)
-                        if not collection:
-                            collection = None
-                    deck = ShuffleDeck(library_dir, collection)
-                    if deck.total == 0:
-                        logger.warning(f"Switched to {active_tcg} but no cards found. "
-                                       f"Will wait for download or TCG change.")
+            try:
+                epd.init()
+                epd.display(epd.getbuffer(final_img))
+            except Exception as e:
+                logger.error(f"Display error: {e}")
+            finally:
+                try:
+                    epd.sleep()
+                except Exception:
+                    pass
 
-                del final_img
-            else:
-                logger.warning(f"Skipping bad image: {card_path}")
-                time.sleep(5)
+            logger.info(f"Next card in {wait // 60} minutes")
+            del final_img
+
+            # Poll during wait — picks up config changes, skip/prev triggers, and pause
+            config, action = wait_with_polling(wait)
+
+            if action == "prev":
+                # Go back: put current card back in deck, put previous at front
+                if len(deck.history) > 1:
+                    current = deck.history.pop(0)
+                    previous = deck.history.pop(0)
+                    deck.deck.insert(0, current)
+                    deck.deck.insert(0, previous)
+                continue
+
+            # If TCG changed, rebuild the deck
+            new_tcg = config["active_tcg"]
+            if new_tcg != active_tcg:
+                rebuild_deck()
+                if deck.total == 0:
+                    logger.warning(f"Switched to {active_tcg} but no cards found.")
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")

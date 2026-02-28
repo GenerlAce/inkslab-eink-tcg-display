@@ -222,6 +222,65 @@ def api_next():
         return jsonify({"ok": False, "error": str(e)})
 
 
+PREV_TRIGGER = "/tmp/inkslab_prev"
+PAUSE_FILE = "/tmp/inkslab_pause"
+
+
+@app.route('/api/prev', methods=['POST'])
+def api_prev():
+    try:
+        with open(PREV_TRIGGER, 'w') as f:
+            f.write('1')
+        try:
+            status = {}
+            if os.path.exists(STATUS_FILE):
+                with open(STATUS_FILE, 'r') as f:
+                    status = json.load(f)
+            status['pending'] = 'Loading previous card...'
+            status['timestamp'] = int(time.time())
+            with open(STATUS_FILE, 'w') as f:
+                json.dump(status, f)
+        except Exception:
+            pass
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/pause', methods=['POST'])
+def api_pause():
+    """Toggle pause state. Returns new paused state."""
+    if os.path.exists(PAUSE_FILE):
+        try:
+            os.remove(PAUSE_FILE)
+        except OSError:
+            pass
+        paused = False
+    else:
+        try:
+            with open(PAUSE_FILE, 'w') as f:
+                f.write('1')
+        except OSError:
+            pass
+        paused = True
+    # Update status file so web UI reflects immediately
+    try:
+        status = {}
+        if os.path.exists(STATUS_FILE):
+            with open(STATUS_FILE, 'r') as f:
+                status = json.load(f)
+        status['paused'] = paused
+        if not paused and status.get('interval'):
+            status['next_change'] = int(time.time()) + status['interval']
+        elif paused:
+            status['next_change'] = 0
+        with open(STATUS_FILE, 'w') as f:
+            json.dump(status, f)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "paused": paused})
+
+
 @app.route('/api/ip')
 def api_ip():
     return jsonify({"ip": get_local_ip()})
@@ -513,6 +572,59 @@ def api_collection_toggle_rarity():
     return jsonify({"rarity": rarity, "owned": owned, "count": len(matching_ids)})
 
 
+@app.route('/api/search')
+def api_search():
+    """Search card names across all sets. Returns up to 100 matches."""
+    q = request.args.get('q', '').strip().lower()
+    if len(q) < 2:
+        return jsonify([])
+
+    config = load_config()
+    tcg = request.args.get('tcg', config['active_tcg'])
+    library = TCG_LIBRARIES.get(tcg)
+    if not library or not os.path.isdir(library):
+        return jsonify([])
+
+    master = {}
+    index_path = os.path.join(library, "master_index.json")
+    if os.path.exists(index_path):
+        try:
+            with open(index_path, 'r') as f:
+                master = json.load(f)
+        except Exception:
+            pass
+
+    collection = load_collection()
+    owned_ids = set(collection.get(tcg, []))
+
+    results = []
+    for d in os.listdir(library):
+        data_file = os.path.join(library, d, "_data.json")
+        if not os.path.exists(data_file):
+            continue
+        try:
+            with open(data_file, 'r') as f:
+                data = json.load(f)
+            set_info = master.get(d, {})
+            for card_id, card in data.items():
+                name = card.get("name", "")
+                if q in name.lower():
+                    results.append({
+                        "id": card_id,
+                        "name": name,
+                        "number": card.get("number", "?"),
+                        "rarity": card.get("rarity", ""),
+                        "set_id": d,
+                        "set_name": set_info.get("name", d),
+                        "owned": card_id in owned_ids,
+                    })
+        except Exception:
+            pass
+
+    results.sort(key=lambda x: (x["name"].lower(), x["set_id"]))
+    return jsonify(results[:100])
+
+
 @app.route('/api/download/start', methods=['POST'])
 def api_download_start():
     global _download_proc, _download_tcg, _download_log_fh
@@ -766,6 +878,39 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .modal-content img { max-width: 260px; border-radius: 8px; border: 2px solid #36A5CA; }
 .modal-content p { margin-top: 8px; color: #FCFDF0; font-size: 13px; }
 .modal-close { margin-top: 12px; }
+
+/* Card queue (prev/next) */
+.q-section { margin-bottom: 10px; }
+.q-label { font-size: 11px; color: #6BCCBD; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.q-list { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.q-card { text-align: center; flex-shrink: 0; width: 70px; cursor: pointer; }
+.q-thumb { width: 64px; height: auto; border-radius: 4px; border: 1.5px solid #1F333F; display: block; }
+.q-num { font-size: 10px; color: #FCFDF0; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-rarity { font-size: 9px; color: #6BCCBD; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* iPod-style player controls */
+.player-controls { display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 12px; }
+.player-btn { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #36A5CA; background: #16303E; color: #36A5CA; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.player-btn:active { transform: scale(0.9); background: #36A5CA; color: #FCFDF0; }
+.player-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.player-btn.play-pause { width: 56px; height: 56px; font-size: 24px; border-width: 3px; }
+.player-btn.play-pause.paused { border-color: #6BCCBD; color: #6BCCBD; }
+
+/* Countdown timer */
+.countdown { text-align: center; font-size: 13px; color: #6BCCBD; margin-bottom: 12px; min-height: 18px; }
+.countdown .time { color: #36A5CA; font-weight: 600; font-variant-numeric: tabular-nums; }
+.countdown .paused-label { color: #6BCCBD; font-weight: 600; }
+
+/* Search */
+.search-wrap { position: relative; margin-bottom: 12px; }
+.search-wrap input { width: 100%; background: #1F333F; color: #D8E6E4; border: 1px solid #36A5CA44; border-radius: 6px; padding: 10px 12px 10px 32px; font-size: 14px; }
+.search-wrap input:focus { outline: none; border-color: #36A5CA; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #6BCCBD; font-size: 14px; pointer-events: none; }
+.search-results { max-height: 400px; overflow-y: auto; }
+.search-result { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #1F333F; font-size: 12px; }
+.search-result-name { color: #FCFDF0; font-weight: 600; }
+.search-result-set { color: #6BCCBD; font-size: 11px; }
+.search-result-rarity { color: #6BCCBD; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -803,8 +948,21 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
       <div class="stat" id="st-error-row" style="display:none"><span class="stat-label" style="color:#ff6b6b">Status</span><span class="stat-value" style="color:#ff6b6b;font-size:12px" id="st-error"></span></div>
     </div>
   </div>
-  <div class="flex-row" style="margin-bottom:12px">
-    <button class="btn btn-primary btn-block" onclick="nextCard(this)">Next Card</button>
+  <div class="countdown" id="countdown"></div>
+  <div class="player-controls">
+    <button class="player-btn" id="btn-prev" onclick="prevCard()" title="Previous Card">&#9664;</button>
+    <button class="player-btn play-pause" id="btn-pause" onclick="togglePause()" title="Pause/Play">&#10074;&#10074;</button>
+    <button class="player-btn" id="btn-next" onclick="nextCard()" title="Next Card">&#9654;</button>
+  </div>
+  <div class="card" id="queue-card" style="display:none">
+    <div class="q-section" id="q-next-wrap" style="display:none">
+      <div class="q-label">Up Next</div>
+      <div class="q-list" id="q-next-list"></div>
+    </div>
+    <div class="q-section" id="q-prev-wrap" style="display:none;margin-top:10px">
+      <div class="q-label">Previously</div>
+      <div class="q-list" id="q-prev-list"></div>
+    </div>
   </div>
   <div class="card">
     <h3>Quick Switch</h3>
@@ -861,8 +1019,17 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 <div id="tab-collection" class="panel">
   <div class="card">
     <h3>My Collection</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Mark the cards you own. Enable "collection mode" in Settings to only display owned cards. Tap a card name to preview it.</p>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Mark the cards you own. Enable "collection mode" in Settings to only display owned cards.</p>
     <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
+  </div>
+  <div class="card">
+    <h3>Search Cards</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Find a Pokemon or card by name and add all versions to your collection.</p>
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" id="search-input" placeholder="Search by name (e.g. Pikachu)" oninput="debounceSearch()">
+    </div>
+    <div id="search-results"></div>
   </div>
   <div class="card">
     <h3>Filter by Rarity</h3>
@@ -969,6 +1136,7 @@ var _lastStatus = {};
 var _rapidPoll = null;
 var _pendingAction = false;
 var _mainPoll = null;
+var _countdownTimer = null;
 
 function startMainPoll() {
   if (_mainPoll) clearInterval(_mainPoll);
@@ -986,10 +1154,72 @@ function hidePreviewLoading() {
   overlay.style.display = 'none';
 }
 
+function updateCountdown() {
+  var el = document.getElementById('countdown');
+  if (_lastStatus.paused) {
+    el.innerHTML = '<span class="paused-label">Paused</span>';
+    return;
+  }
+  var nc = _lastStatus.next_change;
+  if (!nc) { el.textContent = ''; return; }
+  var remain = Math.max(0, nc - Math.floor(Date.now() / 1000));
+  if (remain <= 0) { el.innerHTML = '<span class="time">Changing soon...</span>'; return; }
+  var m = Math.floor(remain / 60);
+  var s = remain % 60;
+  el.innerHTML = 'Next card in <span class="time">' + m + ':' + (s < 10 ? '0' : '') + s + '</span>';
+}
+
+function startCountdown() {
+  if (_countdownTimer) clearInterval(_countdownTimer);
+  _countdownTimer = setInterval(updateCountdown, 1000);
+  updateCountdown();
+}
+
+function renderQueue(d) {
+  var tcg = (d.tcg || '').toLowerCase();
+  var prev = d.prev_cards || [];
+  var next = d.next_cards || [];
+  var queueCard = document.getElementById('queue-card');
+  if (!prev.length && !next.length) { queueCard.style.display = 'none'; return; }
+  queueCard.style.display = 'block';
+  var nextWrap = document.getElementById('q-next-wrap');
+  var prevWrap = document.getElementById('q-prev-wrap');
+  if (next.length) {
+    nextWrap.style.display = 'block';
+    document.getElementById('q-next-list').innerHTML = next.map(function(c) {
+      return '<div class="q-card" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.card_id + '\\',\\'' + c.card_num + ' ' + c.set_info.replace(/'/g,"\\\\'") + '\\')">'
+        + '<img class="q-thumb" src="/api/card_image/' + tcg + '/' + c.set_id + '/' + c.card_id + '" onerror="this.style.display=\\'none\\'">'
+        + '<div class="q-num">' + c.card_num + '</div>'
+        + '<div class="q-rarity">' + (c.rarity || '') + '</div></div>';
+    }).join('');
+  } else { nextWrap.style.display = 'none'; }
+  if (prev.length) {
+    prevWrap.style.display = 'block';
+    document.getElementById('q-prev-list').innerHTML = prev.map(function(c) {
+      return '<div class="q-card" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.card_id + '\\',\\'' + c.card_num + ' ' + c.set_info.replace(/'/g,"\\\\'") + '\\')">'
+        + '<img class="q-thumb" src="/api/card_image/' + tcg + '/' + c.set_id + '/' + c.card_id + '" onerror="this.style.display=\\'none\\'">'
+        + '<div class="q-num">' + c.card_num + '</div>'
+        + '<div class="q-rarity">' + (c.rarity || '') + '</div></div>';
+    }).join('');
+  } else { prevWrap.style.display = 'none'; }
+}
+
+function updatePauseBtn(paused) {
+  var btn = document.getElementById('btn-pause');
+  if (paused) {
+    btn.innerHTML = '&#9654;';
+    btn.classList.add('paused');
+    btn.title = 'Resume';
+  } else {
+    btn.innerHTML = '&#10074;&#10074;';
+    btn.classList.remove('paused');
+    btn.title = 'Pause';
+  }
+}
+
 function refreshStatus() {
   fetch(API + '/api/status').then(r => r.json()).then(d => {
     document.getElementById('st-tcg').textContent = (d.tcg || '\\u2014').toUpperCase();
-    // Show pending state or real card data
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
     if (d.pending) {
@@ -1012,7 +1242,6 @@ function refreshStatus() {
       document.getElementById('st-set').textContent = d.set_info || '\\u2014';
       document.getElementById('st-rarity').textContent = d.rarity || '\\u2014';
       document.getElementById('st-total').textContent = d.total_cards || '\\u2014';
-      // Refresh preview image (only if card changed)
       var img = document.getElementById('st-preview');
       if (d.card_path) {
         if (d.card_path !== _lastStatus.card_path) {
@@ -1023,12 +1252,15 @@ function refreshStatus() {
         img.style.display = 'none';
         hidePreviewLoading();
       }
-      // Clear loading overlay if no longer pending
-      if (_lastStatus.pending && !d.pending) {
-        hidePreviewLoading();
-      }
+      if (_lastStatus.pending && !d.pending) hidePreviewLoading();
+      renderQueue(d);
     }
-    // Stop rapid polling once daemon has processed (pending cleared and new card)
+    // Update pause button and countdown
+    updatePauseBtn(d.paused);
+    updateCountdown();
+    // Disable prev button if no history
+    document.getElementById('btn-prev').disabled = !(d.prev_cards && d.prev_cards.length);
+    // Stop rapid polling once daemon has processed
     if (_rapidPoll && !d.pending && d.card_path !== _lastStatus.card_path) {
       clearInterval(_rapidPoll);
       _rapidPoll = null;
@@ -1039,7 +1271,6 @@ function refreshStatus() {
   }).catch(() => {});
 }
 
-// After user actions, poll fast to catch changes quickly
 function startRapidPoll() {
   _pendingAction = true;
   if (_mainPoll) { clearInterval(_mainPoll); _mainPoll = null; }
@@ -1050,33 +1281,60 @@ function startRapidPoll() {
   }, 60000);
 }
 
-function nextCard(btn) {
-  var orig = btn.textContent;
+function setOptimisticLoading(msg) {
+  showPreviewLoading(msg);
+  document.getElementById('st-card').textContent = '\\u2014';
+  document.getElementById('st-set').textContent = '\\u2014';
+  document.getElementById('st-rarity').textContent = '\\u2014';
+  var errRow = document.getElementById('st-error-row');
+  errRow.style.display = 'flex';
+  errRow.querySelector('.stat-label').textContent = 'Status';
+  errRow.querySelector('.stat-label').style.color = '#36A5CA';
+  var errEl = document.getElementById('st-error');
+  errEl.textContent = msg;
+  errEl.style.color = '#36A5CA';
+}
+
+function nextCard() {
+  var btn = document.getElementById('btn-next');
   btn.disabled = true;
-  btn.textContent = 'Sending...';
   fetch(API + '/api/next', {method:'POST'})
     .then(function() {
-      btn.textContent = orig;
       btn.disabled = false;
-      showToast('Updating display...');
-      // Optimistic: show loading state immediately on the preview image
-      showPreviewLoading('Loading next card...');
-      document.getElementById('st-card').textContent = '\\u2014';
-      document.getElementById('st-set').textContent = '\\u2014';
-      document.getElementById('st-rarity').textContent = '\\u2014';
-      var errRow = document.getElementById('st-error-row');
-      errRow.style.display = 'flex';
-      errRow.querySelector('.stat-label').textContent = 'Status';
-      errRow.querySelector('.stat-label').style.color = '#36A5CA';
-      var errEl = document.getElementById('st-error');
-      errEl.textContent = 'Loading next card...';
-      errEl.style.color = '#36A5CA';
+      showToast('Next card...');
+      setOptimisticLoading('Loading next card...');
       startRapidPoll();
     })
-    .catch(function() {
-      btn.textContent = orig;
+    .catch(function() { btn.disabled = false; showToast('Failed'); });
+}
+
+function prevCard() {
+  var btn = document.getElementById('btn-prev');
+  btn.disabled = true;
+  fetch(API + '/api/prev', {method:'POST'})
+    .then(function() {
       btn.disabled = false;
-      showToast('Failed to send');
+      showToast('Previous card...');
+      setOptimisticLoading('Loading previous card...');
+      startRapidPoll();
+    })
+    .catch(function() { btn.disabled = false; showToast('Failed'); });
+}
+
+function togglePause() {
+  fetch(API + '/api/pause', {method:'POST'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      updatePauseBtn(d.paused);
+      _lastStatus.paused = d.paused;
+      if (d.paused) {
+        _lastStatus.next_change = 0;
+        showToast('Paused');
+      } else {
+        _lastStatus.next_change = Math.floor(Date.now() / 1000) + (_lastStatus.interval || 600);
+        showToast('Resumed');
+      }
+      updateCountdown();
     });
 }
 
@@ -1091,19 +1349,8 @@ function switchTCG(tcg, activeBtn) {
       activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
       showToast('Switching to ' + tcg.toUpperCase() + '...');
-      // Optimistic: update TCG label and show loading on image immediately
-      showPreviewLoading('Switching to ' + tcg.toUpperCase() + '...');
       document.getElementById('st-tcg').textContent = tcg.toUpperCase();
-      document.getElementById('st-card').textContent = '\\u2014';
-      document.getElementById('st-set').textContent = '\\u2014';
-      document.getElementById('st-rarity').textContent = '\\u2014';
-      var errRow = document.getElementById('st-error-row');
-      errRow.style.display = 'flex';
-      errRow.querySelector('.stat-label').textContent = 'Status';
-      errRow.querySelector('.stat-label').style.color = '#36A5CA';
-      var errEl = document.getElementById('st-error');
-      errEl.textContent = 'Switching to ' + tcg.toUpperCase() + '...';
-      errEl.style.color = '#36A5CA';
+      setOptimisticLoading('Switching to ' + tcg.toUpperCase() + '...');
       startRapidPoll();
     })
     .catch(function() {
@@ -1315,6 +1562,69 @@ function closePreview() {
   document.getElementById('preview-modal').classList.remove('open');
 }
 
+// --- Search ---
+var _searchTimer = null;
+function debounceSearch() {
+  if (_searchTimer) clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(doSearch, 350);
+}
+function doSearch() {
+  var q = document.getElementById('search-input').value.trim();
+  var el = document.getElementById('search-results');
+  if (q.length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="color:#6BCCBD;font-size:12px;padding:8px">Searching...</div>';
+  fetch(API + '/api/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(results) {
+    if (!results.length) { el.innerHTML = '<div style="color:#6BCCBD;font-size:12px;padding:8px">No results found</div>'; return; }
+    // Group by name for "select all versions" feature
+    var groups = {};
+    results.forEach(function(c) {
+      var key = c.name.toLowerCase();
+      if (!groups[key]) groups[key] = {name: c.name, cards: []};
+      groups[key].cards.push(c);
+    });
+    var html = '<div style="font-size:11px;color:#6BCCBD;margin-bottom:6px">' + results.length + ' results</div>';
+    Object.values(groups).forEach(function(g) {
+      var allOwned = g.cards.every(function(c) { return c.owned; });
+      html += '<div style="border-bottom:1px solid #1F333F;padding:6px 0">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+      html += '<span class="search-result-name">' + g.name + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">(' + g.cards.length + ' version' + (g.cards.length > 1 ? 's' : '') + ')</span></span>';
+      html += '<button class="btn btn-secondary btn-sm" onclick="toggleSearchGroup(this,\\'' + g.name.replace(/'/g,"\\\\'") + '\\',' + (!allOwned) + ')">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
+      html += '</div>';
+      html += '<div style="margin-top:4px">';
+      g.cards.forEach(function(c) {
+        var safeId = c.id.replace(/'/g,"\\\\'");
+        html += '<div class="search-result"><label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer">';
+        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\\'' + safeId + '\\')" style="accent-color:#36A5CA">';
+        html += '<span><span class="card-preview-btn" onclick="event.preventDefault();showPreview(\\'' + c.set_id + '\\',\\'' + safeId + '\\',\\'' + c.name.replace(/'/g,"\\\\'") + ' #' + c.number + '\\')">#' + c.number + '</span>';
+        html += ' <span class="search-result-set">' + c.set_name + '</span></span>';
+        html += '</label><span class="search-result-rarity">' + c.rarity + '</span></div>';
+      });
+      html += '</div></div>';
+    });
+    el.innerHTML = html;
+  }).catch(function() { el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;padding:8px">Search failed</div>'; });
+}
+function toggleSearchGroup(btn, name, owned) {
+  btn.disabled = true;
+  btn.textContent = owned ? 'Adding...' : 'Removing...';
+  var q = document.getElementById('search-input').value.trim();
+  fetch(API + '/api/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(results) {
+    var matching = results.filter(function(c) { return c.name.toLowerCase() === name.toLowerCase(); });
+    var chain = Promise.resolve();
+    matching.forEach(function(c) {
+      if ((owned && !c.owned) || (!owned && c.owned)) {
+        chain = chain.then(function() {
+          return fetch(API + '/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: c.id})});
+        });
+      }
+    });
+    return chain;
+  }).then(function() {
+    showToast((owned ? 'Added' : 'Removed') + ' all ' + name);
+    doSearch();
+  }).catch(function() { btn.disabled = false; btn.textContent = owned ? 'Add All' : 'Remove All'; });
+}
+
 // --- Downloads ---
 function loadStorage() {
   fetch(API + '/api/storage').then(function(r) { return r.json(); }).then(function(info) {
@@ -1439,6 +1749,7 @@ function deleteData(tcg, btn) {
     refreshStatus();
   }
   startMainPoll();
+  startCountdown();
   // Load IP for footer
   fetch(API + '/api/ip').then(r => r.json()).then(d => {
     if (d.ip) document.getElementById('footer-ip').textContent = 'Also available at http://' + d.ip;
