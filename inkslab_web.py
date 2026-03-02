@@ -164,9 +164,11 @@ def api_status():
                 status = json.load(f)
         except Exception:
             pass
-    # Auto-clear stale pending status (e.g. if daemon crashed mid-update)
+    # Auto-clear stale flags (e.g. if daemon crashed mid-update)
     if status.get('pending') and time.time() - status.get('timestamp', 0) > 60:
         status.pop('pending', None)
+    if status.get('display_updating') and time.time() - status.get('timestamp', 0) > 60:
+        status.pop('display_updating', None)
     return jsonify(status)
 
 
@@ -194,6 +196,7 @@ def api_set_config():
             status['tcg'] = updates['active_tcg']
             status['pending'] = 'Switching to ' + updates['active_tcg'].upper() + '...'
             status['timestamp'] = int(time.time())
+            status.pop('display_updating', None)
             with open(STATUS_FILE, 'w') as f:
                 json.dump(status, f)
         except Exception:
@@ -220,6 +223,7 @@ def api_next():
                     status = json.load(f)
             status['pending'] = 'Loading next card...'
             status['timestamp'] = int(time.time())
+            status.pop('display_updating', None)
             with open(STATUS_FILE, 'w') as f:
                 json.dump(status, f)
         except Exception:
@@ -245,6 +249,7 @@ def api_prev():
                     status = json.load(f)
             status['pending'] = 'Loading previous card...'
             status['timestamp'] = int(time.time())
+            status.pop('display_updating', None)
             with open(STATUS_FILE, 'w') as f:
                 json.dump(status, f)
         except Exception:
@@ -333,6 +338,9 @@ def api_sets():
     if not library or not os.path.exists(library):
         return jsonify([])
 
+    cache_key = 'sets_' + tcg
+    sets_cache = _cache_get(cache_key, ttl=60)
+
     master = {}
     index_path = os.path.join(library, "master_index.json")
     if os.path.exists(index_path):
@@ -345,25 +353,50 @@ def api_sets():
     collection = load_collection()
     owned_ids = set(collection.get(tcg, []))
 
-    sets = []
+    if sets_cache:
+        # Fast path: recompute owned counts from cached card IDs
+        result = []
+        for s in sets_cache:
+            owned_count = sum(1 for cid in s["_cids"] if cid in owned_ids)
+            result.append({
+                "id": s["id"], "name": s["name"], "year": s["year"],
+                "card_count": s["card_count"], "owned_count": owned_count,
+            })
+        result.sort(key=lambda x: x["year"], reverse=True)
+        return jsonify(result)
+
+    # Slow path: read _data.json per set (faster than listing 300+ .png files per dir)
+    sets_data = []
+    result = []
     for d in sorted(os.listdir(library)):
         set_path = os.path.join(library, d)
         if not os.path.isdir(set_path):
             continue
-        cards = [f for f in os.listdir(set_path) if f.endswith('.png') and not f.startswith('_')]
-        card_ids = [os.path.splitext(f)[0] for f in cards]
+        data_file = os.path.join(set_path, "_data.json")
+        card_ids = []
+        if os.path.exists(data_file):
+            try:
+                with open(data_file, 'r') as f:
+                    card_ids = list(json.load(f).keys())
+            except Exception:
+                pass
+        if not card_ids:
+            card_ids = [os.path.splitext(f)[0] for f in os.listdir(set_path)
+                        if f.endswith('.png') and not f.startswith('_')]
         owned_count = sum(1 for cid in card_ids if cid in owned_ids)
         info = master.get(d, {})
-        sets.append({
-            "id": d,
-            "name": info.get("name", d),
-            "year": info.get("year", ""),
-            "card_count": len(cards),
-            "owned_count": owned_count,
+        sets_data.append({
+            "id": d, "name": info.get("name", d), "year": info.get("year", ""),
+            "card_count": len(card_ids), "_cids": card_ids,
+        })
+        result.append({
+            "id": d, "name": info.get("name", d), "year": info.get("year", ""),
+            "card_count": len(card_ids), "owned_count": owned_count,
         })
 
-    sets.sort(key=lambda x: x["year"], reverse=True)
-    return jsonify(sets)
+    _cache_set(cache_key, sets_data)
+    result.sort(key=lambda x: x["year"], reverse=True)
+    return jsonify(result)
 
 
 @app.route('/api/sets/<set_id>/cards')
@@ -864,28 +897,38 @@ def api_download_status():
     return jsonify({"running": running, "tcg": tcg, "lines": lines})
 
 
-@app.route('/api/storage')
-def api_storage():
-    cached = _cache_get('storage', ttl=30)
-    if cached:
-        return jsonify(cached)
+_storage_computing = False
 
+
+def _compute_storage():
+    """Compute storage info. Uses native du for size (much faster than Python stat)."""
     info = {}
     for tcg, path in TCG_LIBRARIES.items():
         if os.path.exists(path):
+            # Use du -sb for fast size calculation (native C, avoids 50k+ Python stat calls)
             total_size = 0
+            try:
+                result = subprocess.run(['du', '-sb', path],
+                                        capture_output=True, text=True, timeout=120)
+                if result.returncode == 0:
+                    total_size = int(result.stdout.split()[0])
+            except Exception:
+                pass
+
+            # Count cards and sets with listdir (no stat on each file)
             card_count = 0
             set_count = 0
-            for root, dirs, files in os.walk(path):
-                if root == path:
-                    set_count = len(dirs)
-                for f in files:
-                    try:
-                        total_size += os.path.getsize(os.path.join(root, f))
-                    except OSError:
-                        pass
-                    if f.endswith('.png') and not f.startswith('_'):
-                        card_count += 1
+            try:
+                for d in os.listdir(path):
+                    set_path = os.path.join(path, d)
+                    if os.path.isdir(set_path):
+                        set_count += 1
+                        for f in os.listdir(set_path):
+                            if f.endswith('.png') and not f.startswith('_'):
+                                card_count += 1
+            except Exception:
+                pass
+
             info[tcg] = {
                 "path": path,
                 "size_mb": round(total_size / (1024 * 1024)),
@@ -904,9 +947,35 @@ def api_storage():
         }
     except Exception:
         pass
+    return info
 
-    _cache_set('storage', info)
-    return jsonify(info)
+
+@app.route('/api/storage')
+def api_storage():
+    global _storage_computing
+    cached = _cache_get('storage', ttl=120)
+    if cached:
+        return jsonify(cached)
+
+    # Return stale cache while recomputing in background
+    stale = _cache_get('storage', ttl=float('inf'))
+
+    if not _storage_computing:
+        _storage_computing = True
+
+        def compute():
+            global _storage_computing
+            try:
+                result = _compute_storage()
+                _cache_set('storage', result)
+            finally:
+                _storage_computing = False
+
+        threading.Thread(target=compute, daemon=True).start()
+
+    if stale:
+        return jsonify(stale)
+    return jsonify({"_computing": True})
 
 
 @app.route('/api/delete', methods=['POST'])
@@ -920,7 +989,7 @@ def api_delete():
     if os.path.exists(path):
         try:
             shutil.rmtree(path)
-            _cache_invalidate('storage', 'rarities_' + tcg)
+            _cache_invalidate('storage', 'rarities_' + tcg, 'sets_' + tcg)
             return jsonify({"ok": True, "tcg": tcg})
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)})
@@ -1384,6 +1453,12 @@ function refreshStatus() {
       errEl.style.color = '#36A5CA';
       errRow.querySelector('.stat-label').style.color = '#36A5CA';
       errRow.querySelector('.stat-label').textContent = 'Status';
+    } else if (d.display_updating) {
+      errEl.textContent = 'Updating display...';
+      errRow.style.display = 'flex';
+      errEl.style.color = '#36A5CA';
+      errRow.querySelector('.stat-label').style.color = '#36A5CA';
+      errRow.querySelector('.stat-label').textContent = 'Status';
     } else if (d.error) {
       errEl.textContent = d.error;
       errRow.style.display = 'flex';
@@ -1405,10 +1480,14 @@ function refreshStatus() {
           || (_lastStatus.pending && !d.pending));
         if (needsReload) {
           img.src = '/api/card_image?t=' + Date.now();
-          hidePreviewLoading();
         }
       } else {
         img.style.display = 'none';
+      }
+      // Show/hide loading overlay based on display state
+      if (d.display_updating) {
+        showPreviewLoading('Updating display...');
+      } else {
         hidePreviewLoading();
       }
       renderQueue(d);
@@ -1418,8 +1497,8 @@ function refreshStatus() {
     updateCountdown();
     // Disable prev button if no history
     document.getElementById('btn-prev').disabled = !(d.prev_cards && d.prev_cards.length);
-    // Stop rapid polling once daemon has processed
-    if (_rapidPoll && !d.pending && (d.card_path !== _lastStatus.card_path || d.tcg !== _lastStatus.tcg || (_lastStatus.pending && !d.pending))) {
+    // Stop rapid polling once fully settled (not pending AND not updating display)
+    if (_rapidPoll && !d.pending && !d.display_updating) {
       clearInterval(_rapidPoll);
       _rapidPoll = null;
       _pendingAction = false;
@@ -1816,7 +1895,12 @@ function fmtSizeShort(gb, mb) {
 function loadStorage() {
   fetch(API + '/api/storage').then(function(r) { return r.json(); }).then(function(info) {
     var el = document.getElementById('storage-info');
-    if (!info._disk) { el.innerHTML = '<div style="color:#6BCCBD">Loading...</div>'; return; }
+    if (info._computing) {
+      el.innerHTML = '<div style="color:#6BCCBD;text-align:center;padding:12px"><span class="preview-spin" style="display:inline-block;font-size:18px">&#8635;</span><div style="margin-top:6px">Calculating storage...</div></div>';
+      setTimeout(loadStorage, 3000);
+      return;
+    }
+    if (!info._disk) { el.innerHTML = '<div style="color:#6BCCBD">Loading...</div>'; setTimeout(loadStorage, 3000); return; }
     var totalGb = info._disk.total_gb || 1;
     var freeGb = info._disk.free_gb || 0;
     var pokGb = (info.pokemon && info.pokemon.size_gb) || 0;

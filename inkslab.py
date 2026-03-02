@@ -265,12 +265,12 @@ def process_image(img_path, master_index, config):
 class ShuffleDeck:
     """Manages a shuffled deck of all card image paths. Re-shuffles when exhausted."""
 
-    def __init__(self, root_dir, collection=None):
+    def __init__(self, root_dir, collection=None, recent=None):
         self.root_dir = root_dir
         self.collection = collection
         self.deck = []
         self.total = 0
-        self.history = []  # Recently shown cards (newest first)
+        self.history = list(recent) if recent else []
         self.reshuffle()
 
     def reshuffle(self):
@@ -290,7 +290,18 @@ class ShuffleDeck:
         if self.collection is not None and len(temp) == 0:
             logger.info("Collection mode: no matching cards on disk yet")
 
-        random.shuffle(temp)
+        # Smart shuffle: push recently-shown cards to the back of the deck
+        # so you see fresh cards first after a reshuffle or deck rebuild
+        if self.history:
+            recent_set = set(self.history)
+            not_recent = [c for c in temp if c not in recent_set]
+            was_recent = [c for c in temp if c in recent_set]
+            random.shuffle(not_recent)
+            random.shuffle(was_recent)
+            temp = not_recent + was_recent
+        else:
+            random.shuffle(temp)
+
         self.deck = temp
         self.total = len(temp)
         logger.info(f"Deck loaded: {self.total} cards")
@@ -302,8 +313,8 @@ class ShuffleDeck:
             return None
         card = self.deck.pop(0)
         self.history.insert(0, card)
-        if len(self.history) > 8:
-            self.history = self.history[:8]
+        if len(self.history) > 30:
+            self.history = self.history[:30]
         return card
 
     def peek(self, n=3):
@@ -454,9 +465,10 @@ def main():
     signal.signal(signal.SIGTERM, _handle_shutdown)
     signal.signal(signal.SIGINT, _handle_shutdown)
 
-    def rebuild_deck():
+    def rebuild_deck(preserve_history=False):
         """Helper to rebuild the deck when TCG, collection mode, or collection content changes."""
         nonlocal active_tcg, library_dir, master_index, collection, deck, _deck_collection_only
+        old_history = deck.history if preserve_history else []
         active_tcg = config["active_tcg"]
         _deck_collection_only = config["collection_only"]
         library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
@@ -466,7 +478,7 @@ def main():
             collection = loaded if loaded else []  # empty list = 0 cards, not fallback to all
         else:
             collection = None  # None = show all cards
-        deck = ShuffleDeck(library_dir, collection)
+        deck = ShuffleDeck(library_dir, collection, recent=old_history)
 
     consecutive_failures = 0
 
@@ -541,7 +553,7 @@ def main():
             next_change = 0 if paused else int(time.time()) + wait
 
             # Write status BEFORE display refresh so web dashboard updates instantly
-            write_status({
+            status_info = {
                 "card_path": card_path,
                 "set_name": card_info.get("set_name", ""),
                 "set_info": card_info.get("set_info", ""),
@@ -555,7 +567,9 @@ def main():
                 "next_change": next_change,
                 "paused": paused,
                 "interval": wait,
-            })
+                "display_updating": True,
+            }
+            write_status(status_info)
 
             try:
                 epd.init()
@@ -567,6 +581,10 @@ def main():
                     epd.sleep()
                 except Exception:
                     pass
+
+            # Display refresh complete — clear the updating flag
+            status_info["display_updating"] = False
+            write_status(status_info)
 
             logger.info(f"Next card in {wait // 60} minutes")
             del final_img
@@ -585,7 +603,7 @@ def main():
 
             # Collection content changed — rebuild deck but keep showing current card
             if action == "collection_changed" and config["collection_only"]:
-                rebuild_deck()
+                rebuild_deck(preserve_history=True)
                 # Update status with new queue immediately (no card advance)
                 new_next = []
                 for nc in deck.peek(5):
@@ -634,7 +652,7 @@ def main():
                              or config["collection_only"] != _deck_collection_only
                              or action == "collection_changed")
             if needs_rebuild:
-                rebuild_deck()
+                rebuild_deck(preserve_history=(new_tcg == active_tcg))
                 if deck.total == 0:
                     logger.warning(f"No cards found for {active_tcg}. Will retry.")
 
