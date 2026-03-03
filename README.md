@@ -12,10 +12,12 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon and Magic: The Gath
 
 - Cycles through TCG cards on a 7-color e-ink display (black, white, red, yellow, blue, green, orange)
 - Shows card art in a graded-slab frame with set name, year, card number, and rarity
-- Switches between **Pokemon** and **Magic: The Gathering** with one tap
-- **Collection mode** — only display the cards you actually own
-- **Rarity filtering** — select all Rare Holos, Mythic Rares, etc. across every set at once
-- Runs 24/7 as a desk display, rotating cards every 10 minutes (configurable)
+- **Web Dashboard:** Control everything from your phone or browser at `http://inkslab.local`
+- **Live Player Controls:** Pause, play, skip, or go back, complete with an "Up Next" queue and countdown timer
+- **Collection Mode & Favorites:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection
+- **Rarity Filtering:** Select or deselect all cards of a specific rarity (e.g., "Mythic Rare" or "Illustration Rare") across every set with one tap
+- **Smart Shuffle:** Remembers recently shown cards and pushes them to the back of the deck upon reshuffling so you always see fresh art
+- Runs 24/7 as a desk display, rotating cards every 10 minutes (configurable for day/night)
 
 ```
 +-----------------------+
@@ -123,29 +125,27 @@ That's it. Open **http://inkslab.local** on your phone or computer.
 Once running, everything is managed from the dashboard at **http://inkslab.local** — no SSH needed.
 
 ### Display Tab
-- See the current card with a live preview
-- Tap **Next Card** to skip ahead
-- **Quick Switch** between Pokemon and MTG with one tap
+- **Live Preview:** See exactly what card is currently on the screen with real-time loading states
+- **Player Controls:** iPod-style controls to Pause/Play, skip to the Next card, or go back to Previous cards
+- **Queue:** View thumbnail previews of the "Up Next" and "Previously" shown cards
+- **Quick Switch:** Instantly toggle between Pokémon and MTG with one tap
 
 ### Settings Tab
-- Change how often cards rotate (day and night intervals)
-- Adjust display rotation and color saturation
-- Enable **Collection Only** mode to show just your cards
+- Change how often cards rotate (separate day and night intervals to save power)
+- Adjust display rotation and color saturation (boost colors for the e-paper display)
+- Enable **Collection Only** mode to restrict the display to cards you've marked as owned
 
 ### Collection Tab
-- Browse every downloaded set and card
-- Tap any card name to preview the full image
-- **Select All / Deselect All** per set
-- **Filter by Rarity** — pick a rarity from the dropdown (e.g. "Rare Holo", "Mythic Rare") and select or deselect all matching cards across every set with one tap
-- **Rarity chips** — when you expand a set, tap a rarity chip to select all cards of that rarity within that set
-- Enable Collection Only in Settings to display only your selected cards
+- Browse every downloaded set and toggle ownership. Tap any card name to view a high-res preview modal
+- **Favorites & Search:** Search for any character or card and instantly add all versions of it to your collection
+- **Filter by Rarity:** Pick a rarity from the dropdown (e.g., "Rare Holo", "Mythic Rare") and select/deselect all matching cards across every set at once
+- **Set Management:** Select/Deselect an entire set, or use the per-set rarity chips to bulk-manage specific rarities within a single set
 
 ### Downloads Tab
-- See storage usage and free disk space
-- **Download Pokemon** or **MTG** cards directly from the dashboard — no commands needed
-- Live download progress log
-- Optionally download only recent MTG sets (e.g. 2020+)
-- Delete card data with confirmation
+- **Smart Storage:** View high-speed, native disk space calculations to see exactly how much SD card space you have left
+- **Download Cards:** Pull down Pokémon or MTG cards directly from the dashboard with a live progress log
+- **MTG Year Filter:** Magic is massive. Save SD card space by entering a year (e.g., `2020`) to only download MTG sets released from that year onward
+- Delete card data with a safety confirmation
 
 ---
 
@@ -188,6 +188,7 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 | Web dashboard not loading | Run `journalctl -u inkslab_web -f` to check for errors |
 | Collection mode shows nothing | Mark some cards as owned in the Collection tab first |
 | Download fails or stalls | The Pi Zero has limited RAM. MTG downloads use a memory-friendly per-set approach. If it stalls, stop and restart from the Downloads tab — it resumes where it left off. |
+| Download fails or stalls | The Pi Zero has limited RAM. If a massive MTG download stalls out, click "Stop Download" and then start it again. It will safely resume exactly where it left off. |
 
 ---
 
