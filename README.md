@@ -187,8 +187,7 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 | Washed-out colors | Increase **Color Saturation** in the Settings tab (default 2.5, try 3.0–4.0) |
 | Web dashboard not loading | Run `journalctl -u inkslab_web -f` to check for errors |
 | Collection mode shows nothing | Mark some cards as owned in the Collection tab first |
-| Download fails or stalls | The Pi Zero has limited RAM. MTG downloads use a memory-friendly per-set approach. If it stalls, stop and restart from the Downloads tab — it resumes where it left off. |
-| Download fails or stalls | The Pi Zero has limited RAM. If a massive MTG download stalls out, click "Stop Download" and then start it again. It will safely resume exactly where it left off. |
+| Download fails or stalls | The Pi Zero has limited RAM. If a massive download (MTG or Pokémon) stalls out, click "Stop Download" and then start it again. It will safely skip over existing files and resume exactly where it left off. |
 
 ---
 
