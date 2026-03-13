@@ -30,10 +30,15 @@ DOWNLOAD_LOG = "/tmp/inkslab_download.log"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
-TCG_LIBRARIES = {
-    "pokemon": "/home/pi/pokemon_cards",
-    "mtg": "/home/pi/mtg_cards",
+TCG_REGISTRY = {
+    "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
+    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
+    "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
 }
+TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
+
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
 
 DEFAULTS = {
     "active_tcg": "pokemon",
@@ -44,6 +49,7 @@ DEFAULTS = {
     "day_end": 23,
     "color_saturation": 2.5,
     "collection_only": False,
+    "slab_header_mode": "normal",
 }
 
 # Track running download process
@@ -129,6 +135,11 @@ def save_collection(data):
         pass
 
 
+def _is_card_image(filename):
+    """Check if a file is a supported card image."""
+    return filename.lower().endswith(IMAGE_EXTENSIONS) and not filename.startswith('_')
+
+
 def rarity_sort_key(rarity):
     """Sort key for rarities — rarest first."""
     order = {
@@ -140,6 +151,8 @@ def rarity_sort_key(rarity):
         "rare holo gx": 10, "rare holo ex": 10, "shiny rare": 11,
         "rare holo": 12, "rare prism star": 12, "rare": 15,
         "uncommon": 20, "common": 30, "promo": 25,
+        # Lorcana rarities
+        "enchanted": 1, "legendary": 5, "super rare": 8,
     }
     return order.get(rarity.lower().strip(), 15)
 
@@ -307,7 +320,8 @@ def api_current_card_image():
                 status = json.load(f)
             card_path = status.get("card_path")
             if card_path and os.path.exists(card_path):
-                resp = send_file(card_path, mimetype='image/png')
+                mime = 'image/png' if card_path.lower().endswith('.png') else 'image/jpeg'
+                resp = send_file(card_path, mimetype=mime)
                 resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
                 return resp
         except Exception:
@@ -324,10 +338,18 @@ def api_card_image(tcg, set_id, card_id):
     # Sanitize to prevent path traversal
     safe_set = os.path.basename(set_id)
     safe_card = os.path.basename(card_id)
-    card_path = os.path.join(library, safe_set, safe_card + '.png')
-    if os.path.exists(card_path):
-        return send_file(card_path, mimetype='image/png')
+    for ext in IMAGE_EXTENSIONS:
+        card_path = os.path.join(library, safe_set, safe_card + ext)
+        if os.path.exists(card_path):
+            mime = 'image/png' if ext == '.png' else 'image/jpeg'
+            return send_file(card_path, mimetype=mime)
     return '', 404
+
+
+@app.route('/api/tcg_list')
+def api_tcg_list():
+    """Return the TCG registry for dynamic UI generation."""
+    return jsonify(TCG_REGISTRY)
 
 
 @app.route('/api/sets')
@@ -382,7 +404,7 @@ def api_sets():
                 pass
         if not card_ids:
             card_ids = [os.path.splitext(f)[0] for f in os.listdir(set_path)
-                        if f.endswith('.png') and not f.startswith('_')]
+                        if _is_card_image(f)]
         owned_count = sum(1 for cid in card_ids if cid in owned_ids)
         info = master.get(d, {})
         sets_data.append({
@@ -425,7 +447,7 @@ def api_set_cards(set_id):
 
     cards = []
     for f in sorted(os.listdir(set_path)):
-        if not f.endswith('.png') or f.startswith('_'):
+        if not _is_card_image(f):
             continue
         card_id = os.path.splitext(f)[0]
         info = metadata.get(card_id, {})
@@ -487,7 +509,7 @@ def api_collection_toggle_set():
         return jsonify({"error": "set not found"}), 404
 
     card_ids = [os.path.splitext(f)[0] for f in os.listdir(set_path)
-                if f.endswith('.png') and not f.startswith('_')]
+                if _is_card_image(f)]
 
     collection = load_collection()
     if tcg not in collection:
@@ -583,7 +605,7 @@ def api_collection_toggle_all():
             if not os.path.isdir(set_path):
                 continue
             for f in os.listdir(set_path):
-                if f.endswith('.png') and not f.startswith('_'):
+                if _is_card_image(f):
                     all_ids.add(os.path.splitext(f)[0])
         collection[tcg] = list(all_ids)
         count = len(all_ids)
@@ -823,14 +845,13 @@ def api_download_start():
         tcg = data.get("tcg", "pokemon")
         since = data.get("since")
 
-        if tcg == "pokemon":
-            cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_cards_pokemon.py")]
-        elif tcg == "mtg":
-            cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_cards_mtg.py")]
-            if since:
-                cmd.extend(["--since", str(since)])
-        else:
-            return jsonify({"ok": False, "error": "Unknown TCG"})
+        reg = TCG_REGISTRY.get(tcg)
+        if not reg or not reg.get("download_script"):
+            return jsonify({"ok": False, "error": "Unknown TCG or no download script"})
+
+        cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
+        if tcg == "mtg" and since:
+            cmd.extend(["--since", str(since)])
 
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
@@ -924,7 +945,7 @@ def _compute_storage():
                     if os.path.isdir(set_path):
                         set_count += 1
                         for f in os.listdir(set_path):
-                            if f.endswith('.png') and not f.startswith('_'):
+                            if _is_card_image(f):
                                 card_count += 1
             except Exception:
                 pass
@@ -994,6 +1015,304 @@ def api_delete():
         except Exception as e:
             return jsonify({"ok": False, "error": str(e)})
     return jsonify({"ok": True, "tcg": tcg})
+
+
+# --- OTA UPDATE ---
+UPDATE_STATUS_FILE = "/tmp/inkslab_update_status.json"
+
+@app.route('/api/update/check', methods=['POST'])
+def api_update_check():
+    """Check if updates are available by comparing local vs remote HEAD."""
+    try:
+        subprocess.run(['git', 'fetch', 'origin'], cwd=SCRIPT_DIR,
+                       capture_output=True, timeout=30)
+        local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
+                               capture_output=True, text=True, timeout=5)
+        remote = subprocess.run(['git', 'rev-parse', 'origin/master'], cwd=SCRIPT_DIR,
+                                capture_output=True, text=True, timeout=5)
+        local_hash = local.stdout.strip()[:8]
+        remote_hash = remote.stdout.strip()[:8]
+        behind = subprocess.run(['git', 'rev-list', '--count', 'HEAD..origin/master'],
+                                cwd=SCRIPT_DIR, capture_output=True, text=True, timeout=5)
+        commits_behind = int(behind.stdout.strip()) if behind.returncode == 0 else 0
+        return jsonify({"ok": True, "local": local_hash, "remote": remote_hash,
+                        "behind": commits_behind, "up_to_date": commits_behind == 0})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/update/start', methods=['POST'])
+def api_update_start():
+    """Launch OTA update script detached from this process."""
+    script = os.path.join(SCRIPT_DIR, "scripts", "ota_update.sh")
+    if not os.path.exists(script):
+        return jsonify({"ok": False, "error": "Update script not found"})
+    try:
+        # Clear old status
+        if os.path.exists(UPDATE_STATUS_FILE):
+            os.remove(UPDATE_STATUS_FILE)
+        subprocess.Popen(['bash', script], cwd=SCRIPT_DIR,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/update/status')
+def api_update_status():
+    """Read OTA update progress."""
+    if os.path.exists(UPDATE_STATUS_FILE):
+        try:
+            with open(UPDATE_STATUS_FILE, 'r') as f:
+                status = json.load(f)
+            # Auto-clear stale status
+            if time.time() - status.get('timestamp', 0) > 120:
+                return jsonify({"stage": "idle"})
+            return jsonify(status)
+        except Exception:
+            pass
+    return jsonify({"stage": "idle"})
+
+
+# --- CUSTOM IMAGE MANAGEMENT ---
+
+CUSTOM_PATH = TCG_LIBRARIES["custom"]
+
+@app.route('/api/custom/folders')
+def api_custom_folders():
+    """List custom image folders with card counts."""
+    if not os.path.exists(CUSTOM_PATH):
+        return jsonify([])
+    folders = []
+    master = {}
+    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+    if os.path.exists(idx_path):
+        try:
+            with open(idx_path, 'r') as f:
+                master = json.load(f)
+        except Exception:
+            pass
+    for d in sorted(os.listdir(CUSTOM_PATH)):
+        dp = os.path.join(CUSTOM_PATH, d)
+        if not os.path.isdir(dp):
+            continue
+        count = sum(1 for f in os.listdir(dp) if _is_card_image(f))
+        info = master.get(d, {})
+        folders.append({"id": d, "name": info.get("name", d.replace('_', ' ').replace('-', ' ').title()),
+                        "card_count": count})
+    return jsonify(folders)
+
+
+@app.route('/api/custom/create_folder', methods=['POST'])
+def api_custom_create_folder():
+    """Create a new custom image folder."""
+    data = request.get_json(force=True)
+    name = data.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "name required"}), 400
+    # Sanitize folder name
+    safe = "".join(c if c.isalnum() or c in (' ', '-', '_') else '' for c in name).strip()
+    safe = safe.replace(' ', '_').lower()
+    if not safe:
+        return jsonify({"error": "invalid name"}), 400
+    folder = os.path.join(CUSTOM_PATH, safe)
+    os.makedirs(folder, exist_ok=True)
+    # Update master_index
+    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+    master = {}
+    if os.path.exists(idx_path):
+        try:
+            with open(idx_path, 'r') as f:
+                master = json.load(f)
+        except Exception:
+            pass
+    master[safe] = {"name": name, "year": ""}
+    with open(idx_path, 'w') as f:
+        json.dump(master, f)
+    _cache_invalidate('sets_custom', 'storage')
+    return jsonify({"ok": True, "id": safe, "name": name})
+
+
+@app.route('/api/custom/rename_folder', methods=['POST'])
+def api_custom_rename_folder():
+    """Rename a custom set's display name."""
+    data = request.get_json(force=True)
+    folder_id = data.get("id", "")
+    new_name = data.get("name", "").strip()
+    if not folder_id or not new_name:
+        return jsonify({"error": "id and name required"}), 400
+    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+    master = {}
+    if os.path.exists(idx_path):
+        try:
+            with open(idx_path, 'r') as f:
+                master = json.load(f)
+        except Exception:
+            pass
+    if folder_id not in master:
+        master[folder_id] = {"name": new_name, "year": ""}
+    else:
+        master[folder_id]["name"] = new_name
+    with open(idx_path, 'w') as f:
+        json.dump(master, f)
+    _cache_invalidate('sets_custom')
+    return jsonify({"ok": True})
+
+
+@app.route('/api/custom/folder/<name>', methods=['DELETE'])
+def api_custom_delete_folder(name):
+    """Delete an entire custom folder."""
+    safe = os.path.basename(name)
+    folder = os.path.join(CUSTOM_PATH, safe)
+    if os.path.isdir(folder):
+        shutil.rmtree(folder)
+    # Remove from master_index
+    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+    if os.path.exists(idx_path):
+        try:
+            with open(idx_path, 'r') as f:
+                master = json.load(f)
+            master.pop(safe, None)
+            with open(idx_path, 'w') as f:
+                json.dump(master, f)
+        except Exception:
+            pass
+    _cache_invalidate('sets_custom', 'storage')
+    return jsonify({"ok": True})
+
+
+@app.route('/api/custom/card/<folder>/<card_id>', methods=['DELETE'])
+def api_custom_delete_card(folder, card_id):
+    """Delete a single card from a custom folder."""
+    safe_folder = os.path.basename(folder)
+    safe_card = os.path.basename(card_id)
+    folder_path = os.path.join(CUSTOM_PATH, safe_folder)
+    for ext in IMAGE_EXTENSIONS:
+        p = os.path.join(folder_path, safe_card + ext)
+        if os.path.exists(p):
+            os.remove(p)
+    # Remove from _data.json if present
+    data_file = os.path.join(folder_path, "_data.json")
+    if os.path.exists(data_file):
+        try:
+            with open(data_file, 'r') as f:
+                data = json.load(f)
+            data.pop(safe_card, None)
+            with open(data_file, 'w') as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+    _cache_invalidate('sets_custom', 'storage')
+    return jsonify({"ok": True})
+
+
+@app.route('/api/custom/upload', methods=['POST'])
+def api_custom_upload():
+    """Upload an image to a custom folder."""
+    folder_id = request.form.get("folder", "")
+    if not folder_id:
+        return jsonify({"error": "folder required"}), 400
+    safe_folder = os.path.basename(folder_id)
+    folder_path = os.path.join(CUSTOM_PATH, safe_folder)
+    if not os.path.isdir(folder_path):
+        return jsonify({"error": "folder not found"}), 404
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "file required"}), 400
+    # Validate extension
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in IMAGE_EXTENSIONS:
+        return jsonify({"error": "Only PNG/JPG images allowed"}), 400
+    # Sanitize filename
+    base = os.path.splitext(f.filename)[0]
+    safe_base = "".join(c if c.isalnum() or c in ('-', '_', ' ') else '' for c in base).strip()
+    if not safe_base:
+        safe_base = f"card_{int(time.time())}"
+    safe_name = safe_base.replace(' ', '_') + ext
+    filepath = os.path.join(folder_path, safe_name)
+    # Avoid overwrite
+    counter = 1
+    while os.path.exists(filepath):
+        filepath = os.path.join(folder_path, f"{safe_base}_{counter}{ext}")
+        counter += 1
+    f.save(filepath)
+    card_id = os.path.splitext(os.path.basename(filepath))[0]
+    # Auto-add metadata
+    data_file = os.path.join(folder_path, "_data.json")
+    data = {}
+    if os.path.exists(data_file):
+        try:
+            with open(data_file, 'r') as df:
+                data = json.load(df)
+        except Exception:
+            pass
+    data[card_id] = {
+        "name": safe_base.replace('_', ' ').replace('-', ' ').title(),
+        "number": str(len(data) + 1),
+        "rarity": "",
+    }
+    with open(data_file, 'w') as df:
+        json.dump(data, df)
+    _cache_invalidate('sets_custom', 'storage')
+    return jsonify({"ok": True, "card_id": card_id})
+
+
+@app.route('/api/custom/card_metadata', methods=['POST'])
+def api_custom_card_metadata():
+    """Edit a card's metadata (name, number, rarity)."""
+    data = request.get_json(force=True)
+    folder_id = data.get("folder", "")
+    card_id = data.get("card_id", "")
+    if not folder_id or not card_id:
+        return jsonify({"error": "folder and card_id required"}), 400
+    safe_folder = os.path.basename(folder_id)
+    data_file = os.path.join(CUSTOM_PATH, safe_folder, "_data.json")
+    cards = {}
+    if os.path.exists(data_file):
+        try:
+            with open(data_file, 'r') as f:
+                cards = json.load(f)
+        except Exception:
+            pass
+    if card_id not in cards:
+        cards[card_id] = {}
+    if "name" in data:
+        cards[card_id]["name"] = data["name"]
+    if "number" in data:
+        cards[card_id]["number"] = data["number"]
+    if "rarity" in data:
+        cards[card_id]["rarity"] = data["rarity"]
+    with open(data_file, 'w') as f:
+        json.dump(cards, f)
+    return jsonify({"ok": True})
+
+
+@app.route('/api/custom/set_metadata', methods=['POST'])
+def api_custom_set_metadata():
+    """Edit a set's display name and year."""
+    data = request.get_json(force=True)
+    folder_id = data.get("id", "")
+    if not folder_id:
+        return jsonify({"error": "id required"}), 400
+    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+    master = {}
+    if os.path.exists(idx_path):
+        try:
+            with open(idx_path, 'r') as f:
+                master = json.load(f)
+        except Exception:
+            pass
+    if folder_id not in master:
+        master[folder_id] = {"name": folder_id, "year": ""}
+    if "name" in data:
+        master[folder_id]["name"] = data["name"]
+    if "year" in data:
+        master[folder_id]["year"] = data["year"]
+    with open(idx_path, 'w') as f:
+        json.dump(master, f)
+    _cache_invalidate('sets_custom')
+    return jsonify({"ok": True})
 
 
 # --- DASHBOARD HTML ---
@@ -1190,10 +1509,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card">
     <h3>Quick Switch</h3>
-    <div class="flex-row">
-      <button class="btn btn-secondary btn-block" onclick="switchTCG('pokemon', this)">Pokemon</button>
-      <button class="btn btn-secondary btn-block" onclick="switchTCG('mtg', this)">MTG</button>
-    </div>
+    <div class="flex-row" id="quick-switch-btns"></div>
   </div>
 </div>
 
@@ -1203,7 +1519,15 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <h3>Display Settings</h3>
     <div class="form-group">
       <label>Active TCG</label>
-      <select id="cfg-tcg"><option value="pokemon">Pokemon</option><option value="mtg">Magic: The Gathering</option></select>
+      <select id="cfg-tcg"></select>
+    </div>
+    <div class="form-group">
+      <label>Slab Header</label>
+      <select id="cfg-header-mode">
+        <option value="normal">Normal (white bg, black text)</option>
+        <option value="inverted">Inverted (black bg, white text)</option>
+        <option value="off">Off (full-screen card art)</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Rotation Angle</label>
@@ -1236,6 +1560,18 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
       </div>
     </div>
     <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
+  </div>
+  <div class="card">
+    <h3>Software Update</h3>
+    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD">Click below to check for updates.</div>
+    <div class="flex-row" style="margin-bottom:8px">
+      <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
+      <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
+    </div>
+    <div id="update-progress" style="display:none">
+      <div style="background:#1F333F;border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:#36A5CA;width:0%;transition:width 0.5s"></div></div>
+      <div id="update-stage" style="font-size:12px;color:#6BCCBD;text-align:center"></div>
+    </div>
   </div>
 </div>
 
@@ -1277,19 +1613,12 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card">
     <h3>Download Cards</h3>
-    <div id="dl-buttons">
-      <div class="flex-row" style="margin-bottom:8px">
-        <button class="btn btn-primary btn-block" id="btn-dl-pokemon" onclick="startDownload('pokemon')">Download Pokemon</button>
-      </div>
-      <div class="flex-row" style="margin-bottom:8px">
-        <button class="btn btn-primary btn-block" id="btn-dl-mtg" onclick="startDownload('mtg')">Download MTG (All)</button>
-      </div>
-      <div class="form-group">
-        <label>Or download MTG since year:</label>
-        <div class="flex-row">
-          <input type="number" id="dl-since" min="1993" max="2030" value="2020" style="flex:2">
-          <button class="btn btn-secondary" id="btn-dl-mtg-since" onclick="startDownload('mtg', document.getElementById('dl-since').value)" style="flex:1">Go</button>
-        </div>
+    <div id="dl-buttons"></div>
+    <div class="form-group" style="margin-top:8px">
+      <label>Download MTG since year:</label>
+      <div class="flex-row">
+        <input type="number" id="dl-since" min="1993" max="2030" value="2020" style="flex:2">
+        <button class="btn btn-secondary" id="btn-dl-mtg-since" onclick="startDownload('mtg', document.getElementById('dl-since').value)" style="flex:1">Go</button>
       </div>
     </div>
     <button class="btn btn-danger btn-block" id="btn-dl-stop" style="display:none" onclick="stopDownload()">Stop Download</button>
@@ -1300,12 +1629,18 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="dl-log" class="log-box">No download running.</div>
   </div>
   <div class="card">
+    <h3>Custom Images</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Upload your own images. Each folder is a set.</p>
+    <div class="flex-row" style="margin-bottom:8px">
+      <input type="text" id="custom-folder-name" placeholder="New folder name..." style="flex:2;background:#1F333F;color:#D8E6E4;border:1px solid #36A5CA44;border-radius:4px;padding:8px;font-size:14px">
+      <button class="btn btn-primary" onclick="createCustomFolder()" style="flex:1">Create</button>
+    </div>
+    <div id="custom-folders"></div>
+  </div>
+  <div class="card">
     <h3>Delete Data</h3>
     <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Remove all downloaded card images for a TCG.</p>
-    <div class="flex-row">
-      <button class="btn btn-danger btn-block btn-sm" onclick="deleteData('pokemon', this)">Delete Pokemon</button>
-      <button class="btn btn-danger btn-block btn-sm" onclick="deleteData('mtg', this)">Delete MTG</button>
-    </div>
+    <div id="delete-buttons" class="flex-row" style="flex-wrap:wrap;gap:6px"></div>
   </div>
 </div>
 
@@ -1338,7 +1673,7 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
   if (name === 'settings') loadSettings();
-  if (name === 'downloads') { loadStorage(); pollDownload(); }
+  if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); }
   if (name === 'display') refreshStatus();
 }
 
@@ -1576,7 +1911,7 @@ function togglePause() {
 }
 
 function switchTCG(tcg, activeBtn) {
-  var btns = document.querySelectorAll('[onclick^="switchTCG"]');
+  var btns = document.getElementById('quick-switch-btns').querySelectorAll('.btn');
   btns.forEach(function(b) { b.disabled = true; });
   var orig = activeBtn.textContent;
   activeBtn.textContent = 'Switching...';
@@ -1585,9 +1920,10 @@ function switchTCG(tcg, activeBtn) {
     .then(function() {
       activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
-      showToast('Switching to ' + tcg.toUpperCase() + '...');
-      document.getElementById('st-tcg').textContent = tcg.toUpperCase();
-      setOptimisticLoading('Switching to ' + tcg.toUpperCase() + '...');
+      var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
+      showToast('Switching to ' + name + '...');
+      document.getElementById('st-tcg').textContent = name;
+      setOptimisticLoading('Switching to ' + name + '...');
       startRapidPoll();
     })
     .catch(function() {
@@ -1601,6 +1937,7 @@ function switchTCG(tcg, activeBtn) {
 function loadSettings() {
   fetch(API + '/api/config').then(r => r.json()).then(c => {
     document.getElementById('cfg-tcg').value = c.active_tcg;
+    document.getElementById('cfg-header-mode').value = c.slab_header_mode || 'normal';
     document.getElementById('cfg-rotation').value = c.rotation_angle;
     document.getElementById('cfg-day-interval').value = Math.round(c.day_interval / 60);
     document.getElementById('cfg-night-interval').value = Math.round(c.night_interval / 60);
@@ -1614,6 +1951,7 @@ function loadSettings() {
 function saveSettings() {
   const cfg = {
     active_tcg: document.getElementById('cfg-tcg').value,
+    slab_header_mode: document.getElementById('cfg-header-mode').value,
     rotation_angle: parseInt(document.getElementById('cfg-rotation').value),
     day_interval: parseInt(document.getElementById('cfg-day-interval').value) * 60,
     night_interval: parseInt(document.getElementById('cfg-night-interval').value) * 60,
@@ -1903,36 +2241,42 @@ function loadStorage() {
     if (!info._disk) { el.innerHTML = '<div style="color:#6BCCBD">Loading...</div>'; setTimeout(loadStorage, 3000); return; }
     var totalGb = info._disk.total_gb || 1;
     var freeGb = info._disk.free_gb || 0;
-    var pokGb = (info.pokemon && info.pokemon.size_gb) || 0;
-    var pokMb = (info.pokemon && info.pokemon.size_mb) || 0;
-    var mtgGb = (info.mtg && info.mtg.size_gb) || 0;
-    var mtgMb = (info.mtg && info.mtg.size_mb) || 0;
+    // Dynamic: sum up all TCG sizes
+    var tcgEntries = Object.entries(info).filter(function(e) { return !e[0].startsWith('_'); });
+    var tcgTotalGb = 0;
+    tcgEntries.forEach(function(e) { tcgTotalGb += (e[1].size_gb || 0); });
     var usedGb = Math.round((totalGb - freeGb) * 100) / 100;
-    var otherGb = Math.max(0, Math.round((usedGb - pokGb - mtgGb) * 100) / 100);
-    var pokPct = (pokGb / totalGb * 100);
-    var mtgPct = (mtgGb / totalGb * 100);
+    var otherGb = Math.max(0, Math.round((usedGb - tcgTotalGb) * 100) / 100);
     var otherPct = (otherGb / totalGb * 100);
     var freePct = (freeGb / totalGb * 100);
-    // Ensure non-zero segments have minimum visible width
-    if (pokGb > 0 && pokPct < 1.5) pokPct = 1.5;
-    if (mtgGb > 0 && mtgPct < 1.5) mtgPct = 1.5;
     var html = '<div class="storage-bar-wrap">';
     html += '<div class="storage-bar-label"><span>' + usedGb.toFixed(1) + ' GB used</span><span>' + freeGb.toFixed(1) + ' GB free / ' + totalGb.toFixed(0) + ' GB</span></div>';
     html += '<div class="storage-bar">';
-    if (pokGb > 0) html += '<div class="storage-seg seg-pokemon" style="width:' + pokPct.toFixed(1) + '%">' + (pokPct > 8 ? fmtSizeShort(pokGb, pokMb) : '') + '</div>';
-    if (mtgGb > 0) html += '<div class="storage-seg seg-mtg" style="width:' + mtgPct.toFixed(1) + '%">' + (mtgPct > 8 ? fmtSizeShort(mtgGb, mtgMb) : '') + '</div>';
+    tcgEntries.forEach(function(e) {
+      var tcg = e[0], d = e[1];
+      var gb = d.size_gb || 0;
+      if (gb <= 0) return;
+      var pct = Math.max(gb / totalGb * 100, 1.5);
+      var color = (_tcgRegistry[tcg] && _tcgRegistry[tcg].color) || '#888';
+      html += '<div class="storage-seg" style="width:' + pct.toFixed(1) + '%;background:' + color + '">' + (pct > 8 ? fmtSizeShort(gb, d.size_mb || 0) : '') + '</div>';
+    });
     if (otherPct > 0.5) html += '<div class="storage-seg seg-other" style="width:' + otherPct.toFixed(1) + '%">' + (otherPct > 8 ? otherGb.toFixed(1) + 'G' : '') + '</div>';
     html += '<div class="storage-seg seg-free" style="width:' + Math.max(freePct, 1).toFixed(1) + '%">' + (freePct > 12 ? freeGb.toFixed(1) + 'G' : '') + '</div>';
     html += '</div>';
     html += '<div class="storage-legend">';
-    html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#36A5CA"></span>Pokemon</div>';
-    html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#6BCCBD"></span>MTG</div>';
+    tcgEntries.forEach(function(e) {
+      var tcg = e[0];
+      var color = (_tcgRegistry[tcg] && _tcgRegistry[tcg].color) || '#888';
+      var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
+      html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:' + color + '"></span>' + name + '</div>';
+    });
     html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#8b6bbf"></span>System</div>';
     html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#1F333F;border:1px solid #36A5CA44"></span>Free</div>';
     html += '</div></div>';
-    Object.entries(info).filter(function(e) { return !e[0].startsWith('_'); }).forEach(function(e) {
+    tcgEntries.forEach(function(e) {
       var tcg = e[0], d = e[1];
-      html += '<div class="stat"><span class="stat-label">' + tcg.toUpperCase() + '</span><span class="stat-value">' + d.card_count + ' cards &middot; ' + d.set_count + ' sets &middot; ' + fmtSize(d.size_gb || 0, d.size_mb || 0) + '</span></div>';
+      var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
+      html += '<div class="stat"><span class="stat-label">' + name + '</span><span class="stat-value">' + d.card_count + ' cards &middot; ' + d.set_count + ' sets &middot; ' + fmtSize(d.size_gb || 0, d.size_mb || 0) + '</span></div>';
     });
     el.innerHTML = html;
   });
@@ -2016,20 +2360,232 @@ function deleteData(tcg, btn) {
     });
 }
 
+// --- OTA Update ---
+function checkUpdate() {
+  var el = document.getElementById('update-info');
+  el.textContent = 'Checking...';
+  fetch(API + '/api/update/check', {method:'POST'}).then(r => r.json()).then(d => {
+    if (!d.ok) { el.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+    if (d.up_to_date) {
+      el.innerHTML = 'Up to date! <span style="color:#6BCCBD">Version: ' + d.local + '</span>';
+      document.getElementById('btn-update-now').style.display = 'none';
+    } else {
+      el.innerHTML = d.behind + ' update' + (d.behind > 1 ? 's' : '') + ' available. <span style="color:#6BCCBD">Current: ' + d.local + ' &rarr; Latest: ' + d.remote + '</span>';
+      document.getElementById('btn-update-now').style.display = 'block';
+    }
+  }).catch(function() { el.textContent = 'Failed to check. Is the Pi online?'; });
+}
+
+function startUpdate() {
+  if (!confirm('Update InkSlab? The display and web dashboard will restart.')) return;
+  document.getElementById('update-progress').style.display = 'block';
+  document.getElementById('update-stage').textContent = 'Starting update...';
+  document.getElementById('update-bar').style.width = '10%';
+  document.getElementById('btn-update-now').style.display = 'none';
+  fetch(API + '/api/update/start', {method:'POST'}).then(r => r.json()).then(d => {
+    if (d.ok) { pollUpdate(); }
+    else { document.getElementById('update-stage').textContent = 'Error: ' + (d.error || 'unknown'); }
+  });
+}
+
+var _updatePoll = null;
+function pollUpdate() {
+  if (_updatePoll) clearInterval(_updatePoll);
+  _updatePoll = setInterval(checkUpdateStatus, 2000);
+}
+function checkUpdateStatus() {
+  fetch(API + '/api/update/status').then(r => r.json()).then(d => {
+    var bar = document.getElementById('update-bar');
+    var stage = document.getElementById('update-stage');
+    var stages = {fetching: 20, pulling: 40, restarting_display: 60, restarting_web: 80, complete: 100};
+    bar.style.width = (stages[d.stage] || 10) + '%';
+    stage.textContent = d.message || d.stage || 'Working...';
+    if (d.stage === 'complete') {
+      clearInterval(_updatePoll); _updatePoll = null;
+      showToast('Update complete!');
+      setTimeout(function() { location.reload(); }, 2000);
+    } else if (d.error) {
+      clearInterval(_updatePoll); _updatePoll = null;
+      stage.textContent = d.message || 'Update failed';
+      bar.style.background = '#ff6b6b';
+    }
+  }).catch(function() {
+    document.getElementById('update-stage').textContent = 'Reconnecting...';
+  });
+}
+
+// --- Custom Images ---
+function loadCustomFolders() {
+  fetch(API + '/api/custom/folders').then(r => r.json()).then(folders => {
+    var el = document.getElementById('custom-folders');
+    if (!folders.length) { el.innerHTML = '<div style="color:#6BCCBD;font-size:12px">No custom folders yet. Create one above.</div>'; return; }
+    el.innerHTML = folders.map(f => {
+      return '<div class="set-item"><div class="set-header" onclick="toggleCustomFolder(\\'' + f.id + '\\')">'
+        + '<span><span class="set-name">' + f.name + '</span></span>'
+        + '<span class="set-meta">' + f.card_count + ' cards</span>'
+        + '</div><div class="set-cards" id="cf-' + f.id + '"></div></div>';
+    }).join('');
+  });
+}
+
+function toggleCustomFolder(folderId) {
+  var el = document.getElementById('cf-' + folderId);
+  if (el.classList.contains('open')) { el.classList.remove('open'); return; }
+  el.classList.add('open');
+  if (el.dataset.loaded) return;
+  el.innerHTML = '<div style="padding:8px;color:#6BCCBD;font-size:12px">Loading...</div>';
+  fetch(API + '/api/sets/' + folderId + '/cards?tcg=custom').then(r => r.json()).then(cards => {
+    el.dataset.loaded = '1';
+    var html = '<div style="padding:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center">';
+    html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer">Upload <input type="file" accept="image/png,image/jpeg" multiple style="display:none" onchange="uploadCustomCards(\\'' + folderId + '\\',this.files)"></label>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="renameCustomFolder(\\'' + folderId + '\\')">Rename</button>';
+    html += '<button class="btn btn-danger btn-sm" onclick="deleteCustomFolder(\\'' + folderId + '\\')">Delete Set</button>';
+    html += '</div>';
+    if (cards.length) {
+      cards.forEach(c => {
+        html += '<div class="card-row"><label style="flex:1;cursor:pointer">';
+        html += '<span class="card-preview-btn" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.id + '\\',\\'' + (c.name||'').replace(/'/g,"\\\\'") + '\\')">#' + c.number + ' ' + c.name + '</span>';
+        html += '</label>';
+        html += '<span style="display:flex;gap:4px;align-items:center">';
+        html += '<span class="card-rarity">' + (c.rarity || '') + '</span>';
+        html += '<span style="cursor:pointer;color:#6BCCBD;font-size:11px" onclick="editCustomCard(\\'' + folderId + '\\',\\'' + c.id + '\\',\\'' + (c.name||'').replace(/'/g,"\\\\'") + '\\',\\'' + c.number + '\\',\\'' + (c.rarity||'').replace(/'/g,"\\\\'") + '\\')">edit</span>';
+        html += '<span style="cursor:pointer;color:#ff6b6b;font-size:11px" onclick="deleteCustomCard(\\'' + folderId + '\\',\\'' + c.id + '\\')">x</span>';
+        html += '</span></div>';
+      });
+    } else {
+      html += '<div style="color:#6BCCBD;font-size:12px;padding:8px">No images yet. Upload some!</div>';
+    }
+    el.innerHTML = html;
+  });
+}
+
+function createCustomFolder() {
+  var name = document.getElementById('custom-folder-name').value.trim();
+  if (!name) { showToast('Enter a folder name'); return; }
+  fetch(API + '/api/custom/create_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name})})
+    .then(r => r.json()).then(d => {
+      if (d.ok) { document.getElementById('custom-folder-name').value = ''; loadCustomFolders(); showToast('Created ' + name); }
+      else showToast(d.error || 'Failed');
+    });
+}
+
+function uploadCustomCards(folderId, files) {
+  if (!files.length) return;
+  var done = 0;
+  showToast('Uploading ' + files.length + ' file(s)...');
+  Array.from(files).forEach(function(file) {
+    var fd = new FormData();
+    fd.append('folder', folderId);
+    fd.append('file', file);
+    fetch(API + '/api/custom/upload', {method:'POST', body: fd}).then(r => r.json()).then(function() {
+      done++;
+      if (done >= files.length) {
+        showToast('Uploaded ' + done + ' file(s)');
+        var el = document.getElementById('cf-' + folderId);
+        if (el) el.removeAttribute('data-loaded');
+        toggleCustomFolder(folderId);
+        loadCustomFolders();
+      }
+    });
+  });
+}
+
+function renameCustomFolder(folderId) {
+  var newName = prompt('New name for this set:');
+  if (!newName) return;
+  fetch(API + '/api/custom/rename_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: folderId, name: newName})})
+    .then(r => r.json()).then(d => { if (d.ok) { loadCustomFolders(); showToast('Renamed'); } });
+}
+
+function deleteCustomFolder(folderId) {
+  if (!confirm('Delete this entire custom set and all its images?')) return;
+  fetch(API + '/api/custom/folder/' + folderId, {method:'DELETE'}).then(r => r.json()).then(d => {
+    if (d.ok) { loadCustomFolders(); loadStorage(); showToast('Deleted'); }
+  });
+}
+
+function deleteCustomCard(folderId, cardId) {
+  if (!confirm('Delete this image?')) return;
+  fetch(API + '/api/custom/card/' + folderId + '/' + cardId, {method:'DELETE'}).then(r => r.json()).then(d => {
+    if (d.ok) {
+      var el = document.getElementById('cf-' + folderId);
+      if (el) el.removeAttribute('data-loaded');
+      toggleCustomFolder(folderId);
+      loadCustomFolders();
+      showToast('Deleted');
+    }
+  });
+}
+
+function editCustomCard(folderId, cardId, name, number, rarity) {
+  var newName = prompt('Card name:', name);
+  if (newName === null) return;
+  var newNum = prompt('Card number:', number);
+  if (newNum === null) return;
+  var newRarity = prompt('Rarity (optional):', rarity);
+  if (newRarity === null) return;
+  fetch(API + '/api/custom/card_metadata', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({folder: folderId, card_id: cardId, name: newName, number: newNum, rarity: newRarity})})
+    .then(r => r.json()).then(d => {
+      if (d.ok) {
+        var el = document.getElementById('cf-' + folderId);
+        if (el) el.removeAttribute('data-loaded');
+        toggleCustomFolder(folderId);
+        showToast('Updated');
+      }
+    });
+}
+
+// --- Dynamic TCG UI ---
+var _tcgRegistry = {};
+
+function buildDynamicUI(registry) {
+  _tcgRegistry = registry;
+  // Quick Switch buttons
+  var qsEl = document.getElementById('quick-switch-btns');
+  qsEl.innerHTML = Object.entries(registry).map(function(e) {
+    return '<button class="btn btn-secondary btn-block" onclick="switchTCG(\\'' + e[0] + '\\', this)">' + e[1].name + '</button>';
+  }).join('');
+  // Settings TCG dropdown
+  var sel = document.getElementById('cfg-tcg');
+  sel.innerHTML = Object.entries(registry).map(function(e) {
+    return '<option value="' + e[0] + '">' + e[1].name + '</option>';
+  }).join('');
+  // Download buttons (only for TCGs with download scripts)
+  var dlEl = document.getElementById('dl-buttons');
+  dlEl.innerHTML = Object.entries(registry).filter(function(e) { return e[1].download_script; }).map(function(e) {
+    return '<div style="margin-bottom:6px"><button class="btn btn-primary btn-block" onclick="startDownload(\\'' + e[0] + '\\')">Download ' + e[1].name + '</button></div>';
+  }).join('');
+  // Delete buttons
+  var delEl = document.getElementById('delete-buttons');
+  delEl.innerHTML = Object.entries(registry).map(function(e) {
+    return '<button class="btn btn-danger btn-sm" style="flex:1" onclick="deleteData(\\'' + e[0] + '\\', this)">Delete ' + e[1].name + '</button>';
+  }).join('');
+}
+
 // --- Init ---
 (function() {
-  const saved = localStorage.getItem('inkslab_tab');
-  if (saved && document.getElementById('tab-' + saved)) {
-    showTab(saved);
-  } else {
+  // Load TCG registry first, then build UI
+  fetch(API + '/api/tcg_list').then(r => r.json()).then(function(registry) {
+    buildDynamicUI(registry);
+    // Now do everything else
+    const saved = localStorage.getItem('inkslab_tab');
+    if (saved && document.getElementById('tab-' + saved)) {
+      showTab(saved);
+    } else {
+      refreshStatus();
+    }
+    startMainPoll();
+    startCountdown();
+    fetch(API + '/api/ip').then(r => r.json()).then(d => {
+      if (d.ip) document.getElementById('footer-ip').textContent = 'Also available at http://' + d.ip;
+    }).catch(() => {});
+  }).catch(function() {
+    // Fallback if tcg_list fails
     refreshStatus();
-  }
-  startMainPoll();
-  startCountdown();
-  // Load IP for footer
-  fetch(API + '/api/ip').then(r => r.json()).then(d => {
-    if (d.ip) document.getElementById('footer-ip').textContent = 'Also available at http://' + d.ip;
-  }).catch(() => {});
+    startMainPoll();
+    startCountdown();
+  });
 })();
 </script>
 </body>

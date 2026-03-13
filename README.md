@@ -1,8 +1,8 @@
 # InkSlab — e-Ink TCG Card Display
 
-A Raspberry Pi-powered e-ink display that shows your Pokemon and Magic: The Gathering cards in a graded-slab style layout. Control everything from your phone — switch between TCGs, download cards, curate your collection by rarity, and more.
+A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gathering, and Disney Lorcana cards in a graded-slab style layout. Upload your own custom images too. Control everything from your phone — switch between TCGs, download cards, curate your collection by rarity, and more.
 
-**No command line needed after initial setup.** Everything runs through a clean web dashboard.
+**No command line needed after initial setup.** Everything runs through a clean web dashboard — including software updates.
 
 **By [Costa Mesa Tech Solutions](https://github.com/costamesatechsolutions)** (a brand of Pine Heights Ventures LLC)
 
@@ -12,12 +12,21 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon and Magic: The Gath
 
 - Cycles through TCG cards on a 7-color e-ink display (black, white, red, yellow, blue, green, orange)
 - Shows card art in a graded-slab frame with set name, year, card number, and rarity
+- **Slab Header Modes:** Normal (white bg), Inverted (black bg), or Off (full-screen card art)
 - **Web Dashboard:** Control everything from your phone or browser at `http://inkslab.local`
 - **Live Player Controls:** Pause, play, skip, or go back, complete with an "Up Next" queue and countdown timer
 - **Collection Mode & Search:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection.
 - **Rarity Filtering:** Select or deselect all cards of a specific rarity (e.g., "Mythic Rare" or "Illustration Rare") across every set with one tap
 - **Smart Shuffle:** Remembers recently shown cards and pushes them to the back of the deck upon reshuffling so you always see fresh art
+- **Custom Images:** Upload your own images and organize them into sets with optional metadata
+- **OTA Updates:** Update InkSlab software directly from the web dashboard — no SSH needed
 - Runs 24/7 as a desk display, rotating cards every 10 minutes (configurable for day/night)
+
+### Supported TCGs
+- **Pokemon** — via [PokemonTCG data](https://github.com/PokemonTCG/pokemon-tcg-data)
+- **Magic: The Gathering** — via [Scryfall API](https://scryfall.com/)
+- **Disney Lorcana** — via [Lorcast API](https://lorcast.com/)
+- **Custom** — upload your own PNG/JPG images
 
 ```
 +-----------------------+
@@ -40,7 +49,7 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon and Magic: The Gath
 |------|-------|
 | **Raspberry Pi Zero W H** | The "H" means headers are pre-soldered (required for the display HAT) |
 | **[Waveshare 4" e-Paper HAT+ (E)](https://www.waveshare.com/wiki/4inch_e-Paper_HAT%2B_(E)_Manual)** | Spectra 6 — the 7-color model |
-| **Micro SD card** | 32 GB for one TCG, 64 GB for both (Pokemon ~13 GB, MTG ~13 GB) |
+| **Micro SD card** | 32 GB for one TCG, 64 GB+ for all three (Pokemon ~13 GB, MTG ~13 GB, Lorcana ~2 GB) |
 | **90-degree micro USB cable** | Optional but recommended — keeps the power cable hidden behind the frame |
 | **3D printed frame** | Print files on MakerWorld: **[InkSlab on MakerWorld](https://makerworld.com/en/models/2452200-inkslab-open-source-e-ink-tcg-display)** |
 
@@ -128,36 +137,72 @@ Once running, everything is managed from the dashboard at **http://inkslab.local
 - **Live Preview:** See exactly what card is currently on the screen with real-time loading states
 - **Player Controls:** iPod-style controls to Pause/Play, skip to the Next card, or go back to Previous cards
 - **Queue:** View thumbnail previews of the "Up Next" and "Previously" shown cards
-- **Quick Switch:** Instantly toggle between Pokémon and MTG with one tap
+- **Quick Switch:** Instantly toggle between Pokemon, MTG, Lorcana, or Custom with one tap
 
 ### Settings Tab
+- **Active TCG:** Switch between Pokemon, MTG, Lorcana, or Custom
+- **Slab Header Mode:** Choose between Normal (white background), Inverted (black background), or Off (full-screen card art with no header)
 - Change how often cards rotate (separate day and night intervals to save power)
 - Adjust display rotation and color saturation (boost colors for the e-paper display)
 - Enable **Collection Only** mode to restrict the display to cards you've marked as owned
+- **Software Update:** Check for and install OTA updates directly from the web dashboard
 
 ### Collection Tab
 - Browse every downloaded set and toggle ownership. Tap any card name to view a high-res preview modal
 - **Search Cards:** Search for any character or card and instantly add all versions of it to your collection
-- **Filter by Rarity:** Pick a rarity from the dropdown (e.g., "Rare Holo", "Mythic Rare") and select/deselect all matching cards across every set at once
+- **Filter by Rarity:** Pick a rarity from the dropdown (e.g., "Rare Holo", "Mythic Rare", "Enchanted") and select/deselect all matching cards across every set at once
 - **Set Management:** Select/Deselect an entire set, or use the per-set rarity chips to bulk-manage specific rarities within a single set
 
 ### Downloads Tab
 - **Smart Storage:** View high-speed, native disk space calculations to see exactly how much SD card space you have left
-- **Download Cards:** Pull down Pokémon or MTG cards directly from the dashboard with a live progress log
+- **Download Cards:** Pull down Pokemon, MTG, or Lorcana cards directly from the dashboard with a live progress log
 - **MTG Year Filter:** Magic is massive. Save SD card space by entering a year (e.g., `2020`) to only download MTG sets released from that year onward
+- **Custom Images:** Create folders, upload your own PNG/JPG images, edit card metadata (name, number, rarity), rename or delete sets
 - Delete card data with a safety confirmation
 
 ---
 
 ## Updating
 
-SSH into your Pi and pull the latest code:
+### From the Web Dashboard (Recommended)
+1. Go to **Settings** tab
+2. Click **Check for Updates**
+3. If updates are available, click **Update Now**
+4. The page will automatically reconnect after the services restart
 
+### Via SSH
 ```bash
 ssh pi@inkslab.local
 cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
 git pull
 sudo systemctl restart inkslab inkslab_web
+```
+
+---
+
+## Custom Images
+
+Upload your own images to display on the InkSlab.
+
+### How It Works
+- Go to the **Downloads** tab and find the **Custom Images** section
+- **Create a folder** — each folder is a "set" (e.g., "Favorites", "My Art", "Proxies")
+- **Upload images** — PNG or JPG, any aspect ratio (will be auto-scaled)
+- **Edit metadata** — optionally set a name, number, and rarity for each card so the slab header looks right
+- **Switch to Custom** — use Quick Switch or Settings to display your custom images
+- Multiple folders supported — organize by theme, artist, or whatever you like
+
+### Folder Structure on Disk
+```
+/home/pi/custom_cards/
+  master_index.json          # Set names (auto-generated)
+  my_favorites/
+    _data.json               # Card metadata (auto-generated from filenames)
+    cool_dragon.jpg
+    awesome_wizard.png
+  proxies/
+    _data.json
+    black_lotus.png
 ```
 
 ---
@@ -168,7 +213,8 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `active_tcg` | `"pokemon"` | Which TCG to display |
+| `active_tcg` | `"pokemon"` | Which TCG to display (`pokemon`, `mtg`, `lorcana`, `custom`) |
+| `slab_header_mode` | `"normal"` | Slab header style: `"normal"`, `"inverted"`, or `"off"` |
 | `rotation_angle` | `270` | Display rotation (0/90/180/270) |
 | `day_interval` | `600` (10 min) | Seconds between cards during the day |
 | `night_interval` | `3600` (1 hr) | Seconds between cards at night |
@@ -187,7 +233,8 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 | Washed-out colors | Increase **Color Saturation** in the Settings tab (default 2.5, try 3.0–4.0) |
 | Web dashboard not loading | Run `journalctl -u inkslab_web -f` to check for errors |
 | Collection mode shows nothing | Mark some cards as owned in the Collection tab first |
-| Download fails or stalls | The Pi Zero has limited RAM. If a massive download (MTG or Pokémon) stalls out, click "Stop Download" and then start it again. It will safely skip over existing files and resume exactly where it left off. |
+| Download fails or stalls | The Pi Zero has limited RAM. If a massive download (MTG or Pokemon) stalls out, click "Stop Download" and then start it again. It will safely skip over existing files and resume exactly where it left off. |
+| OTA update stuck | If the update progress bar stalls, wait 60 seconds then refresh the page. The services auto-restart via systemd. |
 
 ---
 
@@ -203,12 +250,15 @@ inkslab-eink-tcg-display/
   scripts/
     download_cards_pokemon.py    # Pokemon card downloader
     download_cards_mtg.py        # MTG card downloader (Scryfall API)
+    download_cards_lorcana.py    # Lorcana card downloader (Lorcast API)
+    ota_update.sh                # OTA update script (git pull + service restart)
 ```
 
 ## Credits
 
 - Pokemon card data: [PokemonTCG/pokemon-tcg-data](https://github.com/PokemonTCG/pokemon-tcg-data) (open data)
 - MTG card data: [Scryfall](https://scryfall.com/) (free API)
+- Lorcana card data: [Lorcast](https://lorcast.com/) (free API)
 - Display driver: [Waveshare e-Paper](https://github.com/waveshare/e-Paper) (MIT License)
 
 ## License

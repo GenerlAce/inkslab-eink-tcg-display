@@ -32,12 +32,20 @@ DEFAULTS = {
     "day_end": 23,
     "color_saturation": 2.5,
     "collection_only": False,
+    "slab_header_mode": "normal",
 }
 
-TCG_LIBRARIES = {
-    "pokemon": "/home/pi/pokemon_cards",
-    "mtg": "/home/pi/mtg_cards",
+# --- DYNAMIC TCG REGISTRY ---
+TCG_REGISTRY = {
+    "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
+    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
+    "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
 }
+TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
+
+# Supported image formats
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
 
 CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
@@ -104,15 +112,28 @@ def load_collection(tcg):
 
 
 def load_master_index(library_dir):
-    """Load the master set index from a library directory."""
+    """Load the master set index from a library directory.
+    Falls back to auto-discovering subdirectories for custom folders."""
     index_file = os.path.join(library_dir, "master_index.json")
     if os.path.exists(index_file):
         try:
             with open(index_file, 'r') as f:
-                return json.load(f)
+                index = json.load(f)
+            # Also discover any subdirs not in the index (newly added custom folders)
+            if os.path.isdir(library_dir):
+                for d in os.listdir(library_dir):
+                    if os.path.isdir(os.path.join(library_dir, d)) and d not in index:
+                        index[d] = {"name": d.replace('_', ' ').replace('-', ' ').title(), "year": ""}
+            return index
         except Exception:
             pass
-    return {}
+    # No index file — auto-discover from subdirectories
+    index = {}
+    if os.path.isdir(library_dir):
+        for d in os.listdir(library_dir):
+            if os.path.isdir(os.path.join(library_dir, d)):
+                index[d] = {"name": d.replace('_', ' ').replace('-', ' ').title(), "year": ""}
+    return index
 
 
 def write_status(info):
@@ -122,6 +143,11 @@ def write_status(info):
             json.dump(info, f)
     except Exception:
         pass
+
+
+def _is_card_image(filename):
+    """Check if a file is a supported card image."""
+    return filename.lower().endswith(IMAGE_EXTENSIONS) and not filename.startswith('_')
 
 
 def get_card_metadata(img_path, master_index):
@@ -135,9 +161,12 @@ def get_card_metadata(img_path, master_index):
 
         # Set info (top line)
         if set_id in master_index:
-            year = master_index[set_id]["year"]
+            year = master_index[set_id].get("year", "")
             real_set = master_index[set_id]["name"].upper().replace(" AND ", " & ")
-            info["set_info"] = f"{year} {real_set}"
+            if year:
+                info["set_info"] = f"{year} {real_set}"
+            else:
+                info["set_info"] = real_set
             info["set_name"] = master_index[set_id]["name"]
         else:
             info["set_info"] = set_id.upper()
@@ -158,6 +187,10 @@ def get_card_metadata(img_path, master_index):
                     if entry.get("rarity"):
                         extra = entry["rarity"].upper()
                         extra = extra.replace("RARE HOLO", "HOLO").replace("DOUBLE RARE", "DBL RARE")
+        else:
+            # Auto-generate metadata from filename (for custom images)
+            name = card_id.replace('_', ' ').replace('-', ' ').title()
+            # No number or rarity to extract
 
         # Try extracting number from card ID if not found in metadata
         if num == "00" and "-" in card_id:
@@ -179,20 +212,45 @@ def get_card_metadata(img_path, master_index):
     return info
 
 
-def create_slab_layout(img_path, master_index, color_saturation):
-    """Create a PSA-slab-style layout with card info header above the card image."""
+def create_slab_layout(img_path, master_index, color_saturation, header_mode="normal"):
+    """Create a PSA-slab-style layout with card info header above the card image.
+    header_mode: 'normal' (white bg, black text), 'inverted' (black bg, white text), 'off' (full card)"""
     info = get_card_metadata(img_path, master_index)
 
     with Image.open(img_path) as card:
         card = card.convert("RGB")
 
-        # Scale card to fill display width
+        if header_mode == "off":
+            # Full-screen: center-crop card to fill entire display
+            aspect = card.width / card.height
+            display_aspect = DISPLAY_WIDTH / DISPLAY_HEIGHT
+            if aspect > display_aspect:
+                # Card is wider — fit height, crop width
+                new_h = DISPLAY_HEIGHT
+                new_w = int(new_h * aspect)
+            else:
+                # Card is taller — fit width, crop height
+                new_w = DISPLAY_WIDTH
+                new_h = int(new_w / aspect)
+            card = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            # Center crop
+            left = (new_w - DISPLAY_WIDTH) // 2
+            top = (new_h - DISPLAY_HEIGHT) // 2
+            card = card.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
+            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (0, 0, 0))
+            canvas.paste(card, (0, 0))
+            return canvas, info
+
+        # Normal or inverted: scale card to fill display width
         aspect = card.height / card.width
         new_h = int(DISPLAY_WIDTH * aspect)
         card = card.resize((DISPLAY_WIDTH, new_h), Image.Resampling.LANCZOS)
 
-        # White canvas
-        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
+        # Background color depends on mode
+        bg_color = (0, 0, 0) if header_mode == "inverted" else (255, 255, 255)
+        text_color = (255, 255, 255) if header_mode == "inverted" else (0, 0, 0)
+
+        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_color)
         draw = ImageDraw.Draw(canvas)
 
         # Position card flush to bottom
@@ -228,8 +286,8 @@ def create_slab_layout(img_path, master_index, color_saturation):
             total_h = h1 + h2 + gap
             start_y = (y_pos - total_h) // 2
 
-            draw.text(((DISPLAY_WIDTH - w1) / 2, start_y), line1, font=font_set, fill=(0, 0, 0))
-            draw.text(((DISPLAY_WIDTH - w2) / 2, start_y + h1 + gap), line2, font=font_stats, fill=(0, 0, 0))
+            draw.text(((DISPLAY_WIDTH - w1) / 2, start_y), line1, font=font_set, fill=text_color)
+            draw.text(((DISPLAY_WIDTH - w2) / 2, start_y + h1 + gap), line2, font=font_stats, fill=text_color)
 
         return canvas, info
 
@@ -245,7 +303,8 @@ def create_palette_image():
 def process_image(img_path, master_index, config):
     """Full image pipeline: layout -> enhance -> dither -> rotate for display."""
     try:
-        img, info = create_slab_layout(img_path, master_index, config["color_saturation"])
+        header_mode = config.get("slab_header_mode", "normal")
+        img, info = create_slab_layout(img_path, master_index, config["color_saturation"], header_mode)
 
         # Boost colors for the e-paper display
         img = ImageEnhance.Color(img).enhance(config["color_saturation"])
@@ -279,7 +338,7 @@ class ShuffleDeck:
         if os.path.isdir(self.root_dir):
             for root, dirs, files in os.walk(self.root_dir):
                 for f in files:
-                    if f.endswith(".png") and not f.startswith("_"):
+                    if _is_card_image(f):
                         # If collection mode, only include owned cards
                         if self.collection:
                             card_id = os.path.splitext(f)[0]
