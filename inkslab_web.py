@@ -1211,14 +1211,16 @@ def api_wifi_connect():
 
 @app.route('/api/wifi/disconnect', methods=['POST'])
 def api_wifi_disconnect():
-    """Disconnect WiFi and re-enter setup mode."""
+    """Disconnect WiFi, forget the saved profile, and re-enter setup mode."""
     global _wifi_setup_mode, _wifi_connect_result
     try:
         wifi_manager.stop_hotspot()
-        # Disconnect current WiFi
+        # Disconnect AND delete (forget) the WiFi profile
         ssid = wifi_manager.get_active_ssid()
         if ssid:
             subprocess.run(["nmcli", "con", "down", "id", ssid],
+                           capture_output=True, timeout=10)
+            subprocess.run(["nmcli", "con", "delete", "id", ssid],
                            capture_output=True, timeout=10)
         with _wifi_connect_lock:
             _wifi_connect_result = {"status": "idle"}
@@ -1227,6 +1229,67 @@ def api_wifi_disconnect():
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/factory_reset', methods=['POST'])
+def api_factory_reset():
+    """Prepare unit for shipping: forget WiFi, delete card data, reset config."""
+    global _wifi_setup_mode, _wifi_connect_result
+    errors = []
+
+    # 1. Forget all saved WiFi profiles (except hotspot)
+    try:
+        rc, out, _ = subprocess.run(
+            ["nmcli", "-t", "-f", "TYPE,NAME", "con", "show"],
+            capture_output=True, text=True, timeout=10
+        ).returncode, "", ""
+    except Exception:
+        pass
+    try:
+        result = subprocess.run(
+            ["nmcli", "-t", "-f", "TYPE,NAME", "con", "show"],
+            capture_output=True, text=True, timeout=10
+        )
+        for line in result.stdout.strip().splitlines():
+            parts = line.split(":")
+            if len(parts) >= 2 and "wireless" in parts[0] and parts[1] != "InkSlab-Setup":
+                subprocess.run(["nmcli", "con", "delete", "id", parts[1]],
+                               capture_output=True, timeout=10)
+    except Exception as e:
+        errors.append(f"WiFi cleanup: {e}")
+
+    # 2. Delete all downloaded card data
+    for tcg_key, tcg_info in TCG_REGISTRY.items():
+        card_path = tcg_info["path"]
+        if os.path.isdir(card_path):
+            try:
+                shutil.rmtree(card_path)
+            except Exception as e:
+                errors.append(f"Delete {tcg_key}: {e}")
+
+    # 3. Reset config and collection to defaults
+    for f in [CONFIG_FILE, COLLECTION_FILE]:
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+        except Exception as e:
+            errors.append(f"Reset {f}: {e}")
+
+    # 4. Enter setup mode
+    with _wifi_connect_lock:
+        _wifi_connect_result = {"status": "idle"}
+    _wifi_setup_mode = True
+    try:
+        wifi_manager.start_hotspot()
+    except Exception as e:
+        errors.append(f"Hotspot: {e}")
+
+    # 5. Invalidate all caches
+    _cache_invalidate("storage", "card_counts")
+
+    if errors:
+        return jsonify({"ok": True, "warnings": errors})
+    return jsonify({"ok": True})
 
 
 # Captive portal detection endpoints — redirect to setup page
@@ -1963,6 +2026,11 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="wifi-info" style="font-size:13px;color:#6BCCBD;margin-bottom:10px">Checking WiFi...</div>
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
   </div>
+  <div class="card" style="border:1px solid #ff6b6b33">
+    <h3 style="color:#ff6b6b">Prepare for Shipping</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Factory reset this unit before shipping to a customer. Forgets WiFi, deletes all card data, and resets settings. The unit will enter WiFi setup mode on next boot.</p>
+    <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset()">Factory Reset</button>
+  </div>
 </div>
 
 <!-- COLLECTION TAB -->
@@ -2366,6 +2434,28 @@ function loadWifiInfo() {
       el.textContent = 'Not connected';
     }
   }).catch(function() { el.textContent = 'Could not check WiFi status'; });
+}
+
+function factoryReset() {
+  if (!confirm('FACTORY RESET\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL downloaded cards\\n- Reset all settings\\n\\nThe unit will enter WiFi setup mode.\\n\\nAre you sure?')) return;
+  if (!confirm('This cannot be undone. Continue?')) return;
+  var btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Resetting...';
+  fetch(API + '/api/factory_reset', {method:'POST'}).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Factory reset complete! Unit is ready to ship.', 5000);
+      document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Reset complete</strong> — WiFi forgotten, data wiped. Power off to ship.';
+      btn.textContent = 'Done';
+    } else {
+      showToast('Reset failed: ' + (d.error || 'unknown'));
+      btn.disabled = false;
+      btn.textContent = 'Factory Reset';
+    }
+  }).catch(function() {
+    showToast('Reset failed — connection lost (this is expected if WiFi was disconnected)');
+    btn.textContent = 'Done';
+  });
 }
 
 function changeWifi() {
