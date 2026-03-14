@@ -219,12 +219,17 @@ def stop_hotspot():
 def connect_to_network(ssid, password):
     """Attempt to connect to a WiFi network.
     Returns (success: bool, message: str). Message is either the IP or an error."""
+    # Rescan so nmcli can see available networks after hotspot teardown
+    logger.info("Scanning for networks before connection attempt...")
+    _run_nmcli(["dev", "wifi", "rescan"], timeout=10)
+    time.sleep(3)
+
     # Build connection command
     args = ["dev", "wifi", "connect", ssid, "ifname", "wlan0"]
     if password:
         args.extend(["password", password])
 
-    rc, out, err = _run_nmcli(args, timeout=30)
+    rc, out, err = _run_nmcli(args, timeout=45)
     if rc != 0:
         error_msg = err or out or "Connection failed"
         # Clean up common nmcli error messages
@@ -233,10 +238,12 @@ def connect_to_network(ssid, password):
         elif "timeout" in error_msg.lower():
             error_msg = "Connection timed out"
         logger.error("WiFi connection failed: %s", error_msg)
+        # Clean up any profile created by the failed attempt
+        _run_nmcli(["con", "delete", "id", ssid], timeout=10)
         return False, error_msg
 
-    # Wait for an IP address (up to 15 seconds)
-    for _ in range(15):
+    # Wait for an IP address (up to 20 seconds)
+    for _ in range(20):
         time.sleep(1)
         ip = get_local_ip()
         if ip:

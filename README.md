@@ -193,6 +193,8 @@ Once running, everything is managed from the web dashboard — no SSH needed. Th
 ssh pi@<your-pi-ip>
 cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
 git pull
+sudo cp inkslab.service inkslab_web.service /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo systemctl restart inkslab inkslab_web
 ```
 

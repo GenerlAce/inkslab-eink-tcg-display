@@ -250,23 +250,26 @@ def show_setup_screen(epd, config):
         cx = DISPLAY_WIDTH // 2
 
         # Title
-        draw.text((cx, 80), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
-        draw.text((cx, 110), "WiFi Setup", fill=(0, 0, 255), font=font_heading, anchor="mm")
+        draw.text((cx, 60), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 90), "WiFi Setup", fill=(0, 0, 255), font=font_heading, anchor="mm")
 
         # Step 1
-        draw.text((cx, 175), "1. Connect to WiFi:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 205), "InkSlab-Setup", fill=(255, 0, 0), font=font_url, anchor="mm")
+        draw.text((cx, 155), "On your phone, connect", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 178), "to this WiFi network:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 215), "InkSlab-Setup", fill=(255, 0, 0), font=font_url, anchor="mm")
+        draw.text((cx, 243), "(no password needed)", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         # Step 2
-        draw.text((cx, 275), "2. Open in browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 305), "10.42.0.1", fill=(0, 0, 255), font=font_url, anchor="mm")
+        draw.text((cx, 300), "A setup page will appear.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 328), "If not, open your browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 365), "10.42.0.1", fill=(0, 0, 255), font=font_url, anchor="mm")
 
-        # Hint
-        draw.text((cx, 380), "A setup page should appear", fill=(0, 0, 0), font=font_small, anchor="mm")
-        draw.text((cx, 400), "automatically on most phones.", fill=(0, 0, 0), font=font_small, anchor="mm")
+        # Step 3
+        draw.text((cx, 425), "Pick your home WiFi from", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 448), "the list and enter the password.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Bottom credit
-        draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         # Process for e-paper display
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
@@ -682,20 +685,18 @@ def main():
     # Check WiFi status — show setup screen or splash screen
     try:
         wifi_connected = wifi_manager.is_wifi_connected()
-        has_profile = wifi_manager.has_saved_wifi_profile()
     except Exception as e:
         logger.warning(f"WiFi check failed, assuming connected: {e}")
         wifi_connected = True
-        has_profile = True
 
-    if wifi_connected or has_profile:
-        # WiFi is configured (DIY setup or already connected) — show dashboard IP
-        # If WiFi is temporarily down, splash will show once IP is available
+    if wifi_connected:
+        # WiFi is working — show dashboard IP
         show_splash_screen(epd, config)
     else:
-        # Truly first boot with no WiFi profile — show setup instructions
+        # Not connected — show setup instructions and wait
+        # (Covers both first boot AND failed previous connection attempts)
         show_setup_screen(epd, config)
-        logger.info("Waiting for WiFi connection via setup mode...")
+        logger.info("No WiFi connection — showing setup screen, waiting...")
         wait_count = 0
         max_wait = 600  # Give up after 10 minutes and proceed anyway
         while wait_count < max_wait:

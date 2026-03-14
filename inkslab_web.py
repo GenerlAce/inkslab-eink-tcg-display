@@ -1137,9 +1137,9 @@ def _perform_wifi_connection(ssid, password):
     global _wifi_setup_mode, _wifi_connect_result
 
     try:
-        # Step 1: Tear down hotspot
+        # Step 1: Tear down hotspot and wait for wlan0 to switch from AP to station mode
         wifi_manager.stop_hotspot()
-        time.sleep(2)  # Let the interface settle
+        time.sleep(5)  # Pi Zero needs time for interface mode switch
 
         # Step 2: Attempt connection
         success, message = wifi_manager.connect_to_network(ssid, password)
@@ -3151,10 +3151,11 @@ if __name__ == '__main__':
     _logger = logging.getLogger(__name__)
     _logger.info("InkSlab Web Dashboard starting...")
 
-    # Only enter setup mode if there's NO saved WiFi profile at all
-    # (i.e., truly first boot on a pre-flashed unit).
-    # If a profile exists but WiFi is temporarily down, do NOT tear it
-    # down by starting a hotspot — just serve the normal dashboard.
+    # Enter setup mode if WiFi is not connected AND no saved profile exists.
+    # If a profile exists but WiFi is temporarily down (router reboot etc),
+    # don't tear it down — just serve the dashboard normally.
+    # Note: failed connection attempts now clean up their profiles, so stale
+    # profiles from bad passwords won't block re-entering setup mode.
     try:
         if not wifi_manager.is_wifi_connected() and not wifi_manager.has_saved_wifi_profile():
             _wifi_setup_mode = True
