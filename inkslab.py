@@ -471,11 +471,12 @@ def create_slab_layout(img_path, master_index, header_mode="normal"):
 
 
 def create_palette_image():
-    """Create a reference palette image for Floyd-Steinberg dithering."""
-    p_img = Image.new('P', (1, 1))
-    full_palette = PALETTE_COLORS + [0, 0, 0] * (256 - len(PALETTE_COLORS) // 3)
-    p_img.putpalette(full_palette)
-    return p_img
+    """Create a reference palette image for Floyd-Steinberg dithering (cached)."""
+    return _PALETTE_IMAGE.copy()
+
+# Pre-create the palette image once at module load
+_PALETTE_IMAGE = Image.new('P', (1, 1))
+_PALETTE_IMAGE.putpalette(PALETTE_COLORS + [0, 0, 0] * (256 - len(PALETTE_COLORS) // 3))
 
 
 def process_image(img_path, master_index, config):

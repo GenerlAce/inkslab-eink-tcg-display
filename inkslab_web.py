@@ -20,6 +20,7 @@ from flask import Flask, request, jsonify, send_file, redirect
 import wifi_manager
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB upload limit
 
 VERSION = "1.0.0"
 
@@ -322,12 +323,17 @@ def api_ip():
 @app.route('/api/card_image')
 def api_current_card_image():
     """Serve the current card image from the display status."""
+    allowed_dirs = list(TCG_LIBRARIES.values())
     if os.path.exists(STATUS_FILE):
         try:
             with open(STATUS_FILE, 'r') as f:
                 status = json.load(f)
             card_path = status.get("card_path")
             if card_path and os.path.exists(card_path):
+                # Validate path is within a known card directory
+                real = os.path.realpath(card_path)
+                if not any(real.startswith(os.path.realpath(d)) for d in allowed_dirs):
+                    return '', 403
                 mime = 'image/png' if card_path.lower().endswith('.png') else 'image/jpeg'
                 resp = send_file(card_path, mimetype=mime)
                 resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -1289,14 +1295,39 @@ def api_factory_reset():
     except Exception as e:
         errors.append(f"Hotspot: {e}")
 
-    # 5. Signal display daemon to show setup screen
+    # 5. Clean up temp files, logs, and user traces
+    _close_download_log()
+    for tmp_file in [STATUS_FILE, DOWNLOAD_LOG, NEXT_TRIGGER, COLLECTION_TRIGGER,
+                     "/tmp/inkslab_prev", "/tmp/inkslab_pause",
+                     "/tmp/inkslab_wifi_connected", "/tmp/inkslab_update_status.json",
+                     "/tmp/inkslab_update.lock"]:
+        try:
+            if os.path.exists(tmp_file):
+                os.remove(tmp_file)
+        except OSError:
+            pass
+    # Purge journal logs (contain SSIDs, IPs)
+    try:
+        subprocess.run(["journalctl", "--rotate"], capture_output=True, timeout=10)
+        subprocess.run(["journalctl", "--vacuum-time=1s"], capture_output=True, timeout=10)
+    except Exception:
+        pass
+    # Clear bash history
+    for hist in ["/home/pi/.bash_history", "/root/.bash_history"]:
+        try:
+            if os.path.exists(hist):
+                open(hist, 'w').close()
+        except OSError:
+            pass
+
+    # 6. Signal display daemon to show setup screen
     try:
         with open("/tmp/inkslab_wifi_setup", "w") as f:
             f.write("1")
     except OSError:
         pass
 
-    # 6. Invalidate all caches
+    # 7. Invalidate all caches
     _cache_invalidate("storage", "card_counts")
 
     if errors:
@@ -1671,8 +1702,9 @@ function scanNetworks() {
     el.innerHTML = networks.map(function(n) {
       var bars = signalBars(n.signal);
       var lock = n.security ? '<span class="lock">&#128274;</span>' : '';
-      return '<div class="network-item" onclick="selectNetwork(\\'' + n.ssid.replace(/'/g, "\\\\'") + '\\',\\'' + (n.security || '').replace(/'/g, "\\\\'") + '\\')">'
-        + '<span class="network-ssid">' + n.ssid + '</span>'
+      var safe = n.ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      return '<div class="network-item" onclick="selectNetwork(&#39;' + safe + '&#39;,&#39;' + (n.security || '').replace(/'/g, "&#39;") + '&#39;)">'
+        + '<span class="network-ssid">' + safe + '</span>'
         + '<span class="network-meta">' + bars + lock + '</span>'
         + '</div>';
     }).join('');
@@ -1860,8 +1892,8 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .card-preview-btn { cursor: pointer; color: #36A5CA; font-size: 11px; margin-left: 6px; text-decoration: underline; }
 .log-box { background: #0a1a22; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #6BCCBD; border: 1px solid #1F333F; }
 .badge { display: inline-block; background: #6BCCBD; color: #010001; border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
-.flex-row { display: flex; gap: 8px; }
-.flex-row > * { flex: 1; }
+.flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.flex-row > * { flex: 1 1 calc(50% - 4px); min-width: 0; box-sizing: border-box; }
 .preview-img { display: block; max-width: 150px; border-radius: 6px; border: 2px solid #1F333F; width: 100%; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .preview-spin { animation: spin 1.2s linear infinite; display: inline-block; }
@@ -2454,7 +2486,8 @@ function loadWifiInfo() {
   var el = document.getElementById('wifi-info');
   fetch(API + '/api/wifi/status').then(r => r.json()).then(function(d) {
     if (d.connected && d.ssid) {
-      el.innerHTML = 'Connected to <strong>' + d.ssid + '</strong>' + (d.ip ? ' &mdash; IP: ' + d.ip : '');
+      var safeSSID = (d.ssid||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      el.innerHTML = 'Connected to <strong>' + safeSSID + '</strong>' + (d.ip ? ' &mdash; IP: ' + d.ip : '');
     } else if (d.hotspot_active) {
       el.textContent = 'Setup mode — broadcasting ' + (d.hotspot_ssid || 'InkSlab-Setup');
     } else {
@@ -3167,6 +3200,6 @@ if __name__ == '__main__':
         _logger.warning("WiFi check failed, skipping setup mode: %s", e)
 
     try:
-        app.run(host='0.0.0.0', port=80, debug=False)
+        app.run(host='0.0.0.0', port=80, debug=False, threaded=True)
     except Exception as e:
         _logger.error("Web server crashed: %s", e, exc_info=True)
