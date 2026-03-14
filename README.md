@@ -20,6 +20,7 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 - **Smart Shuffle:** Remembers recently shown cards and pushes them to the back of the deck upon reshuffling so you always see fresh art
 - **Custom Images:** Upload your own images and organize them into sets with optional metadata
 - **OTA Updates:** Update InkSlab software directly from the web dashboard — no SSH needed
+- **Startup Splash:** On boot, the display shows your Pi's IP address so you know exactly where to connect — no SSH or router lookup needed
 - Runs 24/7 as a desk display, rotating cards every 10 minutes (configurable for day/night)
 
 ### Supported TCGs
@@ -123,13 +124,13 @@ sudo systemctl enable inkslab inkslab_web
 sudo systemctl start inkslab inkslab_web
 ```
 
-That's it. Open **http://&lt;your-pi-ip&gt;** on your phone or computer. Find your Pi's IP with `hostname -I` on the Pi, or check your router's admin page.
+That's it. The e-ink display will show a splash screen with your dashboard URL (e.g., `http://192.168.1.42`). Open that address on your phone or computer.
 
 ---
 
 ## Web Dashboard
 
-Once running, everything is managed from the dashboard at **http://&lt;your-pi-ip&gt;** — no SSH needed. The IP address is shown in the dashboard footer.
+Once running, everything is managed from the web dashboard — no SSH needed. The IP address is shown on the e-ink display at boot and in the dashboard footer.
 
 ### Display Tab
 - **Live Preview:** See exactly what card is currently on the screen with real-time loading states
@@ -226,7 +227,7 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 
 | Problem | Fix |
 |---------|-----|
-| Can't find the dashboard | Use your Pi's IP address (shown at startup, or run `hostname -I` on the Pi). Check your router's admin page for the Pi's IP. |
+| Can't find the dashboard | The IP is shown on the e-ink display at boot. If you missed it, restart the `inkslab` service or run `hostname -I` on the Pi. You can also check your router's admin page. |
 | Display not updating | Check SPI is enabled: `ls /dev/spi*` should show devices. Check logs: `journalctl -u inkslab -f` |
 | Washed-out colors | Increase **Color Saturation** in the Settings tab (default 2.5, try 3.0–4.0) |
 | Web dashboard not loading | Run `journalctl -u inkslab_web -f` to check for errors |
