@@ -1886,7 +1886,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .storage-seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #FCFDF0; min-width: 0; overflow: hidden; white-space: nowrap; transition: width 0.3s; }
 .storage-seg.seg-pokemon { background: #36A5CA; }
 .storage-seg.seg-mtg { background: #6BCCBD; }
-.storage-seg.seg-other { background: #8b6bbf; }
+.storage-seg.seg-other { background: #E8786B; }
 .storage-seg.seg-free { background: #1F333F; color: #6BCCBD; }
 .storage-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 11px; }
 .storage-legend-item { display: flex; align-items: center; gap: 4px; color: #D8E6E4; }
@@ -2843,7 +2843,7 @@ function loadStorage() {
       var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
       html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:' + color + '"></span>' + name + '</div>';
     });
-    html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#8b6bbf"></span>System</div>';
+    html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#E8786B"></span>System</div>';
     html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#1F333F;border:1px solid #36A5CA44"></span>Free</div>';
     html += '</div></div>';
     tcgEntries.forEach(function(e) {
