@@ -877,10 +877,14 @@ def api_download_start():
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
-        _download_proc = subprocess.Popen(
-            cmd, stdout=_download_log_fh, stderr=subprocess.STDOUT,
-            cwd=SCRIPT_DIR, env=env
-        )
+        try:
+            _download_proc = subprocess.Popen(
+                cmd, stdout=_download_log_fh, stderr=subprocess.STDOUT,
+                cwd=SCRIPT_DIR, env=env
+            )
+        except Exception as e:
+            _close_download_log()
+            return jsonify({"ok": False, "error": "Failed to start download."})
         _download_tcg = tcg
 
         return jsonify({"ok": True, "tcg": tcg, "pid": _download_proc.pid})

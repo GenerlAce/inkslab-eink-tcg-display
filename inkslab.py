@@ -317,15 +317,18 @@ def show_no_cards_screen(epd, config, ip=None):
 
         cx = DISPLAY_WIDTH // 2
 
-        draw.text((cx, 120), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
-        draw.text((cx, 200), "No cards downloaded yet!", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 250), "Open the dashboard", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 275), "to download cards:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 100), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 170), "No cards downloaded yet.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 220), "To get started, open this", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 245), "address on your phone:", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         if ip:
-            draw.text((cx, 330), f"http://{ip}", fill=(0, 0, 255), font=font_url, anchor="mm")
+            draw.text((cx, 310), f"http://{ip}", fill=(0, 0, 255), font=font_url, anchor="mm")
 
-        draw.text((cx, 400), "Go to Downloads tab", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 380), "Then tap Downloads and choose", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 400), "a card game to download.", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 440), "Cards will appear automatically", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 460), "once the download finishes.", fill=(0, 0, 0), font=font_small, anchor="mm")
         draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
@@ -503,7 +506,7 @@ def process_image(img_path, master_index, config):
         header_mode = config.get("slab_header_mode", "normal")
         img, info = create_slab_layout(img_path, master_index, header_mode)
 
-        # Boost colors for the e-paper display
+        # Boost colors for the e-paper display (each enhance creates a new image)
         img = ImageEnhance.Color(img).enhance(config["color_saturation"])
         img = ImageEnhance.Contrast(img).enhance(CONTRAST_BOOST)
         img = ImageEnhance.Sharpness(img).enhance(SHARPNESS_BOOST)
@@ -511,8 +514,13 @@ def process_image(img_path, master_index, config):
         # Quantize to 7-color palette with dithering
         palette_ref = create_palette_image()
         img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
+        img.close()
+        palette_ref.close()
 
-        return img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True), info
+        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+        img_dithered.close()
+
+        return final, info
     except Exception as e:
         logger.error(f"Image processing error: {e}")
         return None, {}
@@ -666,6 +674,14 @@ def wait_with_polling(seconds, config_check_interval=5):
 
 def main():
     logger.info("InkSlab starting...")
+
+    # Write startup status immediately so web UI shows correct state
+    write_status({
+        "card_path": "", "set_name": "", "set_info": "",
+        "card_num": "", "rarity": "",
+        "timestamp": int(time.time()), "tcg": "",
+        "total_cards": 0, "pending": "Starting up...",
+    })
 
     config = load_config()
     active_tcg = config["active_tcg"]
