@@ -72,6 +72,16 @@ if ! timeout 120 git pull origin "$BRANCH" 2>&1; then
     fi
 fi
 
+# Stage 2.5: Update service files if they changed
+write_status "pulling" "Updating service files..." ""
+if [ -f "$SCRIPT_DIR/inkslab.service" ]; then
+    cp "$SCRIPT_DIR/inkslab.service" /etc/systemd/system/inkslab.service 2>/dev/null
+fi
+if [ -f "$SCRIPT_DIR/inkslab_web.service" ]; then
+    cp "$SCRIPT_DIR/inkslab_web.service" /etc/systemd/system/inkslab_web.service 2>/dev/null
+fi
+systemctl daemon-reload 2>/dev/null
+
 # Stage 3: Restart display daemon
 write_status "restarting_display" "Restarting display service..." ""
 if ! sudo systemctl restart inkslab 2>&1; then

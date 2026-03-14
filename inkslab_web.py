@@ -1082,12 +1082,14 @@ def api_update_check():
                                capture_output=True, text=True, timeout=5)
         remote = subprocess.run(['git', 'rev-parse', f'origin/{branch}'], cwd=SCRIPT_DIR,
                                 capture_output=True, text=True, timeout=5)
-        local_hash = local.stdout.strip()[:8]
-        remote_hash = remote.stdout.strip()[:8]
+        local_hash = local.stdout.strip()[:8] if local.returncode == 0 else ""
+        remote_hash = remote.stdout.strip()[:8] if remote.returncode == 0 else ""
         behind = subprocess.run(['git', 'rev-list', '--count', f'HEAD..origin/{branch}'],
                                 cwd=SCRIPT_DIR, capture_output=True, text=True, timeout=5)
         commits_behind = int(behind.stdout.strip()) if behind.returncode == 0 else 0
-        return jsonify({"ok": True, "local": local_hash, "remote": remote_hash,
+        # Build display version: "1.0.0-abc123" or just "1.0.0"
+        local_version = f"{VERSION}-{local_hash}" if local_hash else VERSION
+        return jsonify({"ok": True, "local": local_version, "remote": remote_hash,
                         "behind": commits_behind, "up_to_date": commits_behind == 0})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
@@ -1828,10 +1830,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .panel.active { display: block; }
 .card { background: #16303E; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #1F333F; }
 .card h3 { color: #36A5CA; margin-bottom: 8px; font-size: 14px; }
-.stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1F333F; font-size: 14px; }
+.stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1F333F; font-size: 14px; gap: 12px; align-items: baseline; }
 .stat:last-child { border-bottom: none; }
-.stat-label { color: #6BCCBD; }
-.stat-value { color: #FCFDF0; }
+.stat-label { color: #6BCCBD; white-space: nowrap; flex-shrink: 0; }
+.stat-value { color: #FCFDF0; text-align: right; }
 .btn { display: inline-block; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
 .btn-primary { background: #36A5CA; color: #FCFDF0; }
 .btn-primary:hover { background: #2b8aaa; }

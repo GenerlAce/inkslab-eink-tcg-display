@@ -679,14 +679,15 @@ def main():
     _deck_collection_only = config["collection_only"]
 
     # Initialize the e-paper display (retry up to 5 times with increasing delays)
+    # Note: we skip Clear() here — the first screen (setup/splash/no-cards) will
+    # overwrite the display anyway, saving one unnecessary e-ink refresh flash.
     epd = None
     for attempt in range(1, 6):
         try:
             epd = epd4in0e.EPD()
             epd.init()
-            epd.Clear()
             epd.sleep()
-            logger.info("Display initialized and cleared")
+            logger.info("Display initialized successfully")
             break
         except Exception as e:
             logger.error(f"Display init attempt {attempt}/5 failed: {e}")
@@ -706,8 +707,12 @@ def main():
         wifi_connected = True
 
     if wifi_connected:
-        # WiFi is working — show dashboard IP
-        show_splash_screen(epd, config)
+        # WiFi is working — only show splash if we actually have cards to display.
+        # If no cards, skip splash (no-cards screen shows the IP too, avoids extra flash).
+        if deck.total > 0:
+            show_splash_screen(epd, config)
+        else:
+            logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
     else:
         # Not connected — show setup instructions and wait
         # (Covers both first boot AND failed previous connection attempts)
@@ -729,9 +734,12 @@ def main():
                 break  # WiFi check crashed — proceed anyway
             time.sleep(5)
             wait_count += 5
-        # Show the splash screen with the new IP (or whatever we have)
-        logger.info("WiFi wait complete, showing splash screen...")
-        show_splash_screen(epd, config)
+        # WiFi connected — skip splash if no cards (no-cards screen shows IP)
+        if deck.total > 0:
+            logger.info("WiFi wait complete, showing splash screen...")
+            show_splash_screen(epd, config)
+        else:
+            logger.info("WiFi connected but no cards — skipping splash")
 
     # If no cards available, show welcome screen and wait for downloads
     _no_cards_shown = False
@@ -740,13 +748,12 @@ def main():
             show_no_cards_screen(epd, config, get_local_ip())
             _no_cards_shown = True
         logger.warning(f"No cards found for {active_tcg}. Waiting for downloads...")
-        err_msg = (f"Collection mode is on but no cards selected. Add cards from the Collection tab."
+        err_msg = ("Collection mode is on but no cards are selected. Add cards from the Collection tab."
                    if config["collection_only"] else
-                   f"No {active_tcg.upper()} cards found. Download cards from the web dashboard.")
+                   "No cards downloaded yet. Use the Downloads tab to get started.")
         write_status({
             "card_path": "", "set_name": "",
-            "set_info": f"No {active_tcg.upper()} cards available",
-            "card_num": "", "rarity": "",
+            "set_info": "", "card_num": "", "rarity": "",
             "timestamp": int(time.time()), "tcg": active_tcg,
             "total_cards": 0, "error": err_msg,
         })
@@ -766,14 +773,12 @@ def main():
                 os.remove(WIFI_CONNECTED_TRIGGER)
             except OSError:
                 pass
-            show_splash_screen(epd, config)
-            time.sleep(10)
-            _no_cards_shown = False  # Re-show no-cards screen after WiFi change
+            # Skip splash — no-cards screen will re-show with the new IP
+            _no_cards_shown = False
             continue
 
         if action == "wifi_connected":
-            show_splash_screen(epd, config)
-            time.sleep(10)
+            # Skip splash — no-cards screen will re-show with the new IP
             _no_cards_shown = False
             continue
 
