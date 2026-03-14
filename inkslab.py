@@ -212,7 +212,7 @@ def get_card_metadata(img_path, master_index):
     return info
 
 
-def create_slab_layout(img_path, master_index, color_saturation, header_mode="normal"):
+def create_slab_layout(img_path, master_index, header_mode="normal"):
     """Create a PSA-slab-style layout with card info header above the card image.
     header_mode: 'normal' (white bg, black text), 'inverted' (black bg, white text), 'off' (full card)"""
     info = get_card_metadata(img_path, master_index)
@@ -304,7 +304,7 @@ def process_image(img_path, master_index, config):
     """Full image pipeline: layout -> enhance -> dither -> rotate for display."""
     try:
         header_mode = config.get("slab_header_mode", "normal")
-        img, info = create_slab_layout(img_path, master_index, config["color_saturation"], header_mode)
+        img, info = create_slab_layout(img_path, master_index, header_mode)
 
         # Boost colors for the e-paper display
         img = ImageEnhance.Color(img).enhance(config["color_saturation"])
@@ -340,7 +340,7 @@ class ShuffleDeck:
                 for f in files:
                     if _is_card_image(f):
                         # If collection mode, only include owned cards
-                        if self.collection:
+                        if self.collection is not None:
                             card_id = os.path.splitext(f)[0]
                             if card_id not in self.collection:
                                 continue

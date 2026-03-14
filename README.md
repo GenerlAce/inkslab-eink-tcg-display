@@ -13,7 +13,7 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 - Cycles through TCG cards on a 7-color e-ink display (black, white, red, yellow, blue, green, orange)
 - Shows card art in a graded-slab frame with set name, year, card number, and rarity
 - **Slab Header Modes:** Normal (white bg), Inverted (black bg), or Off (full-screen card art)
-- **Web Dashboard:** Control everything from your phone or browser at `http://inkslab.local`
+- **Web Dashboard:** Control everything from your phone or browser at `http://<your-pi-ip>`
 - **Live Player Controls:** Pause, play, skip, or go back, complete with an "Up Next" queue and countdown timer
 - **Collection Mode & Search:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection.
 - **Rarity Filtering:** Select or deselect all cards of a specific rarity (e.g., "Mythic Rare" or "Illustration Rare") across every set with one tap
@@ -71,13 +71,11 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 
 ### Step 2 — SSH In and Install
 
-SSH into your Pi from any terminal:
+SSH into your Pi from any terminal (find the IP from your router's admin page or connect a monitor):
 
 ```bash
-ssh pi@inkslab.local
+ssh pi@<your-pi-ip>
 ```
-
-> If `inkslab.local` doesn't resolve, check your router for the Pi's IP and use `ssh pi@<IP>` instead.
 
 Then run these commands to install everything:
 
@@ -125,13 +123,13 @@ sudo systemctl enable inkslab inkslab_web
 sudo systemctl start inkslab inkslab_web
 ```
 
-That's it. Open **http://inkslab.local** on your phone or computer.
+That's it. Open **http://&lt;your-pi-ip&gt;** on your phone or computer. Find your Pi's IP with `hostname -I` on the Pi, or check your router's admin page.
 
 ---
 
 ## Web Dashboard
 
-Once running, everything is managed from the dashboard at **http://inkslab.local** — no SSH needed.
+Once running, everything is managed from the dashboard at **http://&lt;your-pi-ip&gt;** — no SSH needed. The IP address is shown in the dashboard footer.
 
 ### Display Tab
 - **Live Preview:** See exactly what card is currently on the screen with real-time loading states
@@ -172,7 +170,7 @@ Once running, everything is managed from the dashboard at **http://inkslab.local
 
 ### Via SSH
 ```bash
-ssh pi@inkslab.local
+ssh pi@<your-pi-ip>
 cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
 git pull
 sudo systemctl restart inkslab inkslab_web
@@ -228,7 +226,7 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 
 | Problem | Fix |
 |---------|-----|
-| `inkslab.local` doesn't work | Some routers/Android devices don't support `.local`. Use the Pi's IP address instead — find it in your router admin page or run `hostname -I` on the Pi. |
+| Can't find the dashboard | Use your Pi's IP address (shown at startup, or run `hostname -I` on the Pi). Check your router's admin page for the Pi's IP. |
 | Display not updating | Check SPI is enabled: `ls /dev/spi*` should show devices. Check logs: `journalctl -u inkslab -f` |
 | Washed-out colors | Increase **Color Saturation** in the Settings tab (default 2.5, try 3.0–4.0) |
 | Web dashboard not loading | Run `journalctl -u inkslab_web -f` to check for errors |

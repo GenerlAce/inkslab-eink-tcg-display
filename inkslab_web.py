@@ -4,7 +4,7 @@ InkSlab Web Dashboard
 https://github.com/costamesatechsolutions/inkslab-eink-tcg-display
 
 A lightweight Flask web UI for managing InkSlab from your phone or browser.
-Access at http://inkslab.local after enabling the systemd service.
+Access via the IP address shown on startup after enabling the systemd service.
 
 By Costa Mesa Tech Solutions (a brand of Pine Heights Ventures LLC)
 """
@@ -429,7 +429,7 @@ def api_set_cards(set_id):
     if not library:
         return jsonify([])
 
-    set_path = os.path.join(library, set_id)
+    set_path = os.path.join(library, os.path.basename(set_id))
     if not os.path.isdir(set_path):
         return jsonify([])
 
@@ -504,7 +504,8 @@ def api_collection_toggle_set():
     if not library:
         return jsonify({"error": "invalid tcg"}), 400
 
-    set_path = os.path.join(library, set_id)
+    safe_set = os.path.basename(set_id)
+    set_path = os.path.join(library, safe_set)
     if not os.path.isdir(set_path):
         return jsonify({"error": "set not found"}), 404
 
@@ -663,7 +664,7 @@ def api_collection_toggle_rarity():
     # Find all card IDs matching the rarity
     matching_ids = []
     if set_id:
-        dirs_to_scan = [set_id]
+        dirs_to_scan = [os.path.basename(set_id)]
     else:
         dirs_to_scan = [d for d in os.listdir(library)
                         if os.path.isdir(os.path.join(library, d))]
@@ -896,8 +897,10 @@ def api_download_status():
         if _download_proc and _download_proc.poll() is None:
             running = True
         elif _download_proc:
-            # Process finished — close log file handle
+            # Process finished — close log file handle and clean up
             _close_download_log()
+            _download_proc = None
+            _download_tcg = None
             tcg = None
         else:
             tcg = None
@@ -1020,19 +1023,50 @@ def api_delete():
 # --- OTA UPDATE ---
 UPDATE_STATUS_FILE = "/tmp/inkslab_update_status.json"
 
+
+def _git_default_branch():
+    """Detect the remote default branch (main or master)."""
+    try:
+        r = subprocess.run(['git', 'symbolic-ref', 'refs/remotes/origin/HEAD'],
+                           cwd=SCRIPT_DIR, capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            return r.stdout.strip().split('/')[-1]
+    except Exception:
+        pass
+    # Fallback: check which branch exists
+    for branch in ('main', 'master'):
+        r = subprocess.run(['git', 'rev-parse', '--verify', f'origin/{branch}'],
+                           cwd=SCRIPT_DIR, capture_output=True, timeout=5)
+        if r.returncode == 0:
+            return branch
+    return 'main'
+
+
+@app.route('/api/version')
+def api_version():
+    """Return the current local git version (lightweight, no fetch)."""
+    try:
+        local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
+                               capture_output=True, text=True, timeout=5)
+        return jsonify({"version": local.stdout.strip()[:8] if local.returncode == 0 else "unknown"})
+    except Exception:
+        return jsonify({"version": "unknown"})
+
+
 @app.route('/api/update/check', methods=['POST'])
 def api_update_check():
     """Check if updates are available by comparing local vs remote HEAD."""
     try:
+        branch = _git_default_branch()
         subprocess.run(['git', 'fetch', 'origin'], cwd=SCRIPT_DIR,
                        capture_output=True, timeout=30)
         local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=5)
-        remote = subprocess.run(['git', 'rev-parse', 'origin/master'], cwd=SCRIPT_DIR,
+        remote = subprocess.run(['git', 'rev-parse', f'origin/{branch}'], cwd=SCRIPT_DIR,
                                 capture_output=True, text=True, timeout=5)
         local_hash = local.stdout.strip()[:8]
         remote_hash = remote.stdout.strip()[:8]
-        behind = subprocess.run(['git', 'rev-list', '--count', 'HEAD..origin/master'],
+        behind = subprocess.run(['git', 'rev-list', '--count', f'HEAD..origin/{branch}'],
                                 cwd=SCRIPT_DIR, capture_output=True, text=True, timeout=5)
         commits_behind = int(behind.stdout.strip()) if behind.returncode == 0 else 0
         return jsonify({"ok": True, "local": local_hash, "remote": remote_hash,
@@ -1044,6 +1078,14 @@ def api_update_check():
 @app.route('/api/update/start', methods=['POST'])
 def api_update_start():
     """Launch OTA update script detached from this process."""
+    lock_file = "/tmp/inkslab_update.lock"
+    if os.path.exists(lock_file):
+        try:
+            pid = int(open(lock_file).read().strip())
+            os.kill(pid, 0)  # Check if process is alive
+            return jsonify({"ok": False, "error": "Update already in progress"})
+        except (ValueError, OSError):
+            pass  # Stale lock, allow proceeding
     script = os.path.join(SCRIPT_DIR, "scripts", "ota_update.sh")
     if not os.path.exists(script):
         return jsonify({"ok": False, "error": "Update script not found"})
@@ -1267,7 +1309,10 @@ def api_custom_card_metadata():
     if not folder_id or not card_id:
         return jsonify({"error": "folder and card_id required"}), 400
     safe_folder = os.path.basename(folder_id)
-    data_file = os.path.join(CUSTOM_PATH, safe_folder, "_data.json")
+    folder_path = os.path.join(CUSTOM_PATH, safe_folder)
+    if not os.path.isdir(folder_path):
+        return jsonify({"error": "folder not found"}), 404
+    data_file = os.path.join(folder_path, "_data.json")
     cards = {}
     if os.path.exists(data_file):
         try:
@@ -1563,7 +1608,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card">
     <h3>Software Update</h3>
-    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD">Click below to check for updates.</div>
+    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
       <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
       <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
@@ -1584,7 +1629,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card">
     <h3>Search Cards</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Find a Pokemon or card by name and add all versions to your collection.</p>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Find a card by name and add all versions to your collection.</p>
     <div id="search-filters" class="search-filters" style="display:none"></div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
@@ -1614,7 +1659,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   <div class="card">
     <h3>Download Cards</h3>
     <div id="dl-buttons"></div>
-    <div class="form-group" style="margin-top:8px">
+    <div id="dl-mtg-since" style="display:none" class="form-group" style="margin-top:8px">
       <label>Download MTG since year:</label>
       <div class="flex-row">
         <input type="number" id="dl-since" min="1993" max="2030" value="2020" style="flex:2">
@@ -2122,12 +2167,11 @@ function toggleSetRarityChip(chipEl, setId, rarity, owned) {
 }
 
 // --- Card preview modal ---
-function showPreview(setId, cardId, label) {
-  fetch(API + '/api/config').then(r => r.json()).then(cfg => {
-    document.getElementById('preview-img').src = '/api/card_image/' + cfg.active_tcg + '/' + setId + '/' + cardId;
-    document.getElementById('preview-name').textContent = label;
-    document.getElementById('preview-modal').classList.add('open');
-  });
+function showPreview(setId, cardId, label, tcg) {
+  var t = tcg || (_lastStatus && _lastStatus.tcg) || 'pokemon';
+  document.getElementById('preview-img').src = '/api/card_image/' + t + '/' + setId + '/' + cardId;
+  document.getElementById('preview-name').textContent = label;
+  document.getElementById('preview-modal').classList.add('open');
 }
 function closePreview() {
   document.getElementById('preview-modal').classList.remove('open');
@@ -2148,13 +2192,13 @@ function loadFavorites() {
     el.style.display = 'flex';
     el.innerHTML = favs.map(function(name) {
       var safeN = name.replace(/'/g, "\\\\'");
-      return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\\'' + safeN + '\\')">&times;</span></span>';
+      return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\\'' + safeN + '\\', event)">&times;</span></span>';
     }).join('');
   });
 }
 
-function removeFavorite(name) {
-  var chip = event.target.parentElement;
+function removeFavorite(name, e) {
+  var chip = e.target.parentElement;
   chip.style.opacity = '0.5';
   fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: false})})
     .then(function(r) { return r.json(); }).then(function(d) {
@@ -2285,12 +2329,15 @@ function loadStorage() {
 function setDownloadUI(running, tcg) {
   const btns = document.getElementById('dl-buttons');
   const stopBtn = document.getElementById('btn-dl-stop');
+  const sinceBtn = document.getElementById('btn-dl-mtg-since');
   if (running) {
     btns.querySelectorAll('.btn').forEach(b => b.disabled = true);
+    if (sinceBtn) sinceBtn.disabled = true;
     stopBtn.style.display = 'block';
     stopBtn.textContent = 'Stop ' + (tcg || '').toUpperCase() + ' Download';
   } else {
     btns.querySelectorAll('.btn').forEach(b => b.disabled = false);
+    if (sinceBtn) sinceBtn.disabled = false;
     stopBtn.style.display = 'none';
   }
 }
@@ -2428,11 +2475,23 @@ function loadCustomFolders() {
   });
 }
 
+function refreshCustomFolder(folderId) {
+  var el = document.getElementById('cf-' + folderId);
+  if (!el) return;
+  el.removeAttribute('data-loaded');
+  el.classList.add('open');
+  _loadCustomFolderContent(folderId, el);
+}
+
 function toggleCustomFolder(folderId) {
   var el = document.getElementById('cf-' + folderId);
   if (el.classList.contains('open')) { el.classList.remove('open'); return; }
   el.classList.add('open');
   if (el.dataset.loaded) return;
+  _loadCustomFolderContent(folderId, el);
+}
+
+function _loadCustomFolderContent(folderId, el) {
   el.innerHTML = '<div style="padding:8px;color:#6BCCBD;font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + folderId + '/cards?tcg=custom').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
@@ -2444,7 +2503,7 @@ function toggleCustomFolder(folderId) {
     if (cards.length) {
       cards.forEach(c => {
         html += '<div class="card-row"><label style="flex:1;cursor:pointer">';
-        html += '<span class="card-preview-btn" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.id + '\\',\\'' + (c.name||'').replace(/'/g,"\\\\'") + '\\')">#' + c.number + ' ' + c.name + '</span>';
+        html += '<span class="card-preview-btn" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.id + '\\',\\'' + (c.name||'').replace(/'/g,"\\\\'") + '\\',\\'custom\\')">#' + c.number + ' ' + c.name + '</span>';
         html += '</label>';
         html += '<span style="display:flex;gap:4px;align-items:center">';
         html += '<span class="card-rarity">' + (c.rarity || '') + '</span>';
@@ -2481,9 +2540,7 @@ function uploadCustomCards(folderId, files) {
       done++;
       if (done >= files.length) {
         showToast('Uploaded ' + done + ' file(s)');
-        var el = document.getElementById('cf-' + folderId);
-        if (el) el.removeAttribute('data-loaded');
-        toggleCustomFolder(folderId);
+        refreshCustomFolder(folderId);
         loadCustomFolders();
       }
     });
@@ -2508,9 +2565,7 @@ function deleteCustomCard(folderId, cardId) {
   if (!confirm('Delete this image?')) return;
   fetch(API + '/api/custom/card/' + folderId + '/' + cardId, {method:'DELETE'}).then(r => r.json()).then(d => {
     if (d.ok) {
-      var el = document.getElementById('cf-' + folderId);
-      if (el) el.removeAttribute('data-loaded');
-      toggleCustomFolder(folderId);
+      refreshCustomFolder(folderId);
       loadCustomFolders();
       showToast('Deleted');
     }
@@ -2528,9 +2583,7 @@ function editCustomCard(folderId, cardId, name, number, rarity) {
     body: JSON.stringify({folder: folderId, card_id: cardId, name: newName, number: newNum, rarity: newRarity})})
     .then(r => r.json()).then(d => {
       if (d.ok) {
-        var el = document.getElementById('cf-' + folderId);
-        if (el) el.removeAttribute('data-loaded');
-        toggleCustomFolder(folderId);
+        refreshCustomFolder(folderId);
         showToast('Updated');
       }
     });
@@ -2556,6 +2609,9 @@ function buildDynamicUI(registry) {
   dlEl.innerHTML = Object.entries(registry).filter(function(e) { return e[1].download_script; }).map(function(e) {
     return '<div style="margin-bottom:6px"><button class="btn btn-primary btn-block" onclick="startDownload(\\'' + e[0] + '\\')">Download ' + e[1].name + '</button></div>';
   }).join('');
+  // Show MTG since-year filter only if MTG is in the registry
+  var mtgSince = document.getElementById('dl-mtg-since');
+  if (mtgSince) mtgSince.style.display = registry.mtg ? 'block' : 'none';
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
@@ -2578,8 +2634,13 @@ function buildDynamicUI(registry) {
     startMainPoll();
     startCountdown();
     fetch(API + '/api/ip').then(r => r.json()).then(d => {
-      if (d.ip) document.getElementById('footer-ip').textContent = 'Also available at http://' + d.ip;
+      if (d.ip) document.getElementById('footer-ip').textContent = 'http://' + d.ip;
     }).catch(() => {});
+    fetch(API + '/api/version').then(r => r.json()).then(d => {
+      var el = document.getElementById('update-info');
+      if (d.version && d.version !== 'unknown') el.textContent = 'Version: ' + d.version + ' — Click below to check for updates.';
+      else el.textContent = 'Click below to check for updates.';
+    }).catch(() => { document.getElementById('update-info').textContent = 'Click below to check for updates.'; });
   }).catch(function() {
     // Fallback if tcg_list fails
     refreshStatus();

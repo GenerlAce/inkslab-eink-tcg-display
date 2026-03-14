@@ -34,17 +34,25 @@ COOLDOWN_SECONDS = 10
 
 
 def download_file(url, filepath):
-    """Download a file, skipping if it already exists."""
+    """Download a file, skipping if it already exists. Writes to temp file first."""
     if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
         return "EXISTS"
+    tmp = filepath + ".tmp"
     try:
-        r = requests.get(url, headers=HEADERS, timeout=30)
+        r = requests.get(url, headers=HEADERS, timeout=30, stream=True)
         if r.status_code == 200:
-            with open(filepath, 'wb') as f:
-                f.write(r.content)
-            return "DOWNLOADED"
+            with open(tmp, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            if os.path.getsize(tmp) > 0:
+                os.rename(tmp, filepath)
+                return "DOWNLOADED"
+            os.remove(tmp)
+            return "FAIL: empty response"
         return f"HTTP {r.status_code}"
     except Exception as e:
+        if os.path.exists(tmp):
+            os.remove(tmp)
         return f"FAIL: {e}"
 
 
@@ -156,24 +164,33 @@ def process_set(set_info, cards):
         if not card_id:
             continue
 
-        # Try to get image URL — Lorcast provides various image sizes
-        image_url = None
-        images = card.get("image_uris", card.get("images", {}))
-        if isinstance(images, dict):
-            image_url = images.get("full", images.get("large", images.get("normal", images.get("art", ""))))
-        elif isinstance(images, str):
-            image_url = images
+        # Lorcast nests images as image_uris.digital.{small,normal,large} (AVIF)
+        # The "full" size (1468x2048) is JPG — construct it from the large URL
+        image_uris = card.get("image_uris", {})
+        digital = image_uris.get("digital", {}) if isinstance(image_uris, dict) else {}
 
-        # Also check top-level image field
+        image_url = None
+        # Prefer: construct full JPG URL from any available digital URL
+        for size in ("large", "normal", "small"):
+            avif_url = digital.get(size, "")
+            if avif_url:
+                # Replace /digital/{size}/ with /digital/full/ and .avif with .jpg
+                image_url = avif_url.replace(f"/digital/{size}/", "/digital/full/").replace(".avif", ".jpg")
+                # Strip query params for the extension swap, keep them for cache busting
+                break
+
+        # Fallback: use the AVIF URL directly (will work if Pillow has AVIF support)
         if not image_url:
-            image_url = card.get("image", card.get("image_url", ""))
+            image_url = digital.get("large", digital.get("normal", ""))
 
         if not image_url:
             continue
 
         # Determine file extension from URL
         ext = ".jpg"
-        if ".png" in image_url.lower():
+        if ".avif" in image_url.lower():
+            ext = ".avif"
+        elif ".png" in image_url.lower():
             ext = ".png"
 
         filepath = os.path.join(set_dir, f"{card_id}{ext}")
