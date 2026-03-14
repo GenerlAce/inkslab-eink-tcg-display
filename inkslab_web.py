@@ -3127,6 +3127,11 @@ def dashboard():
 
 
 if __name__ == '__main__':
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    _logger = logging.getLogger(__name__)
+    _logger.info("InkSlab Web Dashboard starting...")
+
     # Only enter setup mode if there's NO saved WiFi profile at all
     # (i.e., truly first boot on a pre-flashed unit).
     # If a profile exists but WiFi is temporarily down, do NOT tear it
@@ -3134,10 +3139,14 @@ if __name__ == '__main__':
     try:
         if not wifi_manager.is_wifi_connected() and not wifi_manager.has_saved_wifi_profile():
             _wifi_setup_mode = True
+            _logger.info("No WiFi profile found — entering setup mode")
             wifi_manager.start_hotspot()
+        else:
+            _logger.info("WiFi configured — serving dashboard")
     except Exception as e:
-        # If wifi_manager fails entirely, just serve the dashboard
-        import logging
-        logging.getLogger(__name__).warning("WiFi check failed, skipping setup mode: %s", e)
+        _logger.warning("WiFi check failed, skipping setup mode: %s", e)
 
-    app.run(host='0.0.0.0', port=80, debug=False)
+    try:
+        app.run(host='0.0.0.0', port=80, debug=False)
+    except Exception as e:
+        _logger.error("Web server crashed: %s", e, exc_info=True)

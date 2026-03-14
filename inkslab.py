@@ -84,7 +84,12 @@ if os.path.exists(_sdk_libdir):
 if os.path.exists(_local_libdir):
     sys.path.insert(0, _local_libdir)
 
-from waveshare_epd import epd4in0e
+try:
+    from waveshare_epd import epd4in0e
+except ImportError:
+    logger.error(f"Cannot import waveshare_epd. Checked: {_sdk_libdir}, {_local_libdir}")
+    logger.error("Make sure the Waveshare e-Paper library is installed.")
+    sys.exit(1)
 
 
 def load_config():
@@ -165,10 +170,16 @@ def get_local_ip():
 def show_splash_screen(epd, config):
     """Show a branded splash screen with the dashboard URL on the e-ink display."""
     try:
-        ip = get_local_ip()
+        # Wait up to 30s for an IP address (network may still be coming up)
+        ip = None
+        for _ in range(6):
+            ip = get_local_ip()
+            if ip:
+                break
+            time.sleep(5)
         if not ip:
-            logger.info("No IP address available yet, skipping splash screen")
-            return
+            logger.info("No IP address available after 30s, showing splash without URL")
+            ip = "<no IP yet>"
 
         canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
         draw = ImageDraw.Draw(canvas)
@@ -630,14 +641,24 @@ def main():
     deck = ShuffleDeck(library_dir, collection)
     _deck_collection_only = config["collection_only"]
 
-    try:
-        epd = epd4in0e.EPD()
-        epd.init()
-        epd.Clear()
-        logger.info("Display initialized and cleared")
-    except Exception as e:
-        logger.error(f"Display init failed: {e}")
-        return
+    # Initialize the e-paper display (retry up to 5 times with increasing delays)
+    epd = None
+    for attempt in range(1, 6):
+        try:
+            epd = epd4in0e.EPD()
+            epd.init()
+            epd.Clear()
+            logger.info("Display initialized and cleared")
+            break
+        except Exception as e:
+            logger.error(f"Display init attempt {attempt}/5 failed: {e}")
+            if attempt < 5:
+                delay = attempt * 10  # 10s, 20s, 30s, 40s
+                logger.info(f"Retrying display init in {delay}s...")
+                time.sleep(delay)
+            else:
+                logger.error("Display init failed after 5 attempts. Exiting.")
+                return
 
     # Check WiFi status — show setup screen or splash screen
     try:
@@ -931,4 +952,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"InkSlab crashed: {e}", exc_info=True)
+        sys.exit(1)
