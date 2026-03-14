@@ -268,6 +268,50 @@ def show_setup_screen(epd, config):
         logger.warning(f"Setup screen skipped: {e}")
 
 
+def show_no_cards_screen(epd, config, ip=None):
+    """Show a welcome screen when no cards are downloaded yet."""
+    try:
+        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
+        draw = ImageDraw.Draw(canvas)
+
+        try:
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
+        except Exception:
+            font_title = ImageFont.load_default()
+            font_body = font_title
+            font_url = font_title
+            font_small = font_title
+
+        cx = DISPLAY_WIDTH // 2
+
+        draw.text((cx, 120), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 200), "No cards downloaded yet!", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 250), "Open the dashboard", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 275), "to download cards:", fill=(0, 0, 0), font=font_body, anchor="mm")
+
+        if ip:
+            draw.text((cx, 330), f"http://{ip}", fill=(0, 0, 255), font=font_url, anchor="mm")
+
+        draw.text((cx, 400), "Go to Downloads tab", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+
+        img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        palette_ref = create_palette_image()
+        img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
+        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+
+        epd.init()
+        epd.display(epd.getbuffer(final))
+        epd.sleep()
+        logger.info("No-cards welcome screen shown")
+
+    except Exception as e:
+        logger.warning(f"No-cards screen skipped: {e}")
+
+
 def get_card_metadata(img_path, master_index):
     """Extract set name, card number, and rarity from card image path."""
     info = {"set_info": "", "stats": "", "set_name": "", "card_num": "", "rarity": ""}
@@ -580,48 +624,11 @@ def main():
     collection = None
     if config["collection_only"]:
         loaded = load_collection(active_tcg)
-        collection = loaded if loaded else []
+        collection = loaded if loaded else set()
         logger.info(f"Collection mode: {len(collection)} owned cards")
 
     deck = ShuffleDeck(library_dir, collection)
     _deck_collection_only = config["collection_only"]
-
-    # If no cards available, wait and poll for config changes or new downloads
-    while deck.total == 0:
-        logger.warning(f"No cards found for {active_tcg} in {library_dir}. "
-                       f"Waiting for cards to be downloaded or TCG to be changed...")
-        err_msg = (f"Collection mode is on but no cards selected. Add cards from the Collection tab."
-                   if config["collection_only"] else
-                   f"No {active_tcg.upper()} cards found. Download cards from the web dashboard.")
-        write_status({
-            "card_path": "",
-            "set_name": "",
-            "set_info": f"No {active_tcg.upper()} cards available",
-            "card_num": "",
-            "rarity": "",
-            "timestamp": int(time.time()),
-            "tcg": active_tcg,
-            "total_cards": 0,
-            "error": err_msg,
-        })
-        config, action = wait_with_polling(60)
-        new_tcg = config["active_tcg"]
-        if (new_tcg != active_tcg
-                or config["collection_only"] != _deck_collection_only
-                or action == "collection_changed"):
-            active_tcg = new_tcg
-            _deck_collection_only = config["collection_only"]
-            library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
-            master_index = load_master_index(library_dir)
-            if config["collection_only"]:
-                loaded = load_collection(active_tcg)
-                collection = loaded if loaded else []
-            else:
-                collection = None
-            deck = ShuffleDeck(library_dir, collection)
-        else:
-            # Same TCG — reshuffle in case cards were just downloaded
-            deck.reshuffle()
 
     try:
         epd = epd4in0e.EPD()
@@ -659,13 +666,52 @@ def main():
                 except OSError:
                     pass
                 break
-            if wifi_manager.is_wifi_connected():
-                break
+            try:
+                if wifi_manager.is_wifi_connected():
+                    break
+            except Exception:
+                break  # WiFi check crashed — proceed anyway
             time.sleep(5)
             wait_count += 5
         # Show the splash screen with the new IP (or whatever we have)
         logger.info("WiFi wait complete, showing splash screen...")
         show_splash_screen(epd, config)
+
+    # If no cards available, show welcome screen and wait for downloads
+    _no_cards_shown = False
+    while deck.total == 0:
+        if not _no_cards_shown:
+            show_no_cards_screen(epd, config, get_local_ip())
+            _no_cards_shown = True
+        logger.warning(f"No cards found for {active_tcg}. Waiting for downloads...")
+        err_msg = (f"Collection mode is on but no cards selected. Add cards from the Collection tab."
+                   if config["collection_only"] else
+                   f"No {active_tcg.upper()} cards found. Download cards from the web dashboard.")
+        write_status({
+            "card_path": "", "set_name": "",
+            "set_info": f"No {active_tcg.upper()} cards available",
+            "card_num": "", "rarity": "",
+            "timestamp": int(time.time()), "tcg": active_tcg,
+            "total_cards": 0, "error": err_msg,
+        })
+        config, action = wait_with_polling(60)
+        new_tcg = config["active_tcg"]
+        if (new_tcg != active_tcg
+                or config["collection_only"] != _deck_collection_only
+                or action == "collection_changed"):
+            active_tcg = new_tcg
+            _deck_collection_only = config["collection_only"]
+            library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
+            master_index = load_master_index(library_dir)
+            if config["collection_only"]:
+                loaded = load_collection(active_tcg)
+                collection = loaded if loaded else set()
+            else:
+                collection = None
+            deck = ShuffleDeck(library_dir, collection)
+            _no_cards_shown = False  # Show updated screen if TCG changed
+        else:
+            deck.reshuffle()
 
     # Graceful shutdown: ensure display is put to sleep on exit
     _shutdown = False
@@ -687,7 +733,7 @@ def main():
         master_index = load_master_index(library_dir)
         if config["collection_only"]:
             loaded = load_collection(active_tcg)
-            collection = loaded if loaded else []  # empty list = 0 cards, not fallback to all
+            collection = loaded if loaded else set()  # empty set = 0 cards, not fallback to all
         else:
             collection = None  # None = show all cards
         deck = ShuffleDeck(library_dir, collection, recent=old_history)

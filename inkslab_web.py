@@ -1239,13 +1239,6 @@ def api_factory_reset():
 
     # 1. Forget all saved WiFi profiles (except hotspot)
     try:
-        rc, out, _ = subprocess.run(
-            ["nmcli", "-t", "-f", "TYPE,NAME", "con", "show"],
-            capture_output=True, text=True, timeout=10
-        ).returncode, "", ""
-    except Exception:
-        pass
-    try:
         result = subprocess.run(
             ["nmcli", "-t", "-f", "TYPE,NAME", "con", "show"],
             capture_output=True, text=True, timeout=10
@@ -2011,7 +2004,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card">
     <h3>Software Update</h3>
-    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD">Loading version...</div>
+    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD;cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
       <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
       <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
@@ -2026,9 +2019,9 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="wifi-info" style="font-size:13px;color:#6BCCBD;margin-bottom:10px">Checking WiFi...</div>
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
   </div>
-  <div class="card" style="border:1px solid #ff6b6b33">
+  <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
     <h3 style="color:#ff6b6b">Prepare for Shipping</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Factory reset this unit before shipping to a customer. Forgets WiFi, deletes all card data, and resets settings. The unit will enter WiFi setup mode on next boot.</p>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Factory reset: forgets WiFi, deletes card data, resets settings. Unit will enter WiFi setup mode on next boot.</p>
     <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset()">Factory Reset</button>
   </div>
 </div>
@@ -2410,16 +2403,31 @@ function saveSettings() {
   const cfg = {
     active_tcg: document.getElementById('cfg-tcg').value,
     slab_header_mode: document.getElementById('cfg-header-mode').value,
-    rotation_angle: parseInt(document.getElementById('cfg-rotation').value),
-    day_interval: parseInt(document.getElementById('cfg-day-interval').value) * 60,
-    night_interval: parseInt(document.getElementById('cfg-night-interval').value) * 60,
-    day_start: parseInt(document.getElementById('cfg-day-start').value),
-    day_end: parseInt(document.getElementById('cfg-day-end').value),
-    color_saturation: parseFloat(document.getElementById('cfg-saturation').value),
+    rotation_angle: parseInt(document.getElementById('cfg-rotation').value) || 270,
+    day_interval: (parseInt(document.getElementById('cfg-day-interval').value) || 10) * 60,
+    night_interval: (parseInt(document.getElementById('cfg-night-interval').value) || 60) * 60,
+    day_start: parseInt(document.getElementById('cfg-day-start').value) || 7,
+    day_end: parseInt(document.getElementById('cfg-day-end').value) || 23,
+    color_saturation: parseFloat(document.getElementById('cfg-saturation').value) || 2.5,
     collection_only: document.getElementById('cfg-collection').checked,
   };
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify(cfg)})
     .then(function() { showToast('Settings saved!'); startRapidPoll(); });
+}
+
+// --- Admin (hidden) ---
+var _adminTaps = 0;
+var _adminTimer = null;
+function adminTap() {
+  _adminTaps++;
+  if (_adminTimer) clearTimeout(_adminTimer);
+  _adminTimer = setTimeout(function() { _adminTaps = 0; }, 2000);
+  if (_adminTaps >= 5) {
+    _adminTaps = 0;
+    var panel = document.getElementById('admin-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    if (panel.style.display === 'block') showToast('Admin mode');
+  }
 }
 
 // --- WiFi ---
