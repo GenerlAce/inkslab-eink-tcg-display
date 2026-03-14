@@ -2,10 +2,16 @@
 # InkSlab OTA Update Script
 # Runs detached from the web process so it survives service restarts.
 # Writes progress to /tmp/inkslab_update_status.json at each stage.
+#
+# Safety: Uses git reset --hard (atomic) instead of git pull (can corrupt files
+# if interrupted). Verifies critical files after update before restarting services.
 
 STATUS_FILE="/tmp/inkslab_update_status.json"
 LOCK_FILE="/tmp/inkslab_update.lock"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Critical files that must exist and be non-empty after update
+CRITICAL_FILES="inkslab.py inkslab_web.py wifi_manager.py"
 
 write_status() {
     local stage="$1"
@@ -22,6 +28,24 @@ json.dump({
     'timestamp': int(time.time())
 }, open(os.environ['_SF'], 'w'))
 " 2>/dev/null || echo "{\"stage\":\"update\",\"message\":\"Working...\",\"error\":\"\",\"timestamp\":$(date +%s)}" > "$STATUS_FILE"
+}
+
+verify_files() {
+    # Check that all critical files exist and are non-empty
+    for f in $CRITICAL_FILES; do
+        if [ ! -s "$SCRIPT_DIR/$f" ]; then
+            echo "FAIL: $f is missing or empty"
+            return 1
+        fi
+    done
+    # Quick syntax check on main files
+    for f in $CRITICAL_FILES; do
+        if ! python3 -m py_compile "$SCRIPT_DIR/$f" 2>/dev/null; then
+            echo "FAIL: $f has syntax errors"
+            return 1
+        fi
+    done
+    return 0
 }
 
 cleanup() {
@@ -58,25 +82,38 @@ if [ -z "$BRANCH" ]; then
     fi
 fi
 
-# Stage 1: Fetch
+# Stage 1: Fetch latest from remote
 write_status "fetching" "Checking for updates..." ""
 if ! timeout 60 git fetch origin 2>&1; then
-    write_status "error" "Failed to fetch from remote. Check internet connection." "true"
+    write_status "error" "Could not reach update server. Check your internet connection." "true"
     exit 1
 fi
 
-# Stage 2: Pull
+# Stage 2: Apply update using reset --hard (atomic, can't leave partial files)
 write_status "pulling" "Downloading update..." ""
-if ! timeout 120 git pull origin "$BRANCH" 2>&1; then
-    write_status "pulling" "Pull failed, resetting to remote..." ""
-    if ! git reset --hard "origin/$BRANCH" 2>&1; then
-        write_status "error" "Failed to update. Manual intervention needed." "true"
+# Stash any local changes (shouldn't be any on a device, but just in case)
+git stash --quiet 2>/dev/null
+# Hard reset to remote — this is atomic: files are fully written or not at all
+if ! git reset --hard "origin/$BRANCH" 2>&1; then
+    write_status "error" "Update failed. Try rebooting and updating again." "true"
+    exit 1
+fi
+
+# Stage 2.5: Verify critical files are intact
+write_status "pulling" "Verifying update..." ""
+VERIFY_RESULT=$(verify_files)
+if [ $? -ne 0 ]; then
+    write_status "error" "Update verification failed: $VERIFY_RESULT. Try rebooting." "true"
+    # Try one more time — re-fetch and reset
+    git fetch origin 2>/dev/null
+    git reset --hard "origin/$BRANCH" 2>/dev/null
+    if ! verify_files >/dev/null 2>&1; then
+        write_status "error" "Update failed after retry. Re-image the SD card." "true"
         exit 1
     fi
 fi
 
-# Stage 2.5: Update service files if they changed
-write_status "pulling" "Updating service files..." ""
+# Stage 2.75: Update service files if they changed
 if [ -f "$SCRIPT_DIR/inkslab.service" ]; then
     cp "$SCRIPT_DIR/inkslab.service" /etc/systemd/system/inkslab.service 2>/dev/null
 fi

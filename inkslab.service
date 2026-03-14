@@ -6,6 +6,7 @@ Wants=NetworkManager.service
 [Service]
 Type=simple
 User=root
+ExecStartPre=/bin/bash /home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display/scripts/selfheal.sh
 ExecStart=/usr/bin/python3 -u /home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display/inkslab.py
 WorkingDirectory=/home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
 Restart=on-failure

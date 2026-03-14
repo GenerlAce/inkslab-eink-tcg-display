@@ -192,34 +192,35 @@ def show_splash_screen(epd, config):
 
         # Load fonts
         try:
-            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
-            font_sub = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
+            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
         except Exception:
             font_title = ImageFont.load_default()
             font_url = font_title
-            font_sub = font_title
+            font_body = font_title
+            font_small = font_title
 
         # Draw content centered
         cx = DISPLAY_WIDTH // 2
 
         # Title
-        draw.text((cx, 180), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 140), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
 
         # Dashboard URL (prominent)
         url_text = f"http://{ip}"
-        draw.text((cx, 260), "Dashboard:", fill=(0, 0, 0), font=font_sub, anchor="mm")
-        draw.text((cx, 290), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
+        draw.text((cx, 230), "Open in your browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 275), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
 
         # Subtitle
-        draw.text((cx, 350), "Open this address in your browser", fill=(0, 0, 0), font=font_sub, anchor="mm")
-        draw.text((cx, 375), "to control your display.", fill=(0, 0, 0), font=font_sub, anchor="mm")
+        draw.text((cx, 340), "to control your display", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Transition note
-        draw.text((cx, 440), "Your cards will appear shortly.", fill=(128, 128, 128), font=font_sub, anchor="mm")
+        draw.text((cx, 420), "Your cards will appear shortly.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Bottom credit
-        draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_sub, anchor="mm")
+        draw.text((cx, 550), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         # Process for e-paper display
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
@@ -325,10 +326,10 @@ def show_no_cards_screen(epd, config, ip=None):
         draw = ImageDraw.Draw(canvas)
 
         try:
-            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
-            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
-            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
         except Exception:
             font_title = ImageFont.load_default()
             font_body = font_title
@@ -337,19 +338,19 @@ def show_no_cards_screen(epd, config, ip=None):
 
         cx = DISPLAY_WIDTH // 2
 
-        draw.text((cx, 100), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
-        draw.text((cx, 170), "No cards downloaded yet.", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 220), "To get started, open this", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 245), "address on your phone:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 80), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 150), "No cards downloaded yet.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 200), "To get started, open this", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 230), "address on your phone:", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         if ip:
-            draw.text((cx, 310), f"http://{ip}", fill=(0, 0, 255), font=font_url, anchor="mm")
+            draw.text((cx, 295), f"http://{ip}", fill=(0, 0, 255), font=font_url, anchor="mm")
 
-        draw.text((cx, 380), "Then tap Downloads and choose", fill=(0, 0, 0), font=font_small, anchor="mm")
-        draw.text((cx, 400), "a card game to download.", fill=(0, 0, 0), font=font_small, anchor="mm")
-        draw.text((cx, 440), "Cards will appear automatically", fill=(0, 0, 0), font=font_small, anchor="mm")
-        draw.text((cx, 460), "once the download finishes.", fill=(0, 0, 0), font=font_small, anchor="mm")
-        draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 370), "Then tap Downloads and choose", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 400), "a card game to download.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 455), "Cards will appear automatically", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 485), "once the download finishes.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
         canvas.close()

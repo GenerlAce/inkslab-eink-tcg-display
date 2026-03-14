@@ -10,6 +10,7 @@ Usage:
 import os
 import requests
 import json
+import shutil
 import time
 import random
 import gc
@@ -31,6 +32,17 @@ DOWNLOAD_DELAY_MIN = 0.1
 DOWNLOAD_DELAY_MAX = 0.3
 COOLDOWN_EVERY = 100
 COOLDOWN_SECONDS = 10
+
+MIN_FREE_SPACE_MB = 50
+
+
+def check_disk_space():
+    """Return True if there's enough free space to continue downloading."""
+    try:
+        st = shutil.disk_usage(BASE_DIR)
+        return (st.free // (1024 * 1024)) >= MIN_FREE_SPACE_MB
+    except Exception:
+        return True
 
 
 def download_file(url, filepath):
@@ -192,6 +204,10 @@ def process_set(set_info, cards):
             ext = ".avif"
         elif ".png" in image_url.lower():
             ext = ".png"
+
+        if not check_disk_space():
+            print(f"\n     STOPPING: Less than {MIN_FREE_SPACE_MB}MB free space remaining.")
+            return download_count, skip_count
 
         filepath = os.path.join(set_dir, f"{card_id}{ext}")
         status = download_file(image_url, filepath)

@@ -7,6 +7,7 @@ Supports resume - re-run safely to pick up where you left off.
 import os
 import requests
 import json
+import shutil
 import time
 import random
 import sys
@@ -27,6 +28,18 @@ DOWNLOAD_DELAY_MIN = 1.5  # seconds
 DOWNLOAD_DELAY_MAX = 3.0
 COOLDOWN_EVERY = 50       # downloads
 COOLDOWN_SECONDS = 30
+
+
+MIN_FREE_SPACE_MB = 50
+
+
+def check_disk_space():
+    """Return True if there's enough free space to continue downloading."""
+    try:
+        st = shutil.disk_usage(BASE_DIR)
+        return (st.free // (1024 * 1024)) >= MIN_FREE_SPACE_MB
+    except Exception:
+        return True  # Don't block on check failure
 
 
 def download_file(url, filepath):
@@ -124,6 +137,11 @@ def main():
             img_url = card['images'].get('large', card['images'].get('small'))
             if not img_url:
                 continue
+
+            if not check_disk_space():
+                print(f"\n=== STOPPING: Less than {MIN_FREE_SPACE_MB}MB free space remaining. ===")
+                print(f"=== Downloaded {download_count} new cards before stopping. ===")
+                return
 
             filepath = os.path.join(set_dir, f"{card_id}.png")
             status = download_file(img_url, filepath)

@@ -12,6 +12,7 @@ Usage:
 import os
 import requests
 import json
+import shutil
 import time
 import random
 import sys
@@ -42,6 +43,17 @@ COOLDOWN_SECONDS = 10
 # Skip these layout types (no standard card image)
 SKIP_LAYOUTS = {"art_series", "token", "double_faced_token", "emblem", "planar", "scheme", "vanguard"}
 
+MIN_FREE_SPACE_MB = 50
+
+
+def check_disk_space():
+    """Return True if there's enough free space to continue downloading."""
+    try:
+        st = shutil.disk_usage(BASE_DIR)
+        return (st.free // (1024 * 1024)) >= MIN_FREE_SPACE_MB
+    except Exception:
+        return True
+
 # Set types that contain real playable cards with standard card images
 INCLUDE_SET_TYPES = {
     "core", "expansion", "masters", "draft_innovation",
@@ -52,17 +64,24 @@ INCLUDE_SET_TYPES = {
 
 
 def download_file(url, filepath):
-    """Download a file, skipping if it already exists."""
+    """Download a file, skipping if it already exists. Writes to temp file first."""
     if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
         return "EXISTS"
+    tmp = filepath + ".tmp"
     try:
         r = requests.get(url, headers=HEADERS, timeout=30)
         if r.status_code == 200:
-            with open(filepath, 'wb') as f:
+            with open(tmp, 'wb') as f:
                 f.write(r.content)
-            return "DOWNLOADED"
+            if os.path.getsize(tmp) > 0:
+                os.rename(tmp, filepath)
+                return "DOWNLOADED"
+            os.remove(tmp)
+            return "FAIL: empty response"
         return f"HTTP {r.status_code}"
     except Exception as e:
+        if os.path.exists(tmp):
+            os.remove(tmp)
         return f"FAIL: {e}"
 
 
@@ -180,6 +199,10 @@ def process_set(set_info, cards):
                   card.get("image_uris", {}).get("normal"))
         if not img_url:
             continue
+
+        if not check_disk_space():
+            print(f"\n     STOPPING: Less than {MIN_FREE_SPACE_MB}MB free space remaining.")
+            return download_count, skip_count
 
         # Use Scryfall UUID as filename (unique across all sets)
         filepath = os.path.join(set_dir, f"{card_id}.png")

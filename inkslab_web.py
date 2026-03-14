@@ -14,6 +14,7 @@ import json
 import shutil
 import signal
 import subprocess
+import tempfile
 import time
 import threading
 from flask import Flask, request, jsonify, send_file, redirect
@@ -66,6 +67,49 @@ _download_lock = threading.Lock()
 _wifi_setup_mode = False
 _wifi_connect_result = {"status": "idle"}
 _wifi_connect_lock = threading.Lock()
+
+# --- FILE SAFETY ---
+_config_lock = threading.Lock()
+_collection_lock = threading.Lock()
+_custom_lock = threading.Lock()
+MIN_FREE_SPACE_MB = 50  # Refuse writes if less than this much free space
+
+
+def _atomic_write_json(path, data, indent=None):
+    """Write JSON atomically: write to temp file, then os.rename().
+
+    This prevents corruption from power loss or crash mid-write.
+    os.rename() is atomic on the same filesystem (always true for /home/pi).
+    """
+    dir_name = os.path.dirname(path) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        os.rename(tmp_path, path)
+    except Exception:
+        # Clean up temp file on failure
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _check_disk_space(path="/home/pi"):
+    """Return free space in MB. Returns 0 if check fails."""
+    try:
+        st = shutil.disk_usage(path)
+        return st.free // (1024 * 1024)
+    except Exception:
+        return 0
+
+
+def _has_disk_space(path="/home/pi"):
+    """Return True if there's enough free space to safely write."""
+    return _check_disk_space(path) >= MIN_FREE_SPACE_MB
 
 # --- TTL CACHE (avoids re-walking 15,000+ files on every request) ---
 _cache = {}
@@ -120,9 +164,8 @@ def load_config():
 
 def save_config(config):
     try:
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f, indent=2)
-    except OSError as e:
+        _atomic_write_json(CONFIG_FILE, config, indent=2)
+    except Exception as e:
         app.logger.error(f"Failed to save config: {e}")
 
 
@@ -138,9 +181,8 @@ def load_collection():
 
 def save_collection(data):
     try:
-        with open(COLLECTION_FILE, 'w') as f:
-            json.dump(data, f)
-    except OSError as e:
+        _atomic_write_json(COLLECTION_FILE, data)
+    except Exception as e:
         app.logger.error(f"Failed to save collection: {e}")
     # Signal daemon that collection changed so it can rebuild its deck
     try:
@@ -207,12 +249,13 @@ def api_get_config():
 
 @app.route('/api/config', methods=['POST'])
 def api_set_config():
-    config = load_config()
     updates = request.get_json(force=True)
-    for key in DEFAULTS:
-        if key in updates:
-            config[key] = updates[key]
-    save_config(config)
+    with _config_lock:
+        config = load_config()
+        for key in DEFAULTS:
+            if key in updates:
+                config[key] = updates[key]
+        save_config(config)
     # Write interim status so the web UI reflects the change instantly,
     # even if the display daemon is blocked on a 15-30s e-paper refresh.
     if 'active_tcg' in updates:
@@ -494,18 +537,19 @@ def api_collection_toggle():
     config = load_config()
     tcg = data.get("tcg", config["active_tcg"])
 
-    collection = load_collection()
-    if tcg not in collection:
-        collection[tcg] = []
+    with _collection_lock:
+        collection = load_collection()
+        if tcg not in collection:
+            collection[tcg] = []
 
-    if card_id in collection[tcg]:
-        collection[tcg].remove(card_id)
-        owned = False
-    else:
-        collection[tcg].append(card_id)
-        owned = True
+        if card_id in collection[tcg]:
+            collection[tcg].remove(card_id)
+            owned = False
+        else:
+            collection[tcg].append(card_id)
+            owned = True
 
-    save_collection(collection)
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"card_id": card_id, "owned": owned})
 
@@ -532,20 +576,21 @@ def api_collection_toggle_set():
     card_ids = [os.path.splitext(f)[0] for f in os.listdir(set_path)
                 if _is_card_image(f)]
 
-    collection = load_collection()
-    if tcg not in collection:
-        collection[tcg] = []
+    with _collection_lock:
+        collection = load_collection()
+        if tcg not in collection:
+            collection[tcg] = []
 
-    if owned:
-        existing = set(collection[tcg])
-        for cid in card_ids:
-            if cid not in existing:
-                collection[tcg].append(cid)
-    else:
-        remove_set = set(card_ids)
-        collection[tcg] = [cid for cid in collection[tcg] if cid not in remove_set]
+        if owned:
+            existing = set(collection[tcg])
+            for cid in card_ids:
+                if cid not in existing:
+                    collection[tcg].append(cid)
+        else:
+            remove_set = set(card_ids)
+            collection[tcg] = [cid for cid in collection[tcg] if cid not in remove_set]
 
-    save_collection(collection)
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"set_id": set_id, "owned": owned, "count": len(card_ids)})
 
@@ -554,9 +599,10 @@ def api_collection_toggle_set():
 def api_collection_clear():
     config = load_config()
     tcg = config["active_tcg"]
-    collection = load_collection()
-    collection[tcg] = []
-    save_collection(collection)
+    with _collection_lock:
+        collection = load_collection()
+        collection[tcg] = []
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"ok": True})
 
@@ -612,26 +658,27 @@ def api_collection_toggle_all():
     if not library or not os.path.isdir(library):
         return jsonify({"error": "invalid tcg"}), 400
 
-    collection = load_collection()
-    if tcg not in collection:
-        collection[tcg] = []
+    with _collection_lock:
+        collection = load_collection()
+        if tcg not in collection:
+            collection[tcg] = []
 
-    if not owned:
-        count = len(collection[tcg])
-        collection[tcg] = []
-    else:
-        all_ids = set()
-        for d in os.listdir(library):
-            set_path = os.path.join(library, d)
-            if not os.path.isdir(set_path):
-                continue
-            for f in os.listdir(set_path):
-                if _is_card_image(f):
-                    all_ids.add(os.path.splitext(f)[0])
-        collection[tcg] = list(all_ids)
-        count = len(all_ids)
+        if not owned:
+            count = len(collection[tcg])
+            collection[tcg] = []
+        else:
+            all_ids = set()
+            for d in os.listdir(library):
+                set_path = os.path.join(library, d)
+                if not os.path.isdir(set_path):
+                    continue
+                for f in os.listdir(set_path):
+                    if _is_card_image(f):
+                        all_ids.add(os.path.splitext(f)[0])
+            collection[tcg] = list(all_ids)
+            count = len(all_ids)
 
-    save_collection(collection)
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"owned": owned, "count": count})
 
@@ -645,21 +692,22 @@ def api_collection_toggle_batch():
     config = load_config()
     tcg = body.get("tcg", config["active_tcg"])
 
-    collection = load_collection()
-    if tcg not in collection:
-        collection[tcg] = []
+    with _collection_lock:
+        collection = load_collection()
+        if tcg not in collection:
+            collection[tcg] = []
 
-    if owned:
-        existing = set(collection[tcg])
-        for cid in card_ids:
-            if cid not in existing:
-                collection[tcg].append(cid)
-                existing.add(cid)
-    else:
-        remove = set(card_ids)
-        collection[tcg] = [c for c in collection[tcg] if c not in remove]
+        if owned:
+            existing = set(collection[tcg])
+            for cid in card_ids:
+                if cid not in existing:
+                    collection[tcg].append(cid)
+                    existing.add(cid)
+        else:
+            remove = set(card_ids)
+            collection[tcg] = [c for c in collection[tcg] if c not in remove]
 
-    save_collection(collection)
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"owned": owned, "count": len(card_ids)})
 
@@ -702,20 +750,21 @@ def api_collection_toggle_rarity():
             pass
 
     # Update collection
-    collection = load_collection()
-    if tcg not in collection:
-        collection[tcg] = []
+    with _collection_lock:
+        collection = load_collection()
+        if tcg not in collection:
+            collection[tcg] = []
 
-    if owned:
-        existing = set(collection[tcg])
-        for cid in matching_ids:
-            if cid not in existing:
-                collection[tcg].append(cid)
-    else:
-        remove_set = set(matching_ids)
-        collection[tcg] = [cid for cid in collection[tcg] if cid not in remove_set]
+        if owned:
+            existing = set(collection[tcg])
+            for cid in matching_ids:
+                if cid not in existing:
+                    collection[tcg].append(cid)
+        else:
+            remove_set = set(matching_ids)
+            collection[tcg] = [cid for cid in collection[tcg] if cid not in remove_set]
 
-    save_collection(collection)
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"rarity": rarity, "owned": owned, "count": len(matching_ids)})
 
@@ -797,26 +846,8 @@ def api_favorites_set():
 
     config = load_config()
     tcg = body.get("tcg", config["active_tcg"])
-    collection = load_collection()
 
-    # Manage favorites list
-    if "_favorites" not in collection:
-        collection["_favorites"] = {}
-    if tcg not in collection["_favorites"]:
-        collection["_favorites"][tcg] = []
-
-    favs = collection["_favorites"][tcg]
-    key = name.lower()
-
-    if owned:
-        # Add to favorites if not already there
-        if not any(f.lower() == key for f in favs):
-            favs.append(name)
-    else:
-        # Remove from favorites
-        collection["_favorites"][tcg] = [f for f in favs if f.lower() != key]
-
-    # Also add/remove all matching card IDs
+    # Find matching card IDs (read-only, outside lock)
     library = TCG_LIBRARIES.get(tcg)
     matching_ids = []
     if library and os.path.isdir(library):
@@ -833,20 +864,37 @@ def api_favorites_set():
             except Exception:
                 pass
 
-    if tcg not in collection:
-        collection[tcg] = []
+    with _collection_lock:
+        collection = load_collection()
 
-    if owned:
-        existing = set(collection[tcg])
-        for cid in matching_ids:
-            if cid not in existing:
-                collection[tcg].append(cid)
-                existing.add(cid)
-    else:
-        remove = set(matching_ids)
-        collection[tcg] = [c for c in collection[tcg] if c not in remove]
+        # Manage favorites list
+        if "_favorites" not in collection:
+            collection["_favorites"] = {}
+        if tcg not in collection["_favorites"]:
+            collection["_favorites"][tcg] = []
 
-    save_collection(collection)
+        favs = collection["_favorites"][tcg]
+
+        if owned:
+            if not any(f.lower() == key for f in favs):
+                favs.append(name)
+        else:
+            collection["_favorites"][tcg] = [f for f in favs if f.lower() != key]
+
+        if tcg not in collection:
+            collection[tcg] = []
+
+        if owned:
+            existing = set(collection[tcg])
+            for cid in matching_ids:
+                if cid not in existing:
+                    collection[tcg].append(cid)
+                    existing.add(cid)
+        else:
+            remove = set(matching_ids)
+            collection[tcg] = [c for c in collection[tcg] if c not in remove]
+
+        save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     return jsonify({"name": name, "owned": owned, "count": len(matching_ids)})
 
@@ -861,6 +909,9 @@ def api_download_start():
 
         # Close any leftover file handle from a previous download
         _close_download_log()
+
+        if not _has_disk_space():
+            return jsonify({"ok": False, "error": "Not enough storage space. Delete some cards first."})
 
         data = request.get_json(force=True) if request.data else {}
         tcg = data.get("tcg", "pokemon")
@@ -1417,17 +1468,17 @@ def api_custom_create_folder():
     folder = os.path.join(CUSTOM_PATH, safe)
     os.makedirs(folder, exist_ok=True)
     # Update master_index
-    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
-    master = {}
-    if os.path.exists(idx_path):
-        try:
-            with open(idx_path, 'r') as f:
-                master = json.load(f)
-        except Exception:
-            pass
-    master[safe] = {"name": name, "year": ""}
-    with open(idx_path, 'w') as f:
-        json.dump(master, f)
+    with _custom_lock:
+        idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+        master = {}
+        if os.path.exists(idx_path):
+            try:
+                with open(idx_path, 'r') as f:
+                    master = json.load(f)
+            except Exception:
+                pass
+        master[safe] = {"name": name, "year": ""}
+        _atomic_write_json(idx_path, master)
     _cache_invalidate('sets_custom', 'storage')
     return jsonify({"ok": True, "id": safe, "name": name})
 
@@ -1440,20 +1491,20 @@ def api_custom_rename_folder():
     new_name = data.get("name", "").strip()
     if not folder_id or not new_name:
         return jsonify({"error": "id and name required"}), 400
-    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
-    master = {}
-    if os.path.exists(idx_path):
-        try:
-            with open(idx_path, 'r') as f:
-                master = json.load(f)
-        except Exception:
-            pass
-    if folder_id not in master:
-        master[folder_id] = {"name": new_name, "year": ""}
-    else:
-        master[folder_id]["name"] = new_name
-    with open(idx_path, 'w') as f:
-        json.dump(master, f)
+    with _custom_lock:
+        idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+        master = {}
+        if os.path.exists(idx_path):
+            try:
+                with open(idx_path, 'r') as f:
+                    master = json.load(f)
+            except Exception:
+                pass
+        if folder_id not in master:
+            master[folder_id] = {"name": new_name, "year": ""}
+        else:
+            master[folder_id]["name"] = new_name
+        _atomic_write_json(idx_path, master)
     _cache_invalidate('sets_custom')
     return jsonify({"ok": True})
 
@@ -1463,19 +1514,19 @@ def api_custom_delete_folder(name):
     """Delete an entire custom folder."""
     safe = os.path.basename(name)
     folder = os.path.join(CUSTOM_PATH, safe)
-    if os.path.isdir(folder):
-        shutil.rmtree(folder)
-    # Remove from master_index
-    idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
-    if os.path.exists(idx_path):
-        try:
-            with open(idx_path, 'r') as f:
-                master = json.load(f)
-            master.pop(safe, None)
-            with open(idx_path, 'w') as f:
-                json.dump(master, f)
-        except Exception:
-            pass
+    with _custom_lock:
+        # Update index FIRST so daemon won't try to read deleted folder
+        idx_path = os.path.join(CUSTOM_PATH, "master_index.json")
+        if os.path.exists(idx_path):
+            try:
+                with open(idx_path, 'r') as f:
+                    master = json.load(f)
+                master.pop(safe, None)
+                _atomic_write_json(idx_path, master)
+            except Exception:
+                pass
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
     _cache_invalidate('sets_custom', 'storage')
     return jsonify({"ok": True})
 
@@ -1486,21 +1537,22 @@ def api_custom_delete_card(folder, card_id):
     safe_folder = os.path.basename(folder)
     safe_card = os.path.basename(card_id)
     folder_path = os.path.join(CUSTOM_PATH, safe_folder)
-    for ext in IMAGE_EXTENSIONS:
-        p = os.path.join(folder_path, safe_card + ext)
-        if os.path.exists(p):
-            os.remove(p)
-    # Remove from _data.json if present
-    data_file = os.path.join(folder_path, "_data.json")
-    if os.path.exists(data_file):
-        try:
-            with open(data_file, 'r') as f:
-                data = json.load(f)
-            data.pop(safe_card, None)
-            with open(data_file, 'w') as f:
-                json.dump(data, f)
-        except Exception:
-            pass
+    with _custom_lock:
+        # Update metadata first
+        data_file = os.path.join(folder_path, "_data.json")
+        if os.path.exists(data_file):
+            try:
+                with open(data_file, 'r') as f:
+                    data = json.load(f)
+                data.pop(safe_card, None)
+                _atomic_write_json(data_file, data)
+            except Exception:
+                pass
+        # Then remove image files
+        for ext in IMAGE_EXTENSIONS:
+            p = os.path.join(folder_path, safe_card + ext)
+            if os.path.exists(p):
+                os.remove(p)
     _cache_invalidate('sets_custom', 'storage')
     return jsonify({"ok": True})
 
@@ -1515,6 +1567,8 @@ def api_custom_upload():
     folder_path = os.path.join(CUSTOM_PATH, safe_folder)
     if not os.path.isdir(folder_path):
         return jsonify({"error": "folder not found"}), 404
+    if not _has_disk_space():
+        return jsonify({"error": "Not enough storage space. Delete some cards first."}), 507
     f = request.files.get("file")
     if not f or not f.filename:
         return jsonify({"error": "file required"}), 400
@@ -1534,24 +1588,34 @@ def api_custom_upload():
     while os.path.exists(filepath):
         filepath = os.path.join(folder_path, f"{safe_base}_{counter}{ext}")
         counter += 1
-    f.save(filepath)
-    card_id = os.path.splitext(os.path.basename(filepath))[0]
-    # Auto-add metadata
-    data_file = os.path.join(folder_path, "_data.json")
-    data = {}
-    if os.path.exists(data_file):
+    # Save to temp file first, then rename (atomic)
+    tmp_path = filepath + '.tmp'
+    try:
+        f.save(tmp_path)
+        os.rename(tmp_path, filepath)
+    except Exception:
         try:
-            with open(data_file, 'r') as df:
-                data = json.load(df)
-        except Exception:
+            os.unlink(tmp_path)
+        except OSError:
             pass
-    data[card_id] = {
-        "name": safe_base.replace('_', ' ').replace('-', ' ').title(),
-        "number": str(len(data) + 1),
-        "rarity": "",
-    }
-    with open(data_file, 'w') as df:
-        json.dump(data, df)
+        return jsonify({"error": "Upload failed. Try again."}), 500
+    card_id = os.path.splitext(os.path.basename(filepath))[0]
+    # Auto-add metadata (locked + atomic)
+    with _custom_lock:
+        data_file = os.path.join(folder_path, "_data.json")
+        data = {}
+        if os.path.exists(data_file):
+            try:
+                with open(data_file, 'r') as df:
+                    data = json.load(df)
+            except Exception:
+                pass
+        data[card_id] = {
+            "name": safe_base.replace('_', ' ').replace('-', ' ').title(),
+            "number": str(len(data) + 1),
+            "rarity": "",
+        }
+        _atomic_write_json(data_file, data)
     _cache_invalidate('sets_custom', 'storage')
     return jsonify({"ok": True, "card_id": card_id})
 
@@ -1576,16 +1640,16 @@ def api_custom_card_metadata():
                 cards = json.load(f)
         except Exception:
             pass
-    if card_id not in cards:
-        cards[card_id] = {}
-    if "name" in data:
-        cards[card_id]["name"] = data["name"]
-    if "number" in data:
-        cards[card_id]["number"] = data["number"]
-    if "rarity" in data:
-        cards[card_id]["rarity"] = data["rarity"]
-    with open(data_file, 'w') as f:
-        json.dump(cards, f)
+    with _custom_lock:
+        if card_id not in cards:
+            cards[card_id] = {}
+        if "name" in data:
+            cards[card_id]["name"] = data["name"]
+        if "number" in data:
+            cards[card_id]["number"] = data["number"]
+        if "rarity" in data:
+            cards[card_id]["rarity"] = data["rarity"]
+        _atomic_write_json(data_file, cards)
     return jsonify({"ok": True})
 
 
@@ -1604,14 +1668,14 @@ def api_custom_set_metadata():
                 master = json.load(f)
         except Exception:
             pass
-    if folder_id not in master:
-        master[folder_id] = {"name": folder_id, "year": ""}
-    if "name" in data:
-        master[folder_id]["name"] = data["name"]
-    if "year" in data:
-        master[folder_id]["year"] = data["year"]
-    with open(idx_path, 'w') as f:
-        json.dump(master, f)
+    with _custom_lock:
+        if folder_id not in master:
+            master[folder_id] = {"name": folder_id, "year": ""}
+        if "name" in data:
+            master[folder_id]["name"] = data["name"]
+        if "year" in data:
+            master[folder_id]["year"] = data["year"]
+        _atomic_write_json(idx_path, master)
     _cache_invalidate('sets_custom')
     return jsonify({"ok": True})
 
