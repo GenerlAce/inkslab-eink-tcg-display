@@ -2366,10 +2366,11 @@ function loadWifiInfo() {
 }
 
 function changeWifi() {
-  if (!confirm('This will disconnect from the current WiFi and start the setup hotspot. You will need to connect to the InkSlab-Setup network to reconfigure. Continue?')) return;
+  if (!confirm('This will disconnect WiFi and start the setup hotspot.\\n\\nAfter this:\\n1. Connect your phone to "InkSlab-Setup"\\n2. Open 10.42.0.1 in your browser\\n\\nContinue?')) return;
+  var el = document.getElementById('wifi-info');
   fetch(API + '/api/wifi/disconnect', {method:'POST'}).then(function() {
-    showToast('Entering WiFi setup mode...', 4000);
-    setTimeout(function() { window.location.href = 'http://10.42.0.1'; }, 4000);
+    el.innerHTML = '<strong>Setup mode active</strong><br>1. Connect your phone to <strong>InkSlab-Setup</strong><br>2. Open <strong>http://10.42.0.1</strong>';
+    showToast('Setup hotspot started!', 3000);
   }).catch(function() { showToast('Failed to start WiFi setup'); });
 }
 
