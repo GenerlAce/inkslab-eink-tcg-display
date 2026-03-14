@@ -19,6 +19,7 @@ import json
 import logging
 import signal
 from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageOps
+import wifi_manager
 
 # --- DEFAULT CONFIGURATION ---
 # These defaults are used if no config file exists.
@@ -211,6 +212,60 @@ def show_splash_screen(epd, config):
 
     except Exception as e:
         logger.warning(f"Splash screen skipped: {e}")
+
+
+def show_setup_screen(epd, config):
+    """Show WiFi setup instructions on the e-ink display when no WiFi is configured."""
+    try:
+        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
+        draw = ImageDraw.Draw(canvas)
+
+        # Load fonts
+        try:
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font_heading = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
+            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
+        except Exception:
+            font_title = ImageFont.load_default()
+            font_heading = font_title
+            font_body = font_title
+            font_url = font_title
+            font_small = font_title
+
+        cx = DISPLAY_WIDTH // 2
+
+        # Title
+        draw.text((cx, 80), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 110), "WiFi Setup", fill=(0, 0, 255), font=font_heading, anchor="mm")
+
+        # Step 1
+        draw.text((cx, 175), "1. Connect to WiFi:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 205), "InkSlab-Setup", fill=(255, 0, 0), font=font_url, anchor="mm")
+
+        # Step 2
+        draw.text((cx, 275), "2. Open in browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 305), "10.42.0.1", fill=(0, 0, 255), font=font_url, anchor="mm")
+
+        # Hint
+        draw.text((cx, 380), "A setup page should appear", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 400), "automatically on most phones.", fill=(0, 0, 0), font=font_small, anchor="mm")
+
+        # Bottom credit
+        draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+
+        # Process for e-paper display
+        img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        palette_ref = create_palette_image()
+        img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
+        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+
+        epd.display(epd.getbuffer(final))
+        logger.info("Setup screen shown: connect to InkSlab-Setup WiFi")
+
+    except Exception as e:
+        logger.warning(f"Setup screen skipped: {e}")
 
 
 def get_card_metadata(img_path, master_index):
@@ -577,8 +632,33 @@ def main():
         logger.error(f"Display init failed: {e}")
         return
 
-    # Show splash screen with dashboard URL (helpful for first-time setup)
-    show_splash_screen(epd, config)
+    # Check WiFi status — show setup screen or splash screen
+    if wifi_manager.is_wifi_connected():
+        # Normal boot: show dashboard IP
+        show_splash_screen(epd, config)
+    else:
+        # No WiFi: show setup instructions and wait for connection
+        show_setup_screen(epd, config)
+        logger.info("Waiting for WiFi connection via setup mode...")
+        wifi_connected = False
+        while not wifi_connected:
+            # Check for the trigger file from the web dashboard
+            trigger = "/tmp/inkslab_wifi_connected"
+            if os.path.exists(trigger):
+                try:
+                    os.remove(trigger)
+                except OSError:
+                    pass
+                wifi_connected = True
+                break
+            # Also check nmcli directly
+            if wifi_manager.is_wifi_connected():
+                wifi_connected = True
+                break
+            time.sleep(5)
+        # WiFi is now connected — show the splash screen with the new IP
+        logger.info("WiFi connected! Showing dashboard IP...")
+        show_splash_screen(epd, config)
 
     # Graceful shutdown: ensure display is put to sleep on exit
     _shutdown = False

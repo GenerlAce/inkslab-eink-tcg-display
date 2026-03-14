@@ -1,6 +1,7 @@
 [Unit]
 Description=InkSlab - e-Ink TCG Card Display
-After=network.target
+After=NetworkManager.service
+Wants=NetworkManager.service
 
 [Service]
 Type=simple

@@ -2,7 +2,7 @@
 
 A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gathering, and Disney Lorcana cards in a graded-slab style layout. Upload your own custom images too. Control everything from your phone — switch between TCGs, download cards, curate your collection by rarity, and more.
 
-**No command line needed after initial setup.** Everything runs through a clean web dashboard — including software updates.
+**No command line needed.** Pre-flashed units have built-in WiFi setup — just power on, connect to the InkSlab network, and pick your WiFi. Everything else runs through a clean web dashboard — including software updates.
 
 **By [Costa Mesa Tech Solutions](https://github.com/costamesatechsolutions)** (a brand of Pine Heights Ventures LLC)
 
@@ -19,6 +19,7 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 - **Rarity Filtering:** Select or deselect all cards of a specific rarity (e.g., "Mythic Rare" or "Illustration Rare") across every set with one tap
 - **Smart Shuffle:** Remembers recently shown cards and pushes them to the back of the deck upon reshuffling so you always see fresh art
 - **Custom Images:** Upload your own images and organize them into sets with optional metadata
+- **WiFi Setup Mode:** Pre-flashed units automatically create an "InkSlab-Setup" WiFi network on first boot. Connect with your phone, pick your home WiFi, and you're done — no SSH needed
 - **OTA Updates:** Update InkSlab software directly from the web dashboard — no SSH needed
 - **Startup Splash:** On boot, the display shows your Pi's IP address so you know exactly where to connect — no SSH or router lookup needed
 - Runs 24/7 as a desk display, rotating cards every 10 minutes (configurable for day/night)
@@ -59,6 +60,23 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 ---
 
 ## Setup
+
+### Pre-Flashed Units (Easiest)
+
+If you received a pre-flashed InkSlab, setup takes about 30 seconds:
+
+1. **Power on** the InkSlab — the e-ink display will show WiFi setup instructions
+2. **Connect your phone** to the `InkSlab-Setup` WiFi network (no password needed)
+3. A setup page should appear automatically. If not, open `http://10.42.0.1` in your browser
+4. **Pick your home WiFi** from the list, enter the password, and tap Connect
+5. The display will show your new dashboard IP (e.g., `http://192.168.1.42`)
+6. **Reconnect your phone** to your home WiFi and open that address — you're done!
+
+To change WiFi later, go to **Settings** > **Change WiFi Network** in the dashboard.
+
+---
+
+### DIY Setup (Flash Your Own SD Card)
 
 ### Step 1 — Flash the SD Card
 
@@ -145,6 +163,7 @@ Once running, everything is managed from the web dashboard — no SSH needed. Th
 - Adjust display rotation and color saturation (boost colors for the e-paper display)
 - Enable **Collection Only** mode to restrict the display to cards you've marked as owned
 - **Software Update:** Check for and install OTA updates directly from the web dashboard
+- **WiFi Network:** View current connection status and change WiFi networks without SSH
 
 ### Collection Tab
 - Browse every downloaded set and toggle ownership. Tap any card name to view a high-res preview modal
@@ -234,6 +253,9 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 | Collection mode shows nothing | Mark some cards as owned in the Collection tab first |
 | Download fails or stalls | The Pi Zero has limited RAM. If a massive download (MTG or Pokemon) stalls out, click "Stop Download" and then start it again. It will safely skip over existing files and resume exactly where it left off. |
 | OTA update stuck | If the update progress bar stalls, wait 60 seconds then refresh the page. The services auto-restart via systemd. |
+| WiFi setup not appearing | Make sure you're connected to the `InkSlab-Setup` network. If the setup page doesn't auto-open, go to `http://10.42.0.1` manually. |
+| Wrong WiFi password | The setup page will show an error and let you retry. The InkSlab-Setup network will reappear automatically. |
+| Want to change WiFi | Go to **Settings** > **Change WiFi Network** in the dashboard. The InkSlab will re-enter setup mode. |
 
 ---
 
@@ -243,6 +265,7 @@ All settings are managed from the web dashboard. They're stored in `/home/pi/ink
 inkslab-eink-tcg-display/
   inkslab.py                     # Display daemon
   inkslab_web.py                 # Web dashboard (Flask)
+  wifi_manager.py                # WiFi setup mode (nmcli wrapper)
   inkslab.service                # systemd service for display
   inkslab_web.service            # systemd service for web dashboard
   lib/waveshare_epd/             # e-Paper display driver (bundled)

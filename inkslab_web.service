@@ -1,6 +1,7 @@
 [Unit]
 Description=InkSlab Web Dashboard
-After=network.target
+After=NetworkManager.service
+Wants=NetworkManager.service
 
 [Service]
 Type=simple

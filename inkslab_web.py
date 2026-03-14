@@ -16,7 +16,8 @@ import signal
 import subprocess
 import time
 import threading
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, redirect
+import wifi_manager
 
 app = Flask(__name__)
 
@@ -57,6 +58,11 @@ _download_proc = None
 _download_tcg = None
 _download_log_fh = None
 _download_lock = threading.Lock()
+
+# --- WIFI SETUP MODE ---
+_wifi_setup_mode = False
+_wifi_connect_result = {"status": "idle"}
+_wifi_connect_lock = threading.Lock()
 
 # --- TTL CACHE (avoids re-walking 15,000+ files on every request) ---
 _cache = {}
@@ -1118,6 +1124,121 @@ def api_update_status():
     return jsonify({"stage": "idle"})
 
 
+# --- WIFI SETUP ---
+
+def _perform_wifi_connection(ssid, password):
+    """Background thread: tear down hotspot, connect, handle failure."""
+    global _wifi_setup_mode, _wifi_connect_result
+
+    try:
+        # Step 1: Tear down hotspot
+        wifi_manager.stop_hotspot()
+        time.sleep(2)  # Let the interface settle
+
+        # Step 2: Attempt connection
+        success, message = wifi_manager.connect_to_network(ssid, password)
+
+        if success:
+            with _wifi_connect_lock:
+                _wifi_connect_result = {
+                    "status": "success", "ip": message,
+                    "ssid": ssid, "error": None,
+                }
+            _wifi_setup_mode = False
+            # Signal inkslab.py to refresh splash screen
+            try:
+                with open("/tmp/inkslab_wifi_connected", "w") as f:
+                    f.write(message)
+            except OSError:
+                pass
+        else:
+            # Connection failed — restore hotspot
+            with _wifi_connect_lock:
+                _wifi_connect_result = {
+                    "status": "failed", "error": message, "ssid": ssid,
+                }
+            wifi_manager.start_hotspot()
+            _wifi_setup_mode = True
+    except Exception as e:
+        with _wifi_connect_lock:
+            _wifi_connect_result = {
+                "status": "failed", "error": str(e), "ssid": ssid,
+            }
+        try:
+            wifi_manager.start_hotspot()
+            _wifi_setup_mode = True
+        except Exception:
+            pass
+
+
+@app.route('/api/wifi/status')
+def api_wifi_status():
+    """Return current WiFi state and setup mode flag."""
+    status = wifi_manager.get_wifi_status()
+    status["setup_mode"] = _wifi_setup_mode
+    with _wifi_connect_lock:
+        status["connect_status"] = dict(_wifi_connect_result)
+    return jsonify(status)
+
+
+@app.route('/api/wifi/scan')
+def api_wifi_scan():
+    """Scan for available networks."""
+    networks = wifi_manager.scan_networks()
+    return jsonify(networks)
+
+
+@app.route('/api/wifi/connect', methods=['POST'])
+def api_wifi_connect():
+    """Begin connection to a WiFi network (non-blocking)."""
+    global _wifi_connect_result
+    data = request.get_json(force=True)
+    ssid = data.get("ssid", "").strip()
+    password = data.get("password", "").strip()
+
+    if not ssid:
+        return jsonify({"ok": False, "error": "SSID required"}), 400
+
+    with _wifi_connect_lock:
+        if _wifi_connect_result.get("status") == "connecting":
+            return jsonify({"ok": False, "error": "Connection already in progress"}), 409
+        _wifi_connect_result = {"status": "connecting", "ssid": ssid, "error": None}
+
+    t = threading.Thread(target=_perform_wifi_connection, args=(ssid, password), daemon=True)
+    t.start()
+    return jsonify({"ok": True, "message": "Connecting..."})
+
+
+@app.route('/api/wifi/disconnect', methods=['POST'])
+def api_wifi_disconnect():
+    """Disconnect WiFi and re-enter setup mode."""
+    global _wifi_setup_mode, _wifi_connect_result
+    wifi_manager.stop_hotspot()
+    # Disconnect current WiFi
+    ssid = wifi_manager.get_active_ssid()
+    if ssid:
+        subprocess.run(["nmcli", "con", "down", "id", ssid],
+                       capture_output=True, timeout=10)
+    with _wifi_connect_lock:
+        _wifi_connect_result = {"status": "idle"}
+    _wifi_setup_mode = True
+    wifi_manager.start_hotspot()
+    return jsonify({"ok": True})
+
+
+# Captive portal detection endpoints — redirect to setup page
+@app.route('/hotspot-detect.html')
+@app.route('/generate_204')
+@app.route('/ncsi.txt')
+@app.route('/connecttest.txt')
+@app.route('/redirect')
+@app.route('/canonical.html')
+def captive_portal_detect():
+    if _wifi_setup_mode:
+        return redirect("http://10.42.0.1/", code=302)
+    return "Success", 200
+
+
 # --- CUSTOM IMAGE MANAGEMENT ---
 
 CUSTOM_PATH = TCG_LIBRARIES["custom"]
@@ -1362,6 +1483,221 @@ def api_custom_set_metadata():
 
 
 # --- DASHBOARD HTML ---
+
+WIFI_SETUP_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>InkSlab WiFi Setup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #132E3E; color: #D8E6E4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+.header { background: #0d2230; padding: 16px; text-align: center; border-bottom: 1px solid #1F333F; }
+.header h1 { font-size: 20px; color: #FCFDF0; font-weight: 700; }
+.header p { font-size: 12px; color: #6BCCBD; margin-top: 4px; }
+.content { flex: 1; padding: 16px; max-width: 480px; margin: 0 auto; width: 100%; }
+.card { background: #1a3a4a; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #1F333F; }
+.welcome { text-align: center; padding: 20px 0; }
+.welcome h2 { color: #FCFDF0; font-size: 22px; margin-bottom: 8px; }
+.welcome p { color: #6BCCBD; font-size: 14px; }
+.section-title { font-size: 14px; font-weight: 600; color: #6BCCBD; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.btn { display: inline-block; padding: 10px 16px; border-radius: 6px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; transition: opacity 0.2s; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: #36A5CA; color: #010001; width: 100%; }
+.btn-secondary { background: #1F333F; color: #D8E6E4; border: 1px solid #36A5CA44; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.network-list { max-height: 45vh; overflow-y: auto; border-radius: 8px; }
+.network-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #132E3E; border-bottom: 1px solid #1F333F; cursor: pointer; transition: background 0.15s; }
+.network-item:hover, .network-item:active { background: #1F333F; }
+.network-item:first-child { border-radius: 8px 8px 0 0; }
+.network-item:last-child { border-radius: 0 0 8px 8px; border-bottom: none; }
+.network-ssid { font-size: 15px; color: #FCFDF0; font-weight: 500; flex: 1; }
+.network-meta { display: flex; align-items: center; gap: 8px; }
+.signal-bars { display: flex; gap: 2px; align-items: flex-end; height: 16px; }
+.signal-bar { width: 4px; background: #6BCCBD; border-radius: 1px; }
+.signal-bar.off { background: #1F333F; }
+.lock { font-size: 12px; color: #6BCCBD; }
+.connect-form { display: none; margin-top: 12px; }
+.connect-form.open { display: block; }
+.connect-form h3 { font-size: 15px; color: #FCFDF0; margin-bottom: 10px; }
+.input-wrap { position: relative; margin-bottom: 12px; }
+.input-wrap input { width: 100%; padding: 12px 44px 12px 12px; background: #132E3E; color: #FCFDF0; border: 1px solid #36A5CA44; border-radius: 6px; font-size: 15px; outline: none; }
+.input-wrap input:focus { border-color: #36A5CA; }
+.toggle-pw { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6BCCBD; font-size: 12px; cursor: pointer; padding: 4px 8px; }
+.status-area { text-align: center; padding: 16px 0; }
+.spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #1F333F; border-top-color: #36A5CA; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.success-screen { text-align: center; padding: 32px 16px; }
+.success-screen .check { font-size: 56px; color: #6BCCBD; margin-bottom: 12px; }
+.success-screen h2 { color: #6BCCBD; margin-bottom: 10px; }
+.success-screen .ip { font-size: 20px; font-weight: 700; color: #FCFDF0; margin: 16px 0; }
+.success-screen p { color: #6BCCBD; font-size: 13px; }
+.error-msg { color: #ff6b6b; font-size: 13px; text-align: center; padding: 8px; }
+.footer { background: #0d2230; padding: 14px 16px; text-align: center; font-size: 10px; color: #1F333F55; border-top: 1px solid #1F333F; margin-top: auto; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>InkSlab</h1>
+  <p>WiFi Setup</p>
+</div>
+
+<div class="content" id="setup-content">
+  <div class="welcome">
+    <h2>Welcome!</h2>
+    <p>Let's connect your InkSlab to WiFi.</p>
+  </div>
+
+  <div class="card">
+    <div class="section-title">
+      <span>Available Networks</span>
+      <button class="btn btn-secondary btn-sm" onclick="scanNetworks()">Scan</button>
+    </div>
+    <div class="network-list" id="network-list">
+      <div style="text-align:center;padding:24px;color:#6BCCBD">Scanning...</div>
+    </div>
+  </div>
+
+  <div class="card connect-form" id="connect-form">
+    <h3>Connect to <span id="selected-ssid"></span></h3>
+    <div id="password-section">
+      <div class="input-wrap">
+        <input type="password" id="wifi-password" placeholder="Enter WiFi password" autocomplete="off" autocapitalize="off">
+        <button class="toggle-pw" onclick="togglePw()">show</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="btn-connect" onclick="doConnect()">Connect</button>
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn btn-secondary btn-sm" onclick="cancelConnect()">Cancel</button>
+    </div>
+    <div id="status-area" class="status-area"></div>
+  </div>
+</div>
+
+<div class="footer">Costa Mesa Tech Solutions</div>
+
+<script>
+var selectedSSID = '';
+var selectedSecurity = '';
+var _statusPoll = null;
+
+function scanNetworks() {
+  var el = document.getElementById('network-list');
+  el.innerHTML = '<div style="text-align:center;padding:24px;color:#6BCCBD"><div class="spinner"></div><br>Scanning...</div>';
+  fetch('/api/wifi/scan').then(function(r) { return r.json(); }).then(function(networks) {
+    if (!networks.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:#6BCCBD">No networks found. Tap Scan to try again.</div>';
+      return;
+    }
+    el.innerHTML = networks.map(function(n) {
+      var bars = signalBars(n.signal);
+      var lock = n.security ? '<span class="lock">&#128274;</span>' : '';
+      return '<div class="network-item" onclick="selectNetwork(\\'' + n.ssid.replace(/'/g, "\\\\'") + '\\',\\'' + (n.security || '').replace(/'/g, "\\\\'") + '\\')">'
+        + '<span class="network-ssid">' + n.ssid + '</span>'
+        + '<span class="network-meta">' + bars + lock + '</span>'
+        + '</div>';
+    }).join('');
+  }).catch(function() {
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:#ff6b6b">Scan failed. Tap Scan to retry.</div>';
+  });
+}
+
+function signalBars(signal) {
+  var bars = '';
+  var heights = [4, 7, 10, 13, 16];
+  for (var i = 0; i < 5; i++) {
+    var on = signal >= (i + 1) * 20;
+    bars += '<span class="signal-bar' + (on ? '' : ' off') + '" style="height:' + heights[i] + 'px"></span>';
+  }
+  return '<span class="signal-bars">' + bars + '</span>';
+}
+
+function selectNetwork(ssid, security) {
+  selectedSSID = ssid;
+  selectedSecurity = security;
+  document.getElementById('selected-ssid').textContent = ssid;
+  document.getElementById('connect-form').classList.add('open');
+  document.getElementById('status-area').innerHTML = '';
+  document.getElementById('btn-connect').disabled = false;
+  var pwSection = document.getElementById('password-section');
+  if (security) {
+    pwSection.style.display = 'block';
+    document.getElementById('wifi-password').value = '';
+    document.getElementById('wifi-password').focus();
+  } else {
+    pwSection.style.display = 'none';
+  }
+}
+
+function cancelConnect() {
+  document.getElementById('connect-form').classList.remove('open');
+  selectedSSID = '';
+  if (_statusPoll) { clearInterval(_statusPoll); _statusPoll = null; }
+}
+
+function togglePw() {
+  var inp = document.getElementById('wifi-password');
+  var btn = inp.nextElementSibling;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'hide'; }
+  else { inp.type = 'password'; btn.textContent = 'show'; }
+}
+
+function doConnect() {
+  var password = document.getElementById('wifi-password').value;
+  document.getElementById('btn-connect').disabled = true;
+  document.getElementById('status-area').innerHTML = '<div class="spinner"></div><div style="color:#36A5CA">Connecting to ' + selectedSSID + '...</div>';
+  fetch('/api/wifi/connect', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ssid: selectedSSID, password: password})
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (!d.ok) {
+      document.getElementById('status-area').innerHTML = '<div class="error-msg">' + (d.error || 'Failed') + '</div>';
+      document.getElementById('btn-connect').disabled = false;
+      return;
+    }
+    // Start polling for result
+    _statusPoll = setInterval(checkConnectStatus, 2000);
+  }).catch(function() {
+    document.getElementById('status-area').innerHTML = '<div class="error-msg">Request failed</div>';
+    document.getElementById('btn-connect').disabled = false;
+  });
+}
+
+function checkConnectStatus() {
+  fetch('/api/wifi/status').then(function(r) { return r.json(); }).then(function(d) {
+    var cs = d.connect_status;
+    if (cs.status === 'success') {
+      clearInterval(_statusPoll); _statusPoll = null;
+      showSuccess(cs.ip, cs.ssid);
+    } else if (cs.status === 'failed') {
+      clearInterval(_statusPoll); _statusPoll = null;
+      document.getElementById('status-area').innerHTML = '<div class="error-msg">' + (cs.error || 'Connection failed. Check your password.') + '</div>';
+      document.getElementById('btn-connect').disabled = false;
+    }
+  }).catch(function() {
+    // Connection might be in progress (hotspot tearing down) — normal, keep polling
+  });
+}
+
+function showSuccess(ip, ssid) {
+  document.getElementById('setup-content').innerHTML =
+    '<div class="success-screen">'
+    + '<div class="check">&#10004;</div>'
+    + '<h2>Connected!</h2>'
+    + '<p style="color:#D8E6E4;font-size:15px;margin-bottom:16px">Your InkSlab is now on <strong>' + ssid + '</strong></p>'
+    + '<div class="ip">http://' + ip + '</div>'
+    + '<p>Open this address in your browser to access the dashboard.</p>'
+    + '<p style="margin-top:20px;color:#36A5CA;font-size:12px">The e-ink display will also show this address.</p>'
+    + '</div>';
+}
+
+// Auto-scan on load
+scanNetworks();
+</script>
+</body>
+</html>"""
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -1619,6 +1955,11 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
       <div id="update-stage" style="font-size:12px;color:#6BCCBD;text-align:center"></div>
     </div>
   </div>
+  <div class="card">
+    <h3>WiFi Network</h3>
+    <div id="wifi-info" style="font-size:13px;color:#6BCCBD;margin-bottom:10px">Checking WiFi...</div>
+    <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
+  </div>
 </div>
 
 <!-- COLLECTION TAB -->
@@ -1718,7 +2059,7 @@ function showTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') loadSettings();
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); }
   if (name === 'display') refreshStatus();
 }
@@ -2008,6 +2349,28 @@ function saveSettings() {
   };
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify(cfg)})
     .then(function() { showToast('Settings saved!'); startRapidPoll(); });
+}
+
+// --- WiFi ---
+function loadWifiInfo() {
+  var el = document.getElementById('wifi-info');
+  fetch(API + '/api/wifi/status').then(r => r.json()).then(function(d) {
+    if (d.connected && d.ssid) {
+      el.innerHTML = 'Connected to <strong>' + d.ssid + '</strong>' + (d.ip ? ' &mdash; IP: ' + d.ip : '');
+    } else if (d.hotspot_active) {
+      el.textContent = 'Setup mode — broadcasting ' + (d.hotspot_ssid || 'InkSlab-Setup');
+    } else {
+      el.textContent = 'Not connected';
+    }
+  }).catch(function() { el.textContent = 'Could not check WiFi status'; });
+}
+
+function changeWifi() {
+  if (!confirm('This will disconnect from the current WiFi and start the setup hotspot. You will need to connect to the InkSlab-Setup network to reconfigure. Continue?')) return;
+  fetch(API + '/api/wifi/disconnect', {method:'POST'}).then(function() {
+    showToast('Entering WiFi setup mode...', 4000);
+    setTimeout(function() { window.location.href = 'http://10.42.0.1'; }, 4000);
+  }).catch(function() { showToast('Failed to start WiFi setup'); });
 }
 
 // --- Collection ---
@@ -2656,8 +3019,15 @@ function buildDynamicUI(registry) {
 
 @app.route('/')
 def dashboard():
+    if _wifi_setup_mode:
+        return WIFI_SETUP_HTML
     return DASHBOARD_HTML
 
 
 if __name__ == '__main__':
+    # Check WiFi on startup — enter setup mode if not connected
+    if not wifi_manager.is_wifi_connected():
+        _wifi_setup_mode = True
+        wifi_manager.start_hotspot()
+
     app.run(host='0.0.0.0', port=80, debug=False)
