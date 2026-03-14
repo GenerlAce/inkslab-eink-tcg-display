@@ -942,6 +942,7 @@ def api_download_status():
 
 
 _storage_computing = False
+_storage_lock = threading.Lock()
 
 
 def _compute_storage():
@@ -1004,18 +1005,20 @@ def api_storage():
     # Return stale cache while recomputing in background
     stale = _cache_get('storage', ttl=float('inf'))
 
-    if not _storage_computing:
-        _storage_computing = True
+    with _storage_lock:
+        if not _storage_computing:
+            _storage_computing = True
 
-        def compute():
-            global _storage_computing
-            try:
-                result = _compute_storage()
-                _cache_set('storage', result)
-            finally:
-                _storage_computing = False
+            def compute():
+                global _storage_computing
+                try:
+                    result = _compute_storage()
+                    _cache_set('storage', result)
+                finally:
+                    with _storage_lock:
+                        _storage_computing = False
 
-        threading.Thread(target=compute, daemon=True).start()
+            threading.Thread(target=compute, daemon=True).start()
 
     if stale:
         return jsonify(stale)
@@ -1036,7 +1039,8 @@ def api_delete():
             _cache_invalidate('storage', 'rarities_' + tcg, 'sets_' + tcg)
             return jsonify({"ok": True, "tcg": tcg})
         except Exception as e:
-            return jsonify({"ok": False, "error": str(e)})
+            app.logger.error(f"Delete failed for {tcg}: {e}")
+            return jsonify({"ok": False, "error": "Delete failed. Try again or reboot."})
     return jsonify({"ok": True, "tcg": tcg})
 
 
@@ -1089,7 +1093,7 @@ def api_update_check():
         fetch = subprocess.run(['git', 'fetch', 'origin'], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=30)
         if fetch.returncode != 0:
-            return jsonify({"ok": False, "error": f"Git fetch failed: {fetch.stderr.strip()}"})
+            return jsonify({"ok": False, "error": "Could not reach update server. Check your internet connection."})
         branch = _git_default_branch()
         local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=5)
@@ -2088,7 +2092,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
     <h3 style="color:#ff6b6b">Factory Reset</h3>
     <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Forgets WiFi, deletes all card data, and resets settings. The unit will enter WiFi setup mode on next boot.</p>
-    <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset()">Factory Reset</button>
+    <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Factory Reset</button>
   </div>
 </div>
 
@@ -2105,7 +2109,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="search-filters" class="search-filters" style="display:none"></div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
-      <input type="text" id="search-input" placeholder="Search by name (e.g. Pikachu)" oninput="debounceSearch()">
+      <input type="text" id="search-input" placeholder="Search by card name..." oninput="debounceSearch()">
     </div>
     <div id="search-results"></div>
   </div>
@@ -2511,10 +2515,9 @@ function loadWifiInfo() {
   }).catch(function() { el.textContent = 'Could not check WiFi status'; });
 }
 
-function factoryReset() {
+function factoryReset(btn) {
   if (!confirm('FACTORY RESET\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL downloaded cards\\n- Reset all settings\\n\\nThe unit will enter WiFi setup mode.\\n\\nAre you sure?')) return;
   if (!confirm('This cannot be undone. Continue?')) return;
-  var btn = event.target;
   btn.disabled = true;
   btn.textContent = 'Resetting...';
   fetch(API + '/api/factory_reset', {method:'POST'}).then(r => r.json()).then(function(d) {
