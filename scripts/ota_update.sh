@@ -99,6 +99,9 @@ if ! git reset --hard "origin/$BRANCH" 2>&1; then
     exit 1
 fi
 
+# Fix file ownership — OTA runs as root but pi user needs to own these files
+chown -R pi:pi "$SCRIPT_DIR" 2>/dev/null
+
 # Stage 2.5: Verify critical files are intact
 write_status "pulling" "Verifying update..." ""
 VERIFY_RESULT=$(verify_files)
@@ -107,6 +110,7 @@ if [ $? -ne 0 ]; then
     # Try one more time — re-fetch and reset
     git fetch origin 2>/dev/null
     git reset --hard "origin/$BRANCH" 2>/dev/null
+    chown -R pi:pi "$SCRIPT_DIR" 2>/dev/null
     if ! verify_files >/dev/null 2>&1; then
         write_status "error" "Update failed after retry. Re-image the SD card." "true"
         exit 1

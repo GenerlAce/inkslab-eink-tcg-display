@@ -859,7 +859,7 @@ def api_favorites_set():
                 with open(data_file, 'r') as f:
                     data = json.load(f)
                 for card_id, card in data.items():
-                    if card.get("name", "").lower() == key:
+                    if card.get("name", "").lower() == name.lower():
                         matching_ids.append(card_id)
             except Exception:
                 pass
@@ -876,10 +876,10 @@ def api_favorites_set():
         favs = collection["_favorites"][tcg]
 
         if owned:
-            if not any(f.lower() == key for f in favs):
+            if not any(f.lower() == name.lower() for f in favs):
                 favs.append(name)
         else:
-            collection["_favorites"][tcg] = [f for f in favs if f.lower() != key]
+            collection["_favorites"][tcg] = [f for f in favs if f.lower() != name.lower()]
 
         if tcg not in collection:
             collection[tcg] = []
@@ -1376,7 +1376,7 @@ def api_factory_reset():
     for tmp_file in [STATUS_FILE, DOWNLOAD_LOG, NEXT_TRIGGER, COLLECTION_TRIGGER,
                      "/tmp/inkslab_prev", "/tmp/inkslab_pause",
                      "/tmp/inkslab_wifi_connected", "/tmp/inkslab_update_status.json",
-                     "/tmp/inkslab_update.lock", "/tmp/inkslab_unbox"]:
+                     "/tmp/inkslab_update.lock"]:
         try:
             if os.path.exists(tmp_file):
                 os.remove(tmp_file)
@@ -1392,13 +1392,16 @@ def api_factory_reset():
     for hist in ["/home/pi/.bash_history", "/root/.bash_history"]:
         try:
             if os.path.exists(hist):
-                open(hist, 'w').close()
+                with open(hist, 'w') as _:
+                    pass
         except OSError:
             pass
 
-    # 6. Signal display daemon to show setup screen
+    # 6. Signal display daemon to show unbox/shipping screen
+    # The "Plug me in!" screen stays on the e-ink after power off — perfect for shipping.
+    # When the customer plugs it in, it boots without WiFi and shows the setup screen automatically.
     try:
-        with open("/tmp/inkslab_wifi_setup", "w") as f:
+        with open("/tmp/inkslab_unbox", "w") as f:
             f.write("1")
     except OSError:
         pass
@@ -1410,16 +1413,6 @@ def api_factory_reset():
         return jsonify({"ok": True, "warnings": errors})
     return jsonify({"ok": True})
 
-
-@app.route('/api/prepare_shipping', methods=['POST'])
-def api_prepare_shipping():
-    """Show the unbox/shipping screen on the e-ink display for customer unboxing."""
-    try:
-        with open("/tmp/inkslab_unbox", "w") as f:
-            f.write("1")
-    except OSError as e:
-        return jsonify({"ok": False, "error": str(e)})
-    return jsonify({"ok": True})
 
 
 # Captive portal detection endpoints — redirect to setup page
@@ -2172,14 +2165,9 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
-    <h3 style="color:#ff6b6b">Factory Reset</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Forgets WiFi, deletes all card data, and resets settings. The unit will enter WiFi setup mode on next boot.</p>
-    <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Factory Reset</button>
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #1F333F">
-      <h3 style="color:#6BCCBD">Prepare for Shipping</h3>
-      <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Shows a friendly "Plug me in!" screen for the customer. Run Factory Reset first, then use this before powering off.</p>
-      <button class="btn btn-block" style="background:#6BCCBD;color:#010001;font-weight:600" onclick="prepareShipping(this)">Prepare for Shipping</button>
-    </div>
+    <h3 style="color:#ff6b6b">Prepare for New Owner</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Wipes everything (WiFi, cards, settings) and shows a welcome screen on the display. After it finishes, unplug the unit — it's ready to ship.</p>
+    <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Prepare for New Owner</button>
   </div>
 </div>
 
@@ -2614,43 +2602,23 @@ function loadWifiInfo() {
 }
 
 function factoryReset(btn) {
-  if (!confirm('FACTORY RESET\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL downloaded cards\\n- Reset all settings\\n\\nThe unit will enter WiFi setup mode.\\n\\nAre you sure?')) return;
+  if (!confirm('PREPARE FOR NEW OWNER\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL downloaded cards\\n- Reset all settings\\n- Show a welcome screen on the display\\n\\nAfter it finishes, wait ~30 seconds for the display to update, then unplug. The unit is ready to ship.\\n\\nAre you sure?')) return;
   if (!confirm('This cannot be undone. Continue?')) return;
   btn.disabled = true;
   btn.textContent = 'Resetting...';
   fetch(API + '/api/factory_reset', {method:'POST'}).then(r => r.json()).then(function(d) {
     if (d.ok) {
-      showToast('Factory reset complete! Entering WiFi setup mode.', 5000);
-      document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Reset complete</strong> — WiFi forgotten, data wiped. Power off to ship.';
-      btn.textContent = 'Done';
+      showToast('Done! Wait ~30s for the display to update, then unplug to ship.', 8000);
+      document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Ready to ship</strong> — Wait for the display to update, then unplug.';
+      btn.textContent = 'Done — unplug when display updates';
     } else {
       showToast('Reset failed: ' + (d.error || 'unknown'));
       btn.disabled = false;
-      btn.textContent = 'Factory Reset';
+      btn.textContent = 'Prepare for New Owner';
     }
   }).catch(function() {
-    showToast('Reset failed — connection lost (this is expected if WiFi was disconnected)');
-    btn.textContent = 'Done';
-  });
-}
-
-function prepareShipping(btn) {
-  if (!confirm('This will show the "Plug me in!" screen for customers.\\n\\nMake sure you ran Factory Reset first.\\n\\nAfter this, wait ~30 seconds for the display to update, then power off the unit for shipping.')) return;
-  btn.disabled = true;
-  btn.textContent = 'Updating display...';
-  fetch(API + '/api/prepare_shipping', {method:'POST'}).then(r => r.json()).then(function(d) {
-    if (d.ok) {
-      showToast('Shipping screen sent! Wait ~30s for e-ink to update, then power off.', 8000);
-      btn.textContent = 'Ready to ship!';
-    } else {
-      showToast('Failed: ' + (d.error || 'unknown'));
-      btn.disabled = false;
-      btn.textContent = 'Prepare for Shipping';
-    }
-  }).catch(function() {
-    showToast('Request failed');
-    btn.disabled = false;
-    btn.textContent = 'Prepare for Shipping';
+    showToast('Reset in progress — connection lost because WiFi was disconnected. Wait ~30s for display to update, then unplug.');
+    btn.textContent = 'Done — unplug when display updates';
   });
 }
 

@@ -49,6 +49,7 @@ if [ "$NEEDS_REPAIR" = true ]; then
         fi
 
         git reset --hard "origin/$BRANCH" 2>/dev/null
+        chown -R pi:pi "$SCRIPT_DIR" 2>/dev/null
 
         # Verify repair worked
         ALL_OK=true
@@ -72,6 +73,7 @@ if [ "$NEEDS_REPAIR" = true ]; then
                 git checkout HEAD -- "$f" 2>/dev/null
             fi
         done
+        chown -R pi:pi "$SCRIPT_DIR" 2>/dev/null
     fi
 
     # Update service files if they changed
