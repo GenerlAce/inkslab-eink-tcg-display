@@ -340,6 +340,10 @@ def show_no_cards_screen(epd, config, ip=None):
 
     except Exception as e:
         logger.warning(f"No-cards screen skipped: {e}")
+        try:
+            epd.sleep()
+        except Exception:
+            pass
 
 
 def get_card_metadata(img_path, master_index):

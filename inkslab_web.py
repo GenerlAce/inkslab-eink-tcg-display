@@ -119,8 +119,11 @@ def load_config():
 
 
 def save_config(config):
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f, indent=2)
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+    except OSError as e:
+        app.logger.error(f"Failed to save config: {e}")
 
 
 def load_collection():
@@ -134,8 +137,11 @@ def load_collection():
 
 
 def save_collection(data):
-    with open(COLLECTION_FILE, 'w') as f:
-        json.dump(data, f)
+    try:
+        with open(COLLECTION_FILE, 'w') as f:
+            json.dump(data, f)
+    except OSError as e:
+        app.logger.error(f"Failed to save collection: {e}")
     # Signal daemon that collection changed so it can rebuild its deck
     try:
         with open(COLLECTION_TRIGGER, 'w') as f:
@@ -1798,8 +1804,8 @@ function showSuccess(ip, ssid) {
     '<div class="success-screen">'
     + '<div class="check">&#10004;</div>'
     + '<h2>Connected!</h2>'
-    + '<p style="color:#D8E6E4;font-size:15px;margin-bottom:16px">Your InkSlab is now on <strong>' + ssid + '</strong></p>'
-    + '<div class="ip">http://' + ip + '</div>'
+    + '<p style="color:#D8E6E4;font-size:15px;margin-bottom:16px">Your InkSlab is now on <strong>' + ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') + '</strong></p>'
+    + '<div class="ip">http://' + ip.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
     + '<p>Open this address in your browser to access the dashboard.</p>'
     + '<p style="margin-top:20px;color:#36A5CA;font-size:12px">The e-ink display will also show this address.</p>'
     + '</div>';
@@ -2118,7 +2124,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   <div class="card">
     <h3>Download Cards</h3>
     <div id="dl-buttons"></div>
-    <div id="dl-mtg-since" style="display:none" class="form-group" style="margin-top:8px">
+    <div id="dl-mtg-since" style="display:none;margin-top:8px" class="form-group">
       <label>Download MTG since year:</label>
       <div class="flex-row">
         <input type="number" id="dl-since" min="1993" max="2030" value="2020" style="flex:2">
