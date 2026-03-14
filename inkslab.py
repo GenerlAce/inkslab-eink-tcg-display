@@ -732,7 +732,7 @@ def main():
     # E-ink render time: Spectra 6 (7-color) takes ~30s to physically draw.
     # After that, the user needs time to actually read the screen content.
     EINK_RENDER_TIME = 30   # seconds for e-ink to finish drawing
-    EINK_READ_TIME = 20     # extra seconds for user to read the result
+    EINK_READ_TIME = 45     # extra seconds for user to read the result
     EINK_RENDER_WAIT = EINK_RENDER_TIME + EINK_READ_TIME  # total wait before next write
 
     if wifi_connected:
