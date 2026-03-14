@@ -46,7 +46,7 @@ cd "$SCRIPT_DIR" || {
 }
 
 # Fix "dubious ownership" error — service runs as root but repo is owned by pi
-git config --global --add safe.directory "$SCRIPT_DIR" 2>/dev/null
+git config --global safe.directory "$SCRIPT_DIR" 2>/dev/null
 
 # Auto-detect the default branch (main or master)
 BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')

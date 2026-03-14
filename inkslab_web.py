@@ -1048,7 +1048,7 @@ def api_delete():
 UPDATE_STATUS_FILE = "/tmp/inkslab_update_status.json"
 
 # Fix "dubious ownership" — web service runs as root but repo is owned by pi
-subprocess.run(['git', 'config', '--global', '--add', 'safe.directory', SCRIPT_DIR],
+subprocess.run(['git', 'config', '--global', 'safe.directory', SCRIPT_DIR],
                capture_output=True, timeout=5)
 
 
