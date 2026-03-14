@@ -960,8 +960,12 @@ def main():
                 next_change = 0 if paused else int(time.time()) + wait
 
                 # Write status BEFORE display refresh so web dashboard updates instantly
+                cur_set_id = os.path.basename(os.path.dirname(card_path))
+                cur_card_id = os.path.splitext(os.path.basename(card_path))[0]
                 status_info = {
                     "card_path": card_path,
+                    "set_id": cur_set_id,
+                    "card_id": cur_card_id,
                     "set_name": card_info.get("set_name", ""),
                     "set_info": card_info.get("set_info", ""),
                     "card_num": card_info.get("card_num", ""),

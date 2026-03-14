@@ -81,7 +81,7 @@ To change WiFi later, go to **Settings** > **Change WiFi Network** in the dashbo
 ### Step 1 — Flash the SD Card
 
 1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Choose **Raspberry Pi Zero** > **Raspberry Pi OS (Legacy, 32-bit) Bookworm**
+2. Choose **Raspberry Pi Zero** > **Raspberry Pi OS (Legacy, 32-bit) Lite** — this is the Bookworm-based version with no desktop environment
 3. Click **Next** > **Edit Settings**:
    - Set hostname to `inkslab`, username to `pi`, pick a password
    - Enter your Wi-Fi name and password

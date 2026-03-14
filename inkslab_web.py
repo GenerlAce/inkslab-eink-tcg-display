@@ -1983,7 +1983,8 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .badge { display: inline-block; background: #6BCCBD; color: #010001; border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
 .flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .flex-row > * { flex: 1 1 calc(50% - 4px); min-width: 0; box-sizing: border-box; }
-.preview-img { display: block; max-width: 150px; border-radius: 6px; border: 2px solid #1F333F; width: 100%; }
+.preview-img { display: block; max-width: 150px; border-radius: 6px; border: 2px solid #1F333F; width: 100%; cursor: pointer; }
+@media (min-width: 600px) { .preview-img { max-width: 240px; } #st-preview-wrap { max-width: 240px !important; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .preview-spin { animation: spin 1.2s linear infinite; display: inline-block; }
 .footer { background: #132E3E; padding: 14px 16px; text-align: center; font-size: 10px; color: #1F333F; border-top: 1px solid #1F333F; margin-top: auto; }
@@ -2057,7 +2058,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   <div class="card">
     <h3>Now Showing</h3>
     <div id="st-preview-wrap" style="position:relative;max-width:150px;margin:12px auto 0">
-      <img id="st-preview" class="preview-img" style="margin:0" src="/api/card_image" onerror="this.style.display='none'" onload="this.style.display='block'">
+      <img id="st-preview" class="preview-img" style="margin:0" src="/api/card_image" onerror="this.style.display='none'" onload="this.style.display='block'" onclick="showCurrentPreview()">
       <div id="st-preview-loading" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(22,48,62,0.9);border-radius:6px;border:2px solid #36A5CA;flex-direction:column;justify-content:center;align-items:center;color:#36A5CA;font-size:12px;font-weight:600">
         <div style="font-size:24px;margin-bottom:6px">&#8635;</div>
         <div id="st-preview-loading-text">Loading...</div>
@@ -2783,6 +2784,10 @@ function showPreview(setId, cardId, label, tcg) {
   document.getElementById('preview-img').src = '/api/card_image/' + t + '/' + setId + '/' + cardId;
   document.getElementById('preview-name').textContent = label;
   document.getElementById('preview-modal').classList.add('open');
+}
+function showCurrentPreview() {
+  if (!_lastStatus || !_lastStatus.set_id) return;
+  showPreview(_lastStatus.set_id, _lastStatus.card_id, (_lastStatus.card_num || '') + ' ' + (_lastStatus.set_info || ''), _lastStatus.tcg);
 }
 function closePreview() {
   document.getElementById('preview-modal').classList.remove('open');
