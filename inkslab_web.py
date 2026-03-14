@@ -2349,10 +2349,15 @@ function startCountdown() {
   updateCountdown();
 }
 
+var _lastQueueKey = '';
 function renderQueue(d) {
   var tcg = (d.tcg || '').toLowerCase();
   var prev = d.prev_cards || [];
   var next = d.next_cards || [];
+  // Skip re-render if queue hasn't changed (avoids image flash on every poll)
+  var queueKey = JSON.stringify(prev.map(function(c){return c.card_id})) + '|' + JSON.stringify(next.map(function(c){return c.card_id}));
+  if (queueKey === _lastQueueKey) return;
+  _lastQueueKey = queueKey;
   var queueCard = document.getElementById('queue-card');
   if (!prev.length && !next.length) { queueCard.style.display = 'none'; return; }
   queueCard.style.display = 'block';
