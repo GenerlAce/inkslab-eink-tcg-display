@@ -710,11 +710,17 @@ def main():
         logger.warning(f"WiFi check failed, assuming connected: {e}")
         wifi_connected = True
 
+    # E-ink render time: Spectra 6 (7-color) takes ~30s to fully render.
+    # We must wait after each display write so the next write doesn't interrupt it.
+    EINK_RENDER_WAIT = 35  # seconds to wait after display write for full render
+
     if wifi_connected:
         # WiFi is working — only show splash if we actually have cards to display.
         # If no cards, skip splash (no-cards screen shows the IP too, avoids extra flash).
         if deck.total > 0:
             show_splash_screen(epd, config)
+            logger.info(f"Splash screen sent — waiting {EINK_RENDER_WAIT}s for e-ink render...")
+            time.sleep(EINK_RENDER_WAIT)
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
     else:
@@ -742,6 +748,7 @@ def main():
         if deck.total > 0:
             logger.info("WiFi wait complete, showing splash screen...")
             show_splash_screen(epd, config)
+            time.sleep(EINK_RENDER_WAIT)
         else:
             logger.info("WiFi connected but no cards — skipping splash")
 
@@ -836,14 +843,13 @@ def main():
             card_path = deck.draw()
             if not card_path:
                 logger.warning(f"No cards available for {active_tcg}. Checking for changes...")
-                err_msg = (f"Collection mode is on but no cards selected. Add cards from the Collection tab."
+                err_msg = ("Collection mode is on but no cards are selected. Add cards from the Collection tab."
                            if config["collection_only"] else
-                           f"No {active_tcg.upper()} cards found. Download cards or switch TCG.")
+                           "No cards available. Download cards or switch TCG from the dashboard.")
                 write_status({
                     "card_path": "", "set_name": "", "card_num": "", "rarity": "",
-                    "set_info": f"No {active_tcg.upper()} cards available",
-                    "timestamp": int(time.time()), "tcg": active_tcg, "total_cards": 0,
-                    "error": err_msg,
+                    "set_info": "", "timestamp": int(time.time()), "tcg": active_tcg,
+                    "total_cards": 0, "error": err_msg,
                 })
                 config, action = wait_with_polling(60)
                 if (config["active_tcg"] != active_tcg
@@ -954,7 +960,7 @@ def main():
             if action == "wifi_connected":
                 logger.info("WiFi connected — showing splash with new IP")
                 show_splash_screen(epd, config)
-                time.sleep(10)  # Show IP for 10 seconds so user can see it
+                time.sleep(EINK_RENDER_WAIT)
                 continue
 
             # WiFi setup mode — show setup instructions on display
@@ -976,7 +982,7 @@ def main():
                         break
                     time.sleep(5)
                 show_splash_screen(epd, config)
-                time.sleep(10)
+                time.sleep(EINK_RENDER_WAIT)
                 continue
 
             # Collection content changed — rebuild deck but keep showing current card

@@ -1081,9 +1081,12 @@ def api_version():
 def api_update_check():
     """Check if updates are available by comparing local vs remote HEAD."""
     try:
+        # Fetch first so branch detection can see remote refs
+        fetch = subprocess.run(['git', 'fetch', 'origin'], cwd=SCRIPT_DIR,
+                               capture_output=True, text=True, timeout=30)
+        if fetch.returncode != 0:
+            return jsonify({"ok": False, "error": f"Git fetch failed: {fetch.stderr.strip()}"})
         branch = _git_default_branch()
-        subprocess.run(['git', 'fetch', 'origin'], cwd=SCRIPT_DIR,
-                       capture_output=True, timeout=30)
         local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=5)
         remote = subprocess.run(['git', 'rev-parse', f'origin/{branch}'], cwd=SCRIPT_DIR,
@@ -2079,8 +2082,8 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
-    <h3 style="color:#ff6b6b">Prepare for Shipping</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Factory reset: forgets WiFi, deletes card data, resets settings. Unit will enter WiFi setup mode on next boot.</p>
+    <h3 style="color:#ff6b6b">Factory Reset</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Forgets WiFi, deletes all card data, and resets settings. The unit will enter WiFi setup mode on next boot.</p>
     <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset()">Factory Reset</button>
   </div>
 </div>
@@ -2512,7 +2515,7 @@ function factoryReset() {
   btn.textContent = 'Resetting...';
   fetch(API + '/api/factory_reset', {method:'POST'}).then(r => r.json()).then(function(d) {
     if (d.ok) {
-      showToast('Factory reset complete! Unit is ready to ship.', 5000);
+      showToast('Factory reset complete! Entering WiFi setup mode.', 5000);
       document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Reset complete</strong> — WiFi forgotten, data wiped. Power off to ship.';
       btn.textContent = 'Done';
     } else {
