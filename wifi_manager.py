@@ -34,6 +34,26 @@ def _run_nmcli(args, timeout=30):
         return -1, "", str(e)
 
 
+def _split_nmcli_escaped(line):
+    """Split a line from nmcli -t -e yes output, handling \\: escaped colons in SSIDs."""
+    parts = []
+    current = []
+    i = 0
+    while i < len(line):
+        if line[i] == '\\' and i + 1 < len(line) and line[i + 1] == ':':
+            current.append(':')
+            i += 2
+        elif line[i] == ':':
+            parts.append(''.join(current))
+            current = []
+            i += 1
+        else:
+            current.append(line[i])
+            i += 1
+    parts.append(''.join(current))
+    return parts
+
+
 def _has_real_ip():
     """Fallback check: does the Pi have a non-hotspot, non-loopback IP?"""
     try:
@@ -49,13 +69,13 @@ def _has_real_ip():
 def is_wifi_connected():
     """Check if wlan0 has an active non-hotspot WiFi connection.
     Falls back to IP address check if nmcli fails."""
-    rc, out, _ = _run_nmcli(["-t", "-f", "TYPE,NAME,DEVICE", "con", "show", "--active"])
+    rc, out, _ = _run_nmcli(["-t", "-e", "yes", "-f", "TYPE,NAME,DEVICE", "con", "show", "--active"])
     if rc != 0:
         # nmcli failed — fall back to IP check so we don't falsely
         # enter setup mode and tear down an existing connection
         return _has_real_ip()
     for line in out.splitlines():
-        parts = line.split(":")
+        parts = _split_nmcli_escaped(line)
         if len(parts) >= 3:
             conn_type, name, device = parts[0], parts[1], parts[2]
             # 802-11-wireless is WiFi; ignore our hotspot
@@ -69,12 +89,12 @@ def has_saved_wifi_profile():
     """Check if there's ANY saved WiFi connection profile (even if not currently active).
     This distinguishes 'first boot with no WiFi ever configured' from
     'WiFi is configured but temporarily down'."""
-    rc, out, _ = _run_nmcli(["-t", "-f", "TYPE,NAME", "con", "show"])
+    rc, out, _ = _run_nmcli(["-t", "-e", "yes", "-f", "TYPE,NAME", "con", "show"])
     if rc != 0:
         # nmcli not working — assume WiFi is configured (safe default)
         return True
     for line in out.splitlines():
-        parts = line.split(":")
+        parts = _split_nmcli_escaped(line)
         if len(parts) >= 2:
             conn_type, name = parts[0], parts[1]
             if "wireless" in conn_type and name != HOTSPOT_CON_NAME:
@@ -84,12 +104,13 @@ def has_saved_wifi_profile():
 
 def get_active_ssid():
     """Return the SSID of the currently connected WiFi network, or None."""
-    rc, out, _ = _run_nmcli(["-t", "-f", "ACTIVE,SSID", "dev", "wifi"])
+    rc, out, _ = _run_nmcli(["-t", "-e", "yes", "-f", "ACTIVE,SSID", "dev", "wifi"])
     if rc != 0:
         return None
     for line in out.splitlines():
-        if line.startswith("yes:"):
-            ssid = line[4:]
+        parts = _split_nmcli_escaped(line)
+        if len(parts) >= 2 and parts[0] == "yes":
+            ssid = parts[1]
             if ssid and ssid != HOTSPOT_SSID:
                 return ssid
     return None
@@ -116,13 +137,13 @@ def scan_networks():
     _run_nmcli(["dev", "wifi", "rescan"], timeout=10)
     time.sleep(1)
 
-    rc, out, _ = _run_nmcli(["-t", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "dev", "wifi", "list"])
+    rc, out, _ = _run_nmcli(["-t", "-e", "yes", "-f", "SSID,SIGNAL,SECURITY,IN-USE", "dev", "wifi", "list"])
     if rc != 0:
         return []
 
     seen = {}
     for line in out.splitlines():
-        parts = line.split(":")
+        parts = _split_nmcli_escaped(line)
         if len(parts) < 4:
             continue
         ssid = parts[0].strip()
@@ -177,8 +198,8 @@ def start_hotspot():
     ensure_portal_dns()
 
     # Clean up any existing hotspot profile first
-    rc, out, _ = _run_nmcli(["-t", "-f", "NAME", "con", "show"])
-    if rc == 0 and HOTSPOT_CON_NAME in out.splitlines():
+    rc, out, _ = _run_nmcli(["-t", "-e", "yes", "-f", "NAME", "con", "show"])
+    if rc == 0 and HOTSPOT_CON_NAME in [_split_nmcli_escaped(l)[0] for l in out.splitlines() if l]:
         _run_nmcli(["con", "down", HOTSPOT_CON_NAME])
         _run_nmcli(["con", "delete", HOTSPOT_CON_NAME])
         time.sleep(1)
@@ -263,9 +284,9 @@ def get_wifi_status():
 
     # Check if hotspot is active
     hotspot_active = False
-    rc, out, _ = _run_nmcli(["-t", "-f", "NAME", "con", "show", "--active"])
+    rc, out, _ = _run_nmcli(["-t", "-e", "yes", "-f", "NAME", "con", "show", "--active"])
     if rc == 0:
-        hotspot_active = HOTSPOT_CON_NAME in out.splitlines()
+        hotspot_active = HOTSPOT_CON_NAME in [_split_nmcli_escaped(l)[0] for l in out.splitlines() if l]
 
     return {
         "connected": connected,

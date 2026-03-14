@@ -1281,12 +1281,14 @@ def api_factory_reset():
     # 1. Forget all saved WiFi profiles (except hotspot)
     try:
         result = subprocess.run(
-            ["nmcli", "-t", "-f", "TYPE,NAME", "con", "show"],
+            ["nmcli", "-t", "-e", "yes", "-f", "TYPE,NAME", "con", "show"],
             capture_output=True, text=True, timeout=10
         )
         for line in result.stdout.strip().splitlines():
-            parts = line.split(":")
+            parts = wifi_manager._split_nmcli_escaped(line)
             if len(parts) >= 2 and "wireless" in parts[0] and parts[1] != "InkSlab-Setup":
+                subprocess.run(["nmcli", "con", "down", "id", parts[1]],
+                               capture_output=True, timeout=10)
                 subprocess.run(["nmcli", "con", "delete", "id", parts[1]],
                                capture_output=True, timeout=10)
     except Exception as e:
@@ -2190,6 +2192,12 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 <script>
 const API = '';
 
+// --- HTML escaping for safe innerHTML ---
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 // --- Tab persistence ---
 function showTab(name) {
   localStorage.setItem('inkslab_tab', name);
@@ -2272,19 +2280,19 @@ function renderQueue(d) {
   if (next.length) {
     nextWrap.style.display = 'block';
     document.getElementById('q-next-list').innerHTML = next.map(function(c) {
-      return '<div class="q-card" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.card_id + '\\',\\'' + c.card_num + ' ' + c.set_info.replace(/'/g,"\\\\'") + '\\')">'
-        + '<img class="q-thumb" src="/api/card_image/' + tcg + '/' + c.set_id + '/' + c.card_id + '" onerror="this.style.display=\\'none\\'">'
-        + '<div class="q-num">' + c.card_num + '</div>'
-        + '<div class="q-rarity">' + (c.rarity || '') + '</div></div>';
+      return '<div class="q-card" onclick="showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.card_id) + '\\',\\'' + esc(c.card_num) + ' ' + esc(c.set_info) + '\\')">'
+        + '<img class="q-thumb" src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '" onerror="this.style.display=\\'none\\'">'
+        + '<div class="q-num">' + esc(c.card_num) + '</div>'
+        + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
     }).join('');
   } else { nextWrap.style.display = 'none'; }
   if (prev.length) {
     prevWrap.style.display = 'block';
     document.getElementById('q-prev-list').innerHTML = prev.map(function(c) {
-      return '<div class="q-card" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.card_id + '\\',\\'' + c.card_num + ' ' + c.set_info.replace(/'/g,"\\\\'") + '\\')">'
-        + '<img class="q-thumb" src="/api/card_image/' + tcg + '/' + c.set_id + '/' + c.card_id + '" onerror="this.style.display=\\'none\\'">'
-        + '<div class="q-num">' + c.card_num + '</div>'
-        + '<div class="q-rarity">' + (c.rarity || '') + '</div></div>';
+      return '<div class="q-card" onclick="showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.card_id) + '\\',\\'' + esc(c.card_num) + ' ' + esc(c.set_info) + '\\')">'
+        + '<img class="q-thumb" src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '" onerror="this.style.display=\\'none\\'">'
+        + '<div class="q-num">' + esc(c.card_num) + '</div>'
+        + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
     }).join('');
   } else { prevWrap.style.display = 'none'; }
 }
@@ -2557,14 +2565,14 @@ function loadSets() {
     if (!sets.length) { el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
     el.innerHTML = sets.map(s => `
       <div class="set-item">
-        <div class="set-header" onclick="toggleSet('${s.id}')">
+        <div class="set-header" onclick="toggleSet('${esc(s.id)}')">
           <span>
-            <span class="set-name">${s.name}</span>
+            <span class="set-name">${esc(s.name)}</span>
             ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
           </span>
-          <span class="set-meta">${s.year} &middot; ${s.card_count} cards</span>
+          <span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span>
         </div>
-        <div class="set-cards" id="set-${s.id}"></div>
+        <div class="set-cards" id="set-${esc(s.id)}"></div>
       </div>
     `).join('');
   });
@@ -2593,19 +2601,18 @@ function toggleSet(setId) {
         var total = 0, ownedCt = 0;
         cards.forEach(function(c) { if (c.rarity === r) { total++; if (c.owned) ownedCt++; } });
         var isActive = ownedCt > 0;
-        var safeR = r.replace(/'/g, "\\\\'");
-        html += '<span class="rarity-chip' + (isActive ? ' active' : '') + '" data-rarity="' + r + '" onclick="toggleSetRarityChip(this,\\'' + setId + '\\',\\'' + safeR + '\\',' + (isActive ? 'false' : 'true') + ')">'
-          + r + '<span class="chip-count">(' + ownedCt + '/' + total + ')</span></span>';
+        html += '<span class="rarity-chip' + (isActive ? ' active' : '') + '" data-rarity="' + esc(r) + '" onclick="toggleSetRarityChip(this,\\'' + esc(setId) + '\\',\\'' + esc(r) + '\\',' + (isActive ? 'false' : 'true') + ')">'
+          + esc(r) + '<span class="chip-count">(' + ownedCt + '/' + total + ')</span></span>';
       });
       html += '</div>';
     }
     html += cards.map(c => `
-      <div class="card-row" data-rarity="${c.rarity}">
+      <div class="card-row" data-rarity="${esc(c.rarity)}">
         <label>
-          <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${c.id}')">
-          <span class="card-preview-btn" onclick="event.preventDefault();showPreview('${c.set_id}','${c.id}','${c.name.replace(/'/g,"\\\\'")} #${c.number}')">#${c.number} ${c.name}</span>
+          <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${esc(c.id)}')">
+          <span class="card-preview-btn" onclick="event.preventDefault();showPreview('${esc(c.set_id)}','${esc(c.id)}','${esc(c.name)} #${esc(c.number)}')">#${esc(c.number)} ${esc(c.name)}</span>
         </label>
-        <span class="card-rarity">${c.rarity}</span>
+        <span class="card-rarity">${esc(c.rarity)}</span>
       </div>
     `).join('');
     el.innerHTML = html;
@@ -2770,20 +2777,18 @@ function doSearch() {
     Object.values(groups).forEach(function(g) {
       var allOwned = g.cards.every(function(c) { return c.owned; });
       var ownedCount = g.cards.filter(function(c) { return c.owned; }).length;
-      var safeN = g.name.replace(/'/g, "\\\\'");
       html += '<div style="border-bottom:1px solid #1F333F;padding:6px 0">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-      html += '<span class="search-result-name">' + g.name + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
-      html += '<button class="btn btn-secondary btn-sm" onclick="toggleSearchGroup(this,\\'' + safeN + '\\',' + (!allOwned) + ')">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
+      html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
+      html += '<button class="btn btn-secondary btn-sm" onclick="toggleSearchGroup(this,\\'' + esc(g.name) + '\\',' + (!allOwned) + ')">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
       html += '</div>';
       html += '<div style="margin-top:4px">';
       g.cards.forEach(function(c) {
-        var safeId = c.id.replace(/'/g,"\\\\'");
         html += '<div class="search-result"><label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer">';
-        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\\'' + safeId + '\\')" style="accent-color:#36A5CA">';
-        html += '<span><span class="card-preview-btn" onclick="event.preventDefault();showPreview(\\'' + c.set_id + '\\',\\'' + safeId + '\\',\\'' + c.name.replace(/'/g,"\\\\'") + ' #' + c.number + '\\')">#' + c.number + '</span>';
-        html += ' <span class="search-result-set">' + c.set_name + '</span></span>';
-        html += '</label><span class="search-result-rarity">' + c.rarity + '</span></div>';
+        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\\'' + esc(c.id) + '\\')" style="accent-color:#36A5CA">';
+        html += '<span><span class="card-preview-btn" onclick="event.preventDefault();showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.id) + '\\',\\'' + esc(c.name) + ' #' + esc(c.number) + '\\')">#' + esc(c.number) + '</span>';
+        html += ' <span class="search-result-set">' + esc(c.set_name) + '</span></span>';
+        html += '</label><span class="search-result-rarity">' + esc(c.rarity) + '</span></div>';
       });
       html += '</div></div>';
     });
@@ -3007,10 +3012,10 @@ function loadCustomFolders() {
     var el = document.getElementById('custom-folders');
     if (!folders.length) { el.innerHTML = '<div style="color:#6BCCBD;font-size:12px">No custom folders yet. Create one above.</div>'; return; }
     el.innerHTML = folders.map(f => {
-      return '<div class="set-item"><div class="set-header" onclick="toggleCustomFolder(\\'' + f.id + '\\')">'
-        + '<span><span class="set-name">' + f.name + '</span></span>'
+      return '<div class="set-item"><div class="set-header" onclick="toggleCustomFolder(\\'' + esc(f.id) + '\\')">'
+        + '<span><span class="set-name">' + esc(f.name) + '</span></span>'
         + '<span class="set-meta">' + f.card_count + ' cards</span>'
-        + '</div><div class="set-cards" id="cf-' + f.id + '"></div></div>';
+        + '</div><div class="set-cards" id="cf-' + esc(f.id) + '"></div></div>';
     }).join('');
   });
 }
@@ -3036,19 +3041,19 @@ function _loadCustomFolderContent(folderId, el) {
   fetch(API + '/api/sets/' + folderId + '/cards?tcg=custom').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
     var html = '<div style="padding:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center">';
-    html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer">Upload <input type="file" accept="image/png,image/jpeg" multiple style="display:none" onchange="uploadCustomCards(\\'' + folderId + '\\',this.files)"></label>';
-    html += '<button class="btn btn-secondary btn-sm" onclick="renameCustomFolder(\\'' + folderId + '\\')">Rename</button>';
-    html += '<button class="btn btn-danger btn-sm" onclick="deleteCustomFolder(\\'' + folderId + '\\')">Delete Set</button>';
+    html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer">Upload <input type="file" accept="image/png,image/jpeg" multiple style="display:none" onchange="uploadCustomCards(\\'' + esc(folderId) + '\\',this.files)"></label>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="renameCustomFolder(\\'' + esc(folderId) + '\\')">Rename</button>';
+    html += '<button class="btn btn-danger btn-sm" onclick="deleteCustomFolder(\\'' + esc(folderId) + '\\')">Delete Set</button>';
     html += '</div>';
     if (cards.length) {
       cards.forEach(c => {
         html += '<div class="card-row"><label style="flex:1;cursor:pointer">';
-        html += '<span class="card-preview-btn" onclick="showPreview(\\'' + c.set_id + '\\',\\'' + c.id + '\\',\\'' + (c.name||'').replace(/'/g,"\\\\'") + '\\',\\'custom\\')">#' + c.number + ' ' + c.name + '</span>';
+        html += '<span class="card-preview-btn" onclick="showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.id) + '\\',\\'' + esc(c.name||'') + '\\',\\'custom\\')">#' + esc(c.number) + ' ' + esc(c.name) + '</span>';
         html += '</label>';
         html += '<span style="display:flex;gap:4px;align-items:center">';
-        html += '<span class="card-rarity">' + (c.rarity || '') + '</span>';
-        html += '<span style="cursor:pointer;color:#6BCCBD;font-size:11px" onclick="editCustomCard(\\'' + folderId + '\\',\\'' + c.id + '\\',\\'' + (c.name||'').replace(/'/g,"\\\\'") + '\\',\\'' + c.number + '\\',\\'' + (c.rarity||'').replace(/'/g,"\\\\'") + '\\')">edit</span>';
-        html += '<span style="cursor:pointer;color:#ff6b6b;font-size:11px" onclick="deleteCustomCard(\\'' + folderId + '\\',\\'' + c.id + '\\')">x</span>';
+        html += '<span class="card-rarity">' + esc(c.rarity || '') + '</span>';
+        html += '<span style="cursor:pointer;color:#6BCCBD;font-size:11px" onclick="editCustomCard(\\'' + esc(folderId) + '\\',\\'' + esc(c.id) + '\\',\\'' + esc(c.name||'') + '\\',\\'' + esc(c.number) + '\\',\\'' + esc(c.rarity||'') + '\\')">edit</span>';
+        html += '<span style="cursor:pointer;color:#ff6b6b;font-size:11px" onclick="deleteCustomCard(\\'' + esc(folderId) + '\\',\\'' + esc(c.id) + '\\')">x</span>';
         html += '</span></div>';
       });
     } else {

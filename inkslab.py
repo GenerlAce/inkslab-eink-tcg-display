@@ -58,6 +58,9 @@ COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
 WIFI_CONNECTED_TRIGGER = "/tmp/inkslab_wifi_connected"
 WIFI_SETUP_TRIGGER = "/tmp/inkslab_wifi_setup"
 
+# Graceful shutdown flag (module-level so wait_with_polling can check it)
+_shutdown = False
+
 # Image processing (not configurable via web — these are display-specific)
 DISPLAY_WIDTH = 400
 DISPLAY_HEIGHT = 600
@@ -220,13 +223,20 @@ def show_splash_screen(epd, config):
 
         # Process for e-paper display
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        canvas.close()
         palette_ref = create_palette_image()
         img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
-        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+        img.close()
+        palette_ref.close()
+        img_rgb = img_dithered.convert("RGB")
+        img_dithered.close()
+        final = img_rgb.rotate(config["rotation_angle"], expand=True)
+        img_rgb.close()
 
         epd.init()
         epd.display(epd.getbuffer(final))
         epd.sleep()
+        final.close()
         logger.info(f"Splash screen shown: dashboard at {url_text}")
 
     except Exception as e:
@@ -284,13 +294,20 @@ def show_setup_screen(epd, config):
 
         # Process for e-paper display
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        canvas.close()
         palette_ref = create_palette_image()
         img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
-        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+        img.close()
+        palette_ref.close()
+        img_rgb = img_dithered.convert("RGB")
+        img_dithered.close()
+        final = img_rgb.rotate(config["rotation_angle"], expand=True)
+        img_rgb.close()
 
         epd.init()
         epd.display(epd.getbuffer(final))
         epd.sleep()
+        final.close()
         logger.info("Setup screen shown: connect to InkSlab-Setup WiFi")
 
     except Exception as e:
@@ -335,13 +352,20 @@ def show_no_cards_screen(epd, config, ip=None):
         draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        canvas.close()
         palette_ref = create_palette_image()
         img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
-        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+        img.close()
+        palette_ref.close()
+        img_rgb = img_dithered.convert("RGB")
+        img_dithered.close()
+        final = img_rgb.rotate(config["rotation_angle"], expand=True)
+        img_rgb.close()
 
         epd.init()
         epd.display(epd.getbuffer(final))
         epd.sleep()
+        final.close()
         logger.info("No-cards welcome screen shown")
 
     except Exception as e:
@@ -419,34 +443,36 @@ def create_slab_layout(img_path, master_index, header_mode="normal"):
     header_mode: 'normal' (white bg, black text), 'inverted' (black bg, white text), 'off' (full card)"""
     info = get_card_metadata(img_path, master_index)
 
-    with Image.open(img_path) as card:
-        card = card.convert("RGB")
+    with Image.open(img_path) as card_raw:
+        card = card_raw.convert("RGB")
 
         if header_mode == "off":
             # Full-screen: center-crop card to fill entire display
             aspect = card.width / card.height
             display_aspect = DISPLAY_WIDTH / DISPLAY_HEIGHT
             if aspect > display_aspect:
-                # Card is wider — fit height, crop width
                 new_h = DISPLAY_HEIGHT
                 new_w = int(new_h * aspect)
             else:
-                # Card is taller — fit width, crop height
                 new_w = DISPLAY_WIDTH
                 new_h = int(new_w / aspect)
-            card = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
-            # Center crop
+            card_resized = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            card.close()
             left = (new_w - DISPLAY_WIDTH) // 2
             top = (new_h - DISPLAY_HEIGHT) // 2
-            card = card.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
+            card_cropped = card_resized.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
+            card_resized.close()
             canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (0, 0, 0))
-            canvas.paste(card, (0, 0))
+            canvas.paste(card_cropped, (0, 0))
+            card_cropped.close()
             return canvas, info
 
         # Normal or inverted: scale card to fill display width
         aspect = card.height / card.width
         new_h = int(DISPLAY_WIDTH * aspect)
-        card = card.resize((DISPLAY_WIDTH, new_h), Image.Resampling.LANCZOS)
+        card_resized = card.resize((DISPLAY_WIDTH, new_h), Image.Resampling.LANCZOS)
+        card.close()
+        card = card_resized
 
         # Background color depends on mode
         bg_color = (0, 0, 0) if header_mode == "inverted" else (255, 255, 255)
@@ -520,8 +546,10 @@ def process_image(img_path, master_index, config):
         img.close()
         palette_ref.close()
 
-        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+        img_rgb = img_dithered.convert("RGB")
         img_dithered.close()
+        final = img_rgb.rotate(config["rotation_angle"], expand=True)
+        img_rgb.close()
 
         return final, info
     except Exception as e:
@@ -613,7 +641,7 @@ def wait_with_polling(seconds, config_check_interval=5):
     last_config_check = time.time()
     elapsed = 0
 
-    while elapsed < seconds or os.path.exists(PAUSE_FILE):
+    while (elapsed < seconds or os.path.exists(PAUSE_FILE)) and not _shutdown:
         # Check for prev trigger
         if os.path.exists(PREV_TRIGGER):
             try:
@@ -773,70 +801,11 @@ def main():
         else:
             logger.info("WiFi connected but no cards — skipping splash")
 
-    # If no cards available, show welcome screen and wait for downloads
-    _no_cards_shown = False
-    while deck.total == 0:
-        if not _no_cards_shown:
-            show_no_cards_screen(epd, config, get_local_ip())
-            _no_cards_shown = True
-        logger.warning(f"No cards found for {active_tcg}. Waiting for downloads...")
-        err_msg = ("Collection mode is on but no cards are selected. Add cards from the Collection tab."
-                   if config["collection_only"] else
-                   "No cards downloaded yet. Use the Downloads tab to get started.")
-        write_status({
-            "card_path": "", "set_name": "",
-            "set_info": "", "card_num": "", "rarity": "",
-            "timestamp": int(time.time()), "tcg": active_tcg,
-            "total_cards": 0, "error": err_msg,
-        })
-        config, action = wait_with_polling(60)
-
-        # Handle WiFi state changes even while waiting for cards
-        if action == "wifi_setup":
-            show_setup_screen(epd, config)
-            while not os.path.exists(WIFI_CONNECTED_TRIGGER):
-                try:
-                    if wifi_manager.is_wifi_connected():
-                        break
-                except Exception:
-                    break
-                time.sleep(5)
-            try:
-                os.remove(WIFI_CONNECTED_TRIGGER)
-            except OSError:
-                pass
-            # Skip splash — no-cards screen will re-show with the new IP
-            _no_cards_shown = False
-            continue
-
-        if action == "wifi_connected":
-            # Skip splash — no-cards screen will re-show with the new IP
-            _no_cards_shown = False
-            continue
-
-        new_tcg = config["active_tcg"]
-        if (new_tcg != active_tcg
-                or config["collection_only"] != _deck_collection_only
-                or action == "collection_changed"):
-            active_tcg = new_tcg
-            _deck_collection_only = config["collection_only"]
-            library_dir = TCG_LIBRARIES.get(active_tcg, TCG_LIBRARIES["pokemon"])
-            master_index = load_master_index(library_dir)
-            if config["collection_only"]:
-                loaded = load_collection(active_tcg)
-                collection = loaded if loaded else set()
-            else:
-                collection = None
-            deck = ShuffleDeck(library_dir, collection)
-            _no_cards_shown = False  # Show updated screen if TCG changed
-        else:
-            deck.reshuffle()
-
     # Graceful shutdown: ensure display is put to sleep on exit
-    _shutdown = False
+    global _shutdown
 
     def _handle_shutdown(signum, frame):
-        nonlocal _shutdown
+        global _shutdown
         _shutdown = True
 
     signal.signal(signal.SIGTERM, _handle_shutdown)
@@ -852,179 +821,145 @@ def main():
         master_index = load_master_index(library_dir)
         if config["collection_only"]:
             loaded = load_collection(active_tcg)
-            collection = loaded if loaded else set()  # empty set = 0 cards, not fallback to all
+            collection = loaded if loaded else set()
         else:
-            collection = None  # None = show all cards
+            collection = None
         deck = ShuffleDeck(library_dir, collection, recent=old_history)
 
     consecutive_failures = 0
 
+    # Main loop: alternates between no-cards screen and card display
+    # If cards are deleted mid-operation, falls back to no-cards screen
     try:
         while not _shutdown:
-            card_path = deck.draw()
-            if not card_path:
-                logger.warning(f"No cards available for {active_tcg}. Checking for changes...")
+
+            # No cards available — show welcome screen and wait for downloads
+            _no_cards_shown = False
+            while deck.total == 0 and not _shutdown:
+                if not _no_cards_shown:
+                    show_no_cards_screen(epd, config, get_local_ip())
+                    _no_cards_shown = True
+                logger.warning(f"No cards found for {active_tcg}. Waiting for downloads...")
                 err_msg = ("Collection mode is on but no cards are selected. Add cards from the Collection tab."
                            if config["collection_only"] else
-                           "No cards available. Download cards or switch TCG from the dashboard.")
+                           "No cards downloaded yet. Use the Downloads tab to get started.")
                 write_status({
-                    "card_path": "", "set_name": "", "card_num": "", "rarity": "",
-                    "set_info": "", "timestamp": int(time.time()), "tcg": active_tcg,
+                    "card_path": "", "set_name": "",
+                    "set_info": "", "card_num": "", "rarity": "",
+                    "timestamp": int(time.time()), "tcg": active_tcg,
                     "total_cards": 0, "error": err_msg,
                 })
                 config, action = wait_with_polling(60)
-                if (config["active_tcg"] != active_tcg
+
+                # Handle WiFi state changes even while waiting for cards
+                if action == "wifi_setup":
+                    show_setup_screen(epd, config)
+                    while not os.path.exists(WIFI_CONNECTED_TRIGGER) and not _shutdown:
+                        try:
+                            if wifi_manager.is_wifi_connected():
+                                break
+                        except Exception:
+                            break
+                        time.sleep(5)
+                    try:
+                        os.remove(WIFI_CONNECTED_TRIGGER)
+                    except OSError:
+                        pass
+                    _no_cards_shown = False
+                    continue
+
+                if action == "wifi_connected":
+                    # Skip splash — no-cards screen will re-show with the new IP
+                    _no_cards_shown = False
+                    continue
+
+                new_tcg = config["active_tcg"]
+                if (new_tcg != active_tcg
                         or config["collection_only"] != _deck_collection_only
                         or action == "collection_changed"):
                     rebuild_deck()
+                    _no_cards_shown = False  # Show updated screen if TCG changed
                 else:
                     deck.reshuffle()
-                continue
 
-            logger.info(f"Displaying: {os.path.basename(card_path)}")
-            final_img, card_info = process_image(card_path, master_index, config)
+            if _shutdown:
+                break
 
-            if not final_img:
-                consecutive_failures += 1
-                logger.warning(f"Skipping bad image ({consecutive_failures}): {card_path}")
-                if consecutive_failures >= 10:
-                    logger.warning("Too many consecutive bad images. Waiting 60s...")
-                    write_status({
-                        "card_path": "", "set_name": "", "card_num": "", "rarity": "",
-                        "set_info": f"Too many bad images in {active_tcg.upper()}",
-                        "timestamp": int(time.time()), "tcg": active_tcg,
-                        "total_cards": deck.total,
-                        "error": f"Many corrupt images found. Try re-downloading {active_tcg.upper()} cards.",
-                    })
-                    config, action = wait_with_polling(60)
-                    consecutive_failures = 0
-                    if (config["active_tcg"] != active_tcg
-                            or config["collection_only"] != _deck_collection_only
-                            or action == "collection_changed"):
+            # Card display loop — runs until cards run out or shutdown
+            while not _shutdown:
+                card_path = deck.draw()
+                if not card_path:
+                    # No card drawn — deck may be empty after deletion
+                    rebuild_deck()
+                    if deck.total == 0:
+                        break  # Back to no-cards loop
+                    continue
+
+                # Check if the card file still exists (user may have deleted cards)
+                if not os.path.exists(card_path):
+                    consecutive_failures += 1
+                    if consecutive_failures >= 5:
+                        logger.info("Multiple missing card files — rebuilding deck")
                         rebuild_deck()
-                else:
-                    time.sleep(2)
-                continue
+                        consecutive_failures = 0
+                        if deck.total == 0:
+                            break  # Back to no-cards loop
+                    continue
 
-            consecutive_failures = 0
+                logger.info(f"Displaying: {os.path.basename(card_path)}")
+                final_img, card_info = process_image(card_path, master_index, config)
 
-            # Build prev/next card queue for the web dashboard
-            prev_cards = []
-            for p in deck.history[1:5]:
-                try:
-                    prev_cards.append(card_summary(p, master_index))
-                except Exception:
-                    pass
-            next_cards = []
-            for n in deck.peek(5):
-                try:
-                    next_cards.append(card_summary(n, master_index))
-                except Exception:
-                    pass
+                if not final_img:
+                    consecutive_failures += 1
+                    logger.warning(f"Skipping bad image ({consecutive_failures}): {card_path}")
+                    if consecutive_failures >= 10:
+                        logger.warning("Too many consecutive bad images. Rebuilding deck...")
+                        rebuild_deck()
+                        consecutive_failures = 0
+                        if deck.total == 0:
+                            break  # Back to no-cards loop
+                        write_status({
+                            "card_path": "", "set_name": "", "card_num": "", "rarity": "",
+                            "set_info": "",
+                            "timestamp": int(time.time()), "tcg": active_tcg,
+                            "total_cards": deck.total,
+                            "error": "Some card images may be corrupted. Try re-downloading from the Downloads tab.",
+                        })
+                        config, action = wait_with_polling(60)
+                        if (config["active_tcg"] != active_tcg
+                                or config["collection_only"] != _deck_collection_only
+                                or action == "collection_changed"):
+                            rebuild_deck()
+                            if deck.total == 0:
+                                break  # Back to no-cards loop
+                    else:
+                        time.sleep(2)
+                    continue
 
-            # Calculate wait time and next change
-            hr = time.localtime().tm_hour
-            wait = config["day_interval"] if config["day_start"] <= hr < config["day_end"] else config["night_interval"]
-            paused = os.path.exists(PAUSE_FILE)
-            next_change = 0 if paused else int(time.time()) + wait
+                consecutive_failures = 0
 
-            # Write status BEFORE display refresh so web dashboard updates instantly
-            status_info = {
-                "card_path": card_path,
-                "set_name": card_info.get("set_name", ""),
-                "set_info": card_info.get("set_info", ""),
-                "card_num": card_info.get("card_num", ""),
-                "rarity": card_info.get("rarity", ""),
-                "timestamp": int(time.time()),
-                "tcg": active_tcg,
-                "total_cards": deck.total,
-                "prev_cards": prev_cards,
-                "next_cards": next_cards,
-                "next_change": next_change,
-                "paused": paused,
-                "interval": wait,
-                "display_updating": True,
-            }
-            write_status(status_info)
-
-            try:
-                epd.init()
-                epd.display(epd.getbuffer(final_img))
-            except Exception as e:
-                logger.error(f"Display error: {e}")
-            finally:
-                try:
-                    epd.sleep()
-                except Exception:
-                    pass
-
-            # Display refresh complete — clear the updating flag
-            status_info["display_updating"] = False
-            write_status(status_info)
-
-            logger.info(f"Next card in {wait // 60} minutes")
-            del final_img
-
-            # Poll during wait — picks up config changes, skip/prev triggers, and pause
-            config, action = wait_with_polling(wait)
-
-            if action == "prev":
-                # Go back: put current card back in deck, put previous at front
-                if len(deck.history) > 1:
-                    current = deck.history.pop(0)
-                    previous = deck.history.pop(0)
-                    deck.deck.insert(0, current)
-                    deck.deck.insert(0, previous)
-                continue
-
-            # WiFi connected — show splash screen with new IP, then resume cards
-            if action == "wifi_connected":
-                logger.info("WiFi connected — showing splash with new IP")
-                show_splash_screen(epd, config)
-                time.sleep(EINK_RENDER_WAIT)
-                continue
-
-            # WiFi setup mode — show setup instructions on display
-            if action == "wifi_setup":
-                logger.info("WiFi setup mode — showing setup screen")
-                show_setup_screen(epd, config)
-                # Wait for WiFi to be configured again
-                while True:
-                    if os.path.exists(WIFI_CONNECTED_TRIGGER):
-                        try:
-                            os.remove(WIFI_CONNECTED_TRIGGER)
-                        except OSError:
-                            pass
-                        break
+                # Build prev/next card queue for the web dashboard
+                prev_cards = []
+                for p in deck.history[1:5]:
                     try:
-                        if wifi_manager.is_wifi_connected():
-                            break
-                    except Exception:
-                        break
-                    time.sleep(5)
-                show_splash_screen(epd, config)
-                time.sleep(EINK_RENDER_WAIT)
-                continue
-
-            # Collection content changed — rebuild deck but keep showing current card
-            if action == "collection_changed" and config["collection_only"]:
-                rebuild_deck(preserve_history=True)
-                # Update status with new queue immediately (no card advance)
-                new_next = []
-                for nc in deck.peek(5):
-                    try:
-                        new_next.append(card_summary(nc, master_index))
+                        prev_cards.append(card_summary(p, master_index))
                     except Exception:
                         pass
-                new_prev = []
-                for pc in deck.history[:4]:
+                next_cards = []
+                for n in deck.peek(5):
                     try:
-                        new_prev.append(card_summary(pc, master_index))
+                        next_cards.append(card_summary(n, master_index))
                     except Exception:
                         pass
+
+                # Calculate wait time and next change
+                hr = time.localtime().tm_hour
+                wait = config["day_interval"] if config["day_start"] <= hr < config["day_end"] else config["night_interval"]
                 paused = os.path.exists(PAUSE_FILE)
-                remaining = max(0, next_change - int(time.time())) if next_change else wait
-                write_status({
+                next_change = 0 if paused else int(time.time()) + wait
+
+                # Write status BEFORE display refresh so web dashboard updates instantly
+                status_info = {
                     "card_path": card_path,
                     "set_name": card_info.get("set_name", ""),
                     "set_info": card_info.get("set_info", ""),
@@ -1033,16 +968,36 @@ def main():
                     "timestamp": int(time.time()),
                     "tcg": active_tcg,
                     "total_cards": deck.total,
-                    "prev_cards": new_prev,
-                    "next_cards": new_next,
+                    "prev_cards": prev_cards,
+                    "next_cards": next_cards,
                     "next_change": next_change,
                     "paused": paused,
                     "interval": wait,
-                })
-                logger.info(f"Collection updated — deck rebuilt ({deck.total} cards), queue refreshed")
-                # Go back to waiting, don't advance card
-                config, action = wait_with_polling(remaining)
-                # Handle whatever woke us from the resumed wait
+                    "display_updating": True,
+                }
+                write_status(status_info)
+
+                try:
+                    epd.init()
+                    epd.display(epd.getbuffer(final_img))
+                except Exception as e:
+                    logger.error(f"Display error: {e}")
+                finally:
+                    try:
+                        epd.sleep()
+                    except Exception:
+                        pass
+
+                # Display refresh complete — clear the updating flag
+                status_info["display_updating"] = False
+                write_status(status_info)
+
+                logger.info(f"Next card in {wait // 60} minutes")
+                final_img.close()
+
+                # Poll during wait — picks up config changes, skip/prev triggers, and pause
+                config, action = wait_with_polling(wait)
+
                 if action == "prev":
                     if len(deck.history) > 1:
                         current = deck.history.pop(0)
@@ -1051,15 +1006,87 @@ def main():
                         deck.deck.insert(0, previous)
                     continue
 
-            # If TCG or collection mode changed, rebuild and advance to new card
-            new_tcg = config["active_tcg"]
-            needs_rebuild = (new_tcg != active_tcg
-                             or config["collection_only"] != _deck_collection_only
-                             or action == "collection_changed")
-            if needs_rebuild:
-                rebuild_deck(preserve_history=(new_tcg == active_tcg))
-                if deck.total == 0:
-                    logger.warning(f"No cards found for {active_tcg}. Will retry.")
+                # WiFi connected — show splash screen with new IP, then resume cards
+                if action == "wifi_connected":
+                    logger.info("WiFi connected — showing splash with new IP")
+                    show_splash_screen(epd, config)
+                    time.sleep(EINK_RENDER_WAIT)
+                    continue
+
+                # WiFi setup mode — show setup instructions on display
+                if action == "wifi_setup":
+                    logger.info("WiFi setup mode — showing setup screen")
+                    show_setup_screen(epd, config)
+                    while not _shutdown:
+                        if os.path.exists(WIFI_CONNECTED_TRIGGER):
+                            try:
+                                os.remove(WIFI_CONNECTED_TRIGGER)
+                            except OSError:
+                                pass
+                            break
+                        try:
+                            if wifi_manager.is_wifi_connected():
+                                break
+                        except Exception:
+                            break
+                        time.sleep(5)
+                    show_splash_screen(epd, config)
+                    time.sleep(EINK_RENDER_WAIT)
+                    continue
+
+                # Collection content changed — rebuild deck but keep showing current card
+                if action == "collection_changed" and config["collection_only"]:
+                    rebuild_deck(preserve_history=True)
+                    if deck.total == 0:
+                        break  # Back to no-cards loop
+                    new_next = []
+                    for nc in deck.peek(5):
+                        try:
+                            new_next.append(card_summary(nc, master_index))
+                        except Exception:
+                            pass
+                    new_prev = []
+                    for pc in deck.history[:4]:
+                        try:
+                            new_prev.append(card_summary(pc, master_index))
+                        except Exception:
+                            pass
+                    paused = os.path.exists(PAUSE_FILE)
+                    remaining = max(0, next_change - int(time.time())) if next_change else wait
+                    write_status({
+                        "card_path": card_path,
+                        "set_name": card_info.get("set_name", ""),
+                        "set_info": card_info.get("set_info", ""),
+                        "card_num": card_info.get("card_num", ""),
+                        "rarity": card_info.get("rarity", ""),
+                        "timestamp": int(time.time()),
+                        "tcg": active_tcg,
+                        "total_cards": deck.total,
+                        "prev_cards": new_prev,
+                        "next_cards": new_next,
+                        "next_change": next_change,
+                        "paused": paused,
+                        "interval": wait,
+                    })
+                    logger.info(f"Collection updated — deck rebuilt ({deck.total} cards), queue refreshed")
+                    config, action = wait_with_polling(remaining)
+                    if action == "prev":
+                        if len(deck.history) > 1:
+                            current = deck.history.pop(0)
+                            previous = deck.history.pop(0)
+                            deck.deck.insert(0, current)
+                            deck.deck.insert(0, previous)
+                        continue
+
+                # If TCG or collection mode changed, rebuild and advance to new card
+                new_tcg = config["active_tcg"]
+                needs_rebuild = (new_tcg != active_tcg
+                                 or config["collection_only"] != _deck_collection_only
+                                 or action == "collection_changed")
+                if needs_rebuild:
+                    rebuild_deck(preserve_history=(new_tcg == active_tcg))
+                    if deck.total == 0:
+                        break  # Back to no-cards loop
 
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
