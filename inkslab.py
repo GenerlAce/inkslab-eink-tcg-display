@@ -55,6 +55,8 @@ NEXT_TRIGGER = "/tmp/inkslab_next"
 PREV_TRIGGER = "/tmp/inkslab_prev"
 PAUSE_FILE = "/tmp/inkslab_pause"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
+WIFI_CONNECTED_TRIGGER = "/tmp/inkslab_wifi_connected"
+WIFI_SETUP_TRIGGER = "/tmp/inkslab_wifi_setup"
 
 # Image processing (not configurable via web — these are display-specific)
 DISPLAY_WIDTH = 400
@@ -606,6 +608,23 @@ def wait_with_polling(seconds, config_check_interval=5):
             logger.info("Skip trigger detected — advancing to next card")
             return load_config(), "next"
 
+        # Check for WiFi state change triggers
+        if os.path.exists(WIFI_CONNECTED_TRIGGER):
+            try:
+                os.remove(WIFI_CONNECTED_TRIGGER)
+            except OSError:
+                pass
+            logger.info("WiFi connected trigger detected")
+            return load_config(), "wifi_connected"
+
+        if os.path.exists(WIFI_SETUP_TRIGGER):
+            try:
+                os.remove(WIFI_SETUP_TRIGGER)
+            except OSError:
+                pass
+            logger.info("WiFi setup mode trigger detected")
+            return load_config(), "wifi_setup"
+
         # Periodically re-read config
         if time.time() - last_config_check >= config_check_interval:
             new_config = load_config()
@@ -677,13 +696,12 @@ def main():
         # Truly first boot with no WiFi profile — show setup instructions
         show_setup_screen(epd, config)
         logger.info("Waiting for WiFi connection via setup mode...")
-        trigger = "/tmp/inkslab_wifi_connected"
         wait_count = 0
         max_wait = 600  # Give up after 10 minutes and proceed anyway
         while wait_count < max_wait:
-            if os.path.exists(trigger):
+            if os.path.exists(WIFI_CONNECTED_TRIGGER):
                 try:
-                    os.remove(trigger)
+                    os.remove(WIFI_CONNECTED_TRIGGER)
                 except OSError:
                     pass
                 break
@@ -716,6 +734,40 @@ def main():
             "total_cards": 0, "error": err_msg,
         })
         config, action = wait_with_polling(60)
+
+        # Handle WiFi state changes even while waiting for cards
+        if action == "wifi_setup":
+            try:
+                epd.init()
+            except Exception:
+                pass
+            show_setup_screen(epd, config)
+            while not os.path.exists(WIFI_CONNECTED_TRIGGER):
+                try:
+                    if wifi_manager.is_wifi_connected():
+                        break
+                except Exception:
+                    break
+                time.sleep(5)
+            try:
+                os.remove(WIFI_CONNECTED_TRIGGER)
+            except OSError:
+                pass
+            show_splash_screen(epd, config)
+            time.sleep(10)
+            _no_cards_shown = False  # Re-show no-cards screen after WiFi change
+            continue
+
+        if action == "wifi_connected":
+            try:
+                epd.init()
+            except Exception:
+                pass
+            show_splash_screen(epd, config)
+            time.sleep(10)
+            _no_cards_shown = False
+            continue
+
         new_tcg = config["active_tcg"]
         if (new_tcg != active_tcg
                 or config["collection_only"] != _deck_collection_only
@@ -878,6 +930,43 @@ def main():
                     previous = deck.history.pop(0)
                     deck.deck.insert(0, current)
                     deck.deck.insert(0, previous)
+                continue
+
+            # WiFi connected — show splash screen with new IP, then resume cards
+            if action == "wifi_connected":
+                logger.info("WiFi connected — showing splash with new IP")
+                try:
+                    epd.init()
+                except Exception:
+                    pass
+                show_splash_screen(epd, config)
+                time.sleep(10)  # Show IP for 10 seconds so user can see it
+                continue
+
+            # WiFi setup mode — show setup instructions on display
+            if action == "wifi_setup":
+                logger.info("WiFi setup mode — showing setup screen")
+                try:
+                    epd.init()
+                except Exception:
+                    pass
+                show_setup_screen(epd, config)
+                # Wait for WiFi to be configured again
+                while True:
+                    if os.path.exists(WIFI_CONNECTED_TRIGGER):
+                        try:
+                            os.remove(WIFI_CONNECTED_TRIGGER)
+                        except OSError:
+                            pass
+                        break
+                    try:
+                        if wifi_manager.is_wifi_connected():
+                            break
+                    except Exception:
+                        break
+                    time.sleep(5)
+                show_splash_screen(epd, config)
+                time.sleep(10)
                 continue
 
             # Collection content changed — rebuild deck but keep showing current card

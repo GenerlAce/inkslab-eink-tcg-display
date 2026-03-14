@@ -21,6 +21,8 @@ import wifi_manager
 
 app = Flask(__name__)
 
+VERSION = "1.0.0"
+
 # --- PATHS ---
 CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
@@ -1050,13 +1052,17 @@ def _git_default_branch():
 
 @app.route('/api/version')
 def api_version():
-    """Return the current local git version (lightweight, no fetch)."""
+    """Return the current version (hardcoded + git hash if available)."""
+    git_hash = ""
     try:
-        local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
+        local = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=5)
-        return jsonify({"version": local.stdout.strip()[:8] if local.returncode == 0 else "unknown"})
+        if local.returncode == 0:
+            git_hash = local.stdout.strip()[:8]
     except Exception:
-        return jsonify({"version": "unknown"})
+        pass
+    version = f"{VERSION}-{git_hash}" if git_hash else VERSION
+    return jsonify({"version": version})
 
 
 @app.route('/api/update/check', methods=['POST'])
@@ -1226,6 +1232,12 @@ def api_wifi_disconnect():
             _wifi_connect_result = {"status": "idle"}
         _wifi_setup_mode = True
         wifi_manager.start_hotspot()
+        # Signal display daemon to show setup screen
+        try:
+            with open("/tmp/inkslab_wifi_setup", "w") as f:
+                f.write("1")
+        except OSError:
+            pass
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -1277,7 +1289,14 @@ def api_factory_reset():
     except Exception as e:
         errors.append(f"Hotspot: {e}")
 
-    # 5. Invalidate all caches
+    # 5. Signal display daemon to show setup screen
+    try:
+        with open("/tmp/inkslab_wifi_setup", "w") as f:
+            f.write("1")
+    except OSError:
+        pass
+
+    # 6. Invalidate all caches
     _cache_invalidate("storage", "card_counts")
 
     if errors:
