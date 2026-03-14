@@ -1376,7 +1376,7 @@ def api_factory_reset():
     for tmp_file in [STATUS_FILE, DOWNLOAD_LOG, NEXT_TRIGGER, COLLECTION_TRIGGER,
                      "/tmp/inkslab_prev", "/tmp/inkslab_pause",
                      "/tmp/inkslab_wifi_connected", "/tmp/inkslab_update_status.json",
-                     "/tmp/inkslab_update.lock"]:
+                     "/tmp/inkslab_update.lock", "/tmp/inkslab_unbox"]:
         try:
             if os.path.exists(tmp_file):
                 os.remove(tmp_file)
@@ -1408,6 +1408,17 @@ def api_factory_reset():
 
     if errors:
         return jsonify({"ok": True, "warnings": errors})
+    return jsonify({"ok": True})
+
+
+@app.route('/api/prepare_shipping', methods=['POST'])
+def api_prepare_shipping():
+    """Show the unbox/shipping screen on the e-ink display for customer unboxing."""
+    try:
+        with open("/tmp/inkslab_unbox", "w") as f:
+            f.write("1")
+    except OSError as e:
+        return jsonify({"ok": False, "error": str(e)})
     return jsonify({"ok": True})
 
 
@@ -2164,6 +2175,11 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <h3 style="color:#ff6b6b">Factory Reset</h3>
     <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Forgets WiFi, deletes all card data, and resets settings. The unit will enter WiFi setup mode on next boot.</p>
     <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Factory Reset</button>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #1F333F">
+      <h3 style="color:#6BCCBD">Prepare for Shipping</h3>
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Shows a friendly "Plug me in!" screen for the customer. Run Factory Reset first, then use this before powering off.</p>
+      <button class="btn btn-block" style="background:#6BCCBD;color:#010001;font-weight:600" onclick="prepareShipping(this)">Prepare for Shipping</button>
+    </div>
   </div>
 </div>
 
@@ -2610,6 +2626,26 @@ function factoryReset(btn) {
   }).catch(function() {
     showToast('Reset failed — connection lost (this is expected if WiFi was disconnected)');
     btn.textContent = 'Done';
+  });
+}
+
+function prepareShipping(btn) {
+  if (!confirm('This will show the "Plug me in!" screen for customers.\\n\\nMake sure you ran Factory Reset first.\\n\\nAfter this, wait ~30 seconds for the display to update, then power off the unit for shipping.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Updating display...';
+  fetch(API + '/api/prepare_shipping', {method:'POST'}).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Shipping screen sent! Wait ~30s for e-ink to update, then power off.', 8000);
+      btn.textContent = 'Ready to ship!';
+    } else {
+      showToast('Failed: ' + (d.error || 'unknown'));
+      btn.disabled = false;
+      btn.textContent = 'Prepare for Shipping';
+    }
+  }).catch(function() {
+    showToast('Request failed');
+    btn.disabled = false;
+    btn.textContent = 'Prepare for Shipping';
   });
 }
 

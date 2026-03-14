@@ -57,6 +57,7 @@ PAUSE_FILE = "/tmp/inkslab_pause"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
 WIFI_CONNECTED_TRIGGER = "/tmp/inkslab_wifi_connected"
 WIFI_SETUP_TRIGGER = "/tmp/inkslab_wifi_setup"
+UNBOX_TRIGGER = "/tmp/inkslab_unbox"
 
 # Graceful shutdown flag (module-level so wait_with_polling can check it)
 _shutdown = False
@@ -377,6 +378,63 @@ def show_no_cards_screen(epd, config, ip=None):
             pass
 
 
+def show_unbox_screen(epd, config):
+    """Show a customer-facing 'Plug me in!' screen for shipping. E-ink retains this when powered off."""
+    try:
+        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
+        draw = ImageDraw.Draw(canvas)
+
+        try:
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+            font_action = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+        except Exception:
+            font_title = ImageFont.load_default()
+            font_action = font_title
+            font_body = font_title
+            font_small = font_title
+
+        cx = DISPLAY_WIDTH // 2
+
+        draw.text((cx, 80), "Welcome!", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 140), "to InkSlab", fill=(0, 0, 0), font=font_body, anchor="mm")
+
+        draw.text((cx, 240), "Plug me in", fill=(0, 0, 255), font=font_action, anchor="mm")
+        draw.text((cx, 280), "to get started!", fill=(0, 0, 255), font=font_action, anchor="mm")
+
+        draw.text((cx, 370), "After plugging in, wait about", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 400), "90 seconds for this screen", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 430), "to update with setup instructions.", fill=(0, 0, 0), font=font_body, anchor="mm")
+
+        draw.text((cx, 500), "Do not unplug during setup.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+
+        img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        canvas.close()
+        palette_ref = create_palette_image()
+        img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
+        img.close()
+        palette_ref.close()
+        img_rgb = img_dithered.convert("RGB")
+        img_dithered.close()
+        final = img_rgb.rotate(config["rotation_angle"], expand=True)
+        img_rgb.close()
+
+        epd.init()
+        epd.display(epd.getbuffer(final))
+        epd.sleep()
+        final.close()
+        logger.info("Unbox/shipping screen shown")
+
+    except Exception as e:
+        logger.warning(f"Unbox screen skipped: {e}")
+        try:
+            epd.sleep()
+        except Exception:
+            pass
+
+
 def get_card_metadata(img_path, master_index):
     """Extract set name, card number, and rarity from card image path."""
     info = {"set_info": "", "stats": "", "set_name": "", "card_num": "", "rarity": ""}
@@ -687,6 +745,14 @@ def wait_with_polling(seconds, config_check_interval=5):
             logger.info("WiFi setup mode trigger detected")
             return load_config(), "wifi_setup"
 
+        if os.path.exists(UNBOX_TRIGGER):
+            try:
+                os.remove(UNBOX_TRIGGER)
+            except OSError:
+                pass
+            logger.info("Unbox screen trigger detected")
+            return load_config(), "unbox"
+
         # Periodically re-read config
         if time.time() - last_config_check >= config_check_interval:
             new_config = load_config()
@@ -869,6 +935,10 @@ def main():
                     _no_cards_shown = False
                     continue
 
+                if action == "unbox":
+                    show_unbox_screen(epd, config)
+                    continue
+
                 if action == "wifi_connected":
                     # Skip splash — no-cards screen will re-show with the new IP
                     _no_cards_shown = False
@@ -1037,6 +1107,10 @@ def main():
                         time.sleep(5)
                     show_splash_screen(epd, config)
                     time.sleep(EINK_RENDER_WAIT)
+                    continue
+
+                if action == "unbox":
+                    show_unbox_screen(epd, config)
                     continue
 
                 # Collection content changed — rebuild deck but keep showing current card
