@@ -150,6 +150,69 @@ def _is_card_image(filename):
     return filename.lower().endswith(IMAGE_EXTENSIONS) and not filename.startswith('_')
 
 
+def get_local_ip():
+    """Get the Pi's local IP address."""
+    try:
+        import subprocess
+        result = subprocess.run(['hostname', '-I'], capture_output=True, text=True, timeout=5)
+        parts = result.stdout.strip().split()
+        return parts[0] if parts else None
+    except Exception:
+        return None
+
+
+def show_splash_screen(epd, config):
+    """Show a branded splash screen with the dashboard URL on the e-ink display."""
+    try:
+        ip = get_local_ip()
+        if not ip:
+            logger.info("No IP address available yet, skipping splash screen")
+            return
+
+        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
+        draw = ImageDraw.Draw(canvas)
+
+        # Load fonts
+        try:
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
+            font_sub = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+        except Exception:
+            font_title = ImageFont.load_default()
+            font_url = font_title
+            font_sub = font_title
+
+        # Draw content centered
+        cx = DISPLAY_WIDTH // 2
+
+        # Title
+        draw.text((cx, 180), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+
+        # Dashboard URL (prominent)
+        url_text = f"http://{ip}"
+        draw.text((cx, 260), "Dashboard:", fill=(0, 0, 0), font=font_sub, anchor="mm")
+        draw.text((cx, 290), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
+
+        # Subtitle
+        draw.text((cx, 350), "Open this address in your browser", fill=(0, 0, 0), font=font_sub, anchor="mm")
+        draw.text((cx, 375), "to control your display.", fill=(0, 0, 0), font=font_sub, anchor="mm")
+
+        # Bottom credit
+        draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_sub, anchor="mm")
+
+        # Process for e-paper display
+        img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
+        palette_ref = create_palette_image()
+        img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
+        final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
+
+        epd.display(epd.getbuffer(final))
+        logger.info(f"Splash screen shown: dashboard at {url_text}")
+
+    except Exception as e:
+        logger.warning(f"Splash screen skipped: {e}")
+
+
 def get_card_metadata(img_path, master_index):
     """Extract set name, card number, and rarity from card image path."""
     info = {"set_info": "", "stats": "", "set_name": "", "card_num": "", "rarity": ""}
@@ -513,6 +576,9 @@ def main():
     except Exception as e:
         logger.error(f"Display init failed: {e}")
         return
+
+    # Show splash screen with dashboard URL (helpful for first-time setup)
+    show_splash_screen(epd, config)
 
     # Graceful shutdown: ensure display is put to sleep on exit
     _shutdown = False

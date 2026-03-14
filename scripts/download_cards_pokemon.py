@@ -30,17 +30,24 @@ COOLDOWN_SECONDS = 30
 
 
 def download_file(url, filepath):
-    """Download a file, skipping if it already exists."""
+    """Download a file, skipping if it already exists. Writes to temp file first."""
     if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
         return "EXISTS"
+    tmp = filepath + ".tmp"
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
         if r.status_code == 200:
-            with open(filepath, 'wb') as f:
+            with open(tmp, 'wb') as f:
                 f.write(r.content)
-            return "DOWNLOADED"
+            if os.path.getsize(tmp) > 0:
+                os.rename(tmp, filepath)
+                return "DOWNLOADED"
+            os.remove(tmp)
+            return "FAIL: empty response"
         return f"HTTP {r.status_code}"
     except Exception as e:
+        if os.path.exists(tmp):
+            os.remove(tmp)
         return f"FAIL: {e}"
 
 

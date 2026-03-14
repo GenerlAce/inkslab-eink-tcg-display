@@ -160,8 +160,8 @@ def rarity_sort_key(rarity):
 def get_local_ip():
     try:
         result = subprocess.run(['hostname', '-I'], capture_output=True, text=True, timeout=5)
-        ip = result.stdout.strip().split()[0]
-        return ip
+        parts = result.stdout.strip().split()
+        return parts[0] if parts else None
     except Exception:
         return None
 
@@ -934,7 +934,7 @@ def _compute_storage():
             try:
                 result = subprocess.run(['du', '-sb', path],
                                         capture_output=True, text=True, timeout=120)
-                if result.returncode == 0:
+                if result.returncode == 0 and result.stdout.strip():
                     total_size = int(result.stdout.split()[0])
             except Exception:
                 pass
@@ -1081,7 +1081,8 @@ def api_update_start():
     lock_file = "/tmp/inkslab_update.lock"
     if os.path.exists(lock_file):
         try:
-            pid = int(open(lock_file).read().strip())
+            with open(lock_file) as f:
+                pid = int(f.read().strip())
             os.kill(pid, 0)  # Check if process is alive
             return jsonify({"ok": False, "error": "Update already in progress"})
         except (ValueError, OSError):

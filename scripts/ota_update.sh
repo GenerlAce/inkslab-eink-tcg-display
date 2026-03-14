@@ -11,11 +11,17 @@ write_status() {
     local stage="$1"
     local message="$2"
     local error="$3"
-    # Use Python for safe JSON output (avoids broken JSON from special chars)
+    # Pass values via env vars to avoid shell injection into Python strings
+    _STAGE="$stage" _MSG="$message" _ERR="$error" _SF="$STATUS_FILE" \
     python3 -c "
-import json, time
-json.dump({'stage': '$stage', 'message': '''$message''', 'error': '''$error''', 'timestamp': int(time.time())}, open('$STATUS_FILE', 'w'))
-" 2>/dev/null || echo "{\"stage\":\"$stage\",\"message\":\"Update in progress\",\"error\":\"$error\",\"timestamp\":$(date +%s)}" > "$STATUS_FILE"
+import json, time, os
+json.dump({
+    'stage': os.environ['_STAGE'],
+    'message': os.environ['_MSG'],
+    'error': os.environ['_ERR'],
+    'timestamp': int(time.time())
+}, open(os.environ['_SF'], 'w'))
+" 2>/dev/null || echo "{\"stage\":\"update\",\"message\":\"Working...\",\"error\":\"\",\"timestamp\":$(date +%s)}" > "$STATUS_FILE"
 }
 
 cleanup() {
@@ -25,13 +31,11 @@ trap cleanup EXIT
 
 # Prevent concurrent updates
 if [ -f "$LOCK_FILE" ]; then
-    # Check if the locking process is still alive
     OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null)
     if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
         write_status "error" "Another update is already running" "true"
         exit 1
     fi
-    # Stale lock, remove it
     rm -f "$LOCK_FILE"
 fi
 echo $$ > "$LOCK_FILE"
@@ -44,7 +48,6 @@ cd "$SCRIPT_DIR" || {
 # Auto-detect the default branch (main or master)
 BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
 if [ -z "$BRANCH" ]; then
-    # Fallback: check which branch exists on the remote
     if git rev-parse --verify origin/main >/dev/null 2>&1; then
         BRANCH="main"
     else
@@ -54,15 +57,14 @@ fi
 
 # Stage 1: Fetch
 write_status "fetching" "Checking for updates..." ""
-if ! git fetch origin 2>&1; then
+if ! timeout 60 git fetch origin 2>&1; then
     write_status "error" "Failed to fetch from remote. Check internet connection." "true"
     exit 1
 fi
 
 # Stage 2: Pull
 write_status "pulling" "Downloading update..." ""
-if ! git pull origin "$BRANCH" 2>&1; then
-    # Fallback: hard reset
+if ! timeout 120 git pull origin "$BRANCH" 2>&1; then
     write_status "pulling" "Pull failed, resetting to remote..." ""
     if ! git reset --hard "origin/$BRANCH" 2>&1; then
         write_status "error" "Failed to update. Manual intervention needed." "true"
