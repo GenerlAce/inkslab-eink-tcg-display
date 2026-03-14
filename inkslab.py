@@ -633,31 +633,38 @@ def main():
         return
 
     # Check WiFi status — show setup screen or splash screen
-    if wifi_manager.is_wifi_connected():
-        # Normal boot: show dashboard IP
+    try:
+        wifi_connected = wifi_manager.is_wifi_connected()
+        has_profile = wifi_manager.has_saved_wifi_profile()
+    except Exception as e:
+        logger.warning(f"WiFi check failed, assuming connected: {e}")
+        wifi_connected = True
+        has_profile = True
+
+    if wifi_connected or has_profile:
+        # WiFi is configured (DIY setup or already connected) — show dashboard IP
+        # If WiFi is temporarily down, splash will show once IP is available
         show_splash_screen(epd, config)
     else:
-        # No WiFi: show setup instructions and wait for connection
+        # Truly first boot with no WiFi profile — show setup instructions
         show_setup_screen(epd, config)
         logger.info("Waiting for WiFi connection via setup mode...")
-        wifi_connected = False
-        while not wifi_connected:
-            # Check for the trigger file from the web dashboard
-            trigger = "/tmp/inkslab_wifi_connected"
+        trigger = "/tmp/inkslab_wifi_connected"
+        wait_count = 0
+        max_wait = 600  # Give up after 10 minutes and proceed anyway
+        while wait_count < max_wait:
             if os.path.exists(trigger):
                 try:
                     os.remove(trigger)
                 except OSError:
                     pass
-                wifi_connected = True
                 break
-            # Also check nmcli directly
             if wifi_manager.is_wifi_connected():
-                wifi_connected = True
                 break
             time.sleep(5)
-        # WiFi is now connected — show the splash screen with the new IP
-        logger.info("WiFi connected! Showing dashboard IP...")
+            wait_count += 5
+        # Show the splash screen with the new IP (or whatever we have)
+        logger.info("WiFi wait complete, showing splash screen...")
         show_splash_screen(epd, config)
 
     # Graceful shutdown: ensure display is put to sleep on exit

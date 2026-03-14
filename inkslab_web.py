@@ -1213,17 +1213,20 @@ def api_wifi_connect():
 def api_wifi_disconnect():
     """Disconnect WiFi and re-enter setup mode."""
     global _wifi_setup_mode, _wifi_connect_result
-    wifi_manager.stop_hotspot()
-    # Disconnect current WiFi
-    ssid = wifi_manager.get_active_ssid()
-    if ssid:
-        subprocess.run(["nmcli", "con", "down", "id", ssid],
-                       capture_output=True, timeout=10)
-    with _wifi_connect_lock:
-        _wifi_connect_result = {"status": "idle"}
-    _wifi_setup_mode = True
-    wifi_manager.start_hotspot()
-    return jsonify({"ok": True})
+    try:
+        wifi_manager.stop_hotspot()
+        # Disconnect current WiFi
+        ssid = wifi_manager.get_active_ssid()
+        if ssid:
+            subprocess.run(["nmcli", "con", "down", "id", ssid],
+                           capture_output=True, timeout=10)
+        with _wifi_connect_lock:
+            _wifi_connect_result = {"status": "idle"}
+        _wifi_setup_mode = True
+        wifi_manager.start_hotspot()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # Captive portal detection endpoints — redirect to setup page
@@ -3026,9 +3029,17 @@ def dashboard():
 
 
 if __name__ == '__main__':
-    # Check WiFi on startup — enter setup mode if not connected
-    if not wifi_manager.is_wifi_connected():
-        _wifi_setup_mode = True
-        wifi_manager.start_hotspot()
+    # Only enter setup mode if there's NO saved WiFi profile at all
+    # (i.e., truly first boot on a pre-flashed unit).
+    # If a profile exists but WiFi is temporarily down, do NOT tear it
+    # down by starting a hotspot — just serve the normal dashboard.
+    try:
+        if not wifi_manager.is_wifi_connected() and not wifi_manager.has_saved_wifi_profile():
+            _wifi_setup_mode = True
+            wifi_manager.start_hotspot()
+    except Exception as e:
+        # If wifi_manager fails entirely, just serve the dashboard
+        import logging
+        logging.getLogger(__name__).warning("WiFi check failed, skipping setup mode: %s", e)
 
     app.run(host='0.0.0.0', port=80, debug=False)

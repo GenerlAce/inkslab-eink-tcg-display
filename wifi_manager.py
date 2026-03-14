@@ -34,17 +34,50 @@ def _run_nmcli(args, timeout=30):
         return -1, "", str(e)
 
 
+def _has_real_ip():
+    """Fallback check: does the Pi have a non-hotspot, non-loopback IP?"""
+    try:
+        result = subprocess.run(["hostname", "-I"], capture_output=True, text=True, timeout=5)
+        for ip in result.stdout.strip().split():
+            if ip and not ip.startswith("127.") and not ip.startswith("10.42."):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def is_wifi_connected():
-    """Check if wlan0 has an active non-hotspot WiFi connection."""
+    """Check if wlan0 has an active non-hotspot WiFi connection.
+    Falls back to IP address check if nmcli fails."""
     rc, out, _ = _run_nmcli(["-t", "-f", "TYPE,NAME,DEVICE", "con", "show", "--active"])
     if rc != 0:
-        return False
+        # nmcli failed — fall back to IP check so we don't falsely
+        # enter setup mode and tear down an existing connection
+        return _has_real_ip()
     for line in out.splitlines():
         parts = line.split(":")
         if len(parts) >= 3:
             conn_type, name, device = parts[0], parts[1], parts[2]
             # 802-11-wireless is WiFi; ignore our hotspot
             if "wireless" in conn_type and device == "wlan0" and name != HOTSPOT_CON_NAME:
+                return True
+    # nmcli says no WiFi, but double-check with IP as safety net
+    return _has_real_ip()
+
+
+def has_saved_wifi_profile():
+    """Check if there's ANY saved WiFi connection profile (even if not currently active).
+    This distinguishes 'first boot with no WiFi ever configured' from
+    'WiFi is configured but temporarily down'."""
+    rc, out, _ = _run_nmcli(["-t", "-f", "TYPE,NAME", "con", "show"])
+    if rc != 0:
+        # nmcli not working — assume WiFi is configured (safe default)
+        return True
+    for line in out.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2:
+            conn_type, name = parts[0], parts[1]
+            if "wireless" in conn_type and name != HOTSPOT_CON_NAME:
                 return True
     return False
 
@@ -138,59 +171,39 @@ def ensure_portal_dns():
 
 
 def start_hotspot():
-    """Create and activate the setup hotspot. Returns True on success."""
+    """Create and activate the setup hotspot (open network, no password).
+    Returns True on success."""
     # Install captive portal DNS config
     ensure_portal_dns()
 
-    # Check if hotspot connection already exists
+    # Clean up any existing hotspot profile first
     rc, out, _ = _run_nmcli(["-t", "-f", "NAME", "con", "show"])
     if rc == 0 and HOTSPOT_CON_NAME in out.splitlines():
-        # Bring up existing hotspot
-        rc, _, err = _run_nmcli(["con", "up", HOTSPOT_CON_NAME])
-        if rc == 0:
-            logger.info("Hotspot '%s' activated (existing profile)", HOTSPOT_SSID)
-            return True
-        # If activating fails, delete and recreate
+        _run_nmcli(["con", "down", HOTSPOT_CON_NAME])
         _run_nmcli(["con", "delete", HOTSPOT_CON_NAME])
+        time.sleep(1)
 
-    # Create new hotspot (open network — no password for easy customer setup)
-    rc, out, err = _run_nmcli([
-        "device", "wifi", "hotspot",
+    # Create an open AP directly (no password dance needed)
+    rc, _, err = _run_nmcli([
+        "con", "add", "type", "wifi",
         "ifname", "wlan0",
         "con-name", HOTSPOT_CON_NAME,
         "ssid", HOTSPOT_SSID,
-        "band", "bg",
-        "channel", "6",
+        "802-11-wireless.mode", "ap",
+        "802-11-wireless.band", "bg",
+        "802-11-wireless.channel", "6",
+        "ipv4.method", "shared",
     ])
-    if rc == 0:
-        # Remove the auto-generated password to make it an open network
-        _run_nmcli(["con", "modify", HOTSPOT_CON_NAME,
-                    "wifi-sec.key-mgmt", "none"])
-        _run_nmcli(["con", "modify", HOTSPOT_CON_NAME,
-                    "802-11-wireless-security.key-mgmt", ""])
-        # Restart to apply the open network change
-        _run_nmcli(["con", "down", HOTSPOT_CON_NAME])
-        time.sleep(1)
+    if rc != 0:
+        logger.error("Failed to create hotspot profile: %s", err)
+        return False
 
-        # Recreate as truly open
-        _run_nmcli(["con", "delete", HOTSPOT_CON_NAME])
-        rc2, _, _ = _run_nmcli([
-            "con", "add", "type", "wifi",
-            "ifname", "wlan0",
-            "con-name", HOTSPOT_CON_NAME,
-            "ssid", HOTSPOT_SSID,
-            "802-11-wireless.mode", "ap",
-            "802-11-wireless.band", "bg",
-            "802-11-wireless.channel", "6",
-            "ipv4.method", "shared",
-        ])
-        if rc2 == 0:
-            rc3, _, _ = _run_nmcli(["con", "up", HOTSPOT_CON_NAME])
-            if rc3 == 0:
-                logger.info("Hotspot '%s' created (open network)", HOTSPOT_SSID)
-                return True
+    rc2, _, err2 = _run_nmcli(["con", "up", HOTSPOT_CON_NAME])
+    if rc2 == 0:
+        logger.info("Hotspot '%s' created (open network)", HOTSPOT_SSID)
+        return True
 
-    logger.error("Failed to create hotspot: %s", err)
+    logger.error("Failed to activate hotspot: %s", err2)
     return False
 
 
