@@ -212,6 +212,9 @@ def show_splash_screen(epd, config):
         draw.text((cx, 350), "Open this address in your browser", fill=(0, 0, 0), font=font_sub, anchor="mm")
         draw.text((cx, 375), "to control your display.", fill=(0, 0, 0), font=font_sub, anchor="mm")
 
+        # Transition note
+        draw.text((cx, 440), "Your cards will appear shortly.", fill=(128, 128, 128), font=font_sub, anchor="mm")
+
         # Bottom credit
         draw.text((cx, 540), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_sub, anchor="mm")
 
@@ -726,9 +729,11 @@ def main():
         logger.warning(f"WiFi check failed, assuming connected: {e}")
         wifi_connected = True
 
-    # E-ink render time: Spectra 6 (7-color) takes ~30s to fully render.
-    # We must wait after each display write so the next write doesn't interrupt it.
-    EINK_RENDER_WAIT = 35  # seconds to wait after display write for full render
+    # E-ink render time: Spectra 6 (7-color) takes ~30s to physically draw.
+    # After that, the user needs time to actually read the screen content.
+    EINK_RENDER_TIME = 30   # seconds for e-ink to finish drawing
+    EINK_READ_TIME = 20     # extra seconds for user to read the result
+    EINK_RENDER_WAIT = EINK_RENDER_TIME + EINK_READ_TIME  # total wait before next write
 
     if wifi_connected:
         # WiFi is working — only show splash if we actually have cards to display.
