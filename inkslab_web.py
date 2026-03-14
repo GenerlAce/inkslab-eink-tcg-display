@@ -1898,7 +1898,7 @@ function showSuccess(ip, ssid) {
     + '<h2>Connected!</h2>'
     + '<p style="color:#D8E6E4;font-size:15px;margin-bottom:16px">Your InkSlab is now on <strong>' + ssid.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') + '</strong></p>'
     + '<div class="ip">http://' + ip.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>'
-    + '<p>Open this address in your browser to access the dashboard.</p>'
+    + '<p>Open this address in your web browser (Safari, Chrome, etc.) to access the dashboard.</p>'
     + '<p style="margin-top:20px;color:#36A5CA;font-size:12px">The e-ink display will also show this address.</p>'
     + '</div>';
 }
@@ -2650,10 +2650,10 @@ function prepareShipping(btn) {
 }
 
 function changeWifi() {
-  if (!confirm('This will disconnect WiFi and start the setup hotspot.\\n\\nAfter this:\\n1. Connect your phone to "InkSlab-Setup"\\n2. Open 10.42.0.1 in your browser\\n\\nContinue?')) return;
+  if (!confirm('This will disconnect WiFi and start the setup hotspot.\\n\\nAfter this:\\n1. On your phone, go to Settings > WiFi\\n2. Connect to "InkSlab-Setup"\\n3. Open 10.42.0.1 in your web browser (Safari, Chrome, etc.)\\n\\nContinue?')) return;
   var el = document.getElementById('wifi-info');
   fetch(API + '/api/wifi/disconnect', {method:'POST'}).then(function() {
-    el.innerHTML = '<strong>Setup mode active</strong><br>1. Connect your phone to <strong>InkSlab-Setup</strong><br>2. Open <strong>http://10.42.0.1</strong>';
+    el.innerHTML = '<strong>Setup mode active</strong><br>1. On your phone, go to WiFi settings and connect to <strong>InkSlab-Setup</strong><br>2. Open <strong>http://10.42.0.1</strong> in your web browser';
     showToast('Setup hotspot started!', 3000);
   }).catch(function() { showToast('Failed to start WiFi setup'); });
 }

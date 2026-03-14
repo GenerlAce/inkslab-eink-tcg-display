@@ -173,6 +173,20 @@ def get_local_ip():
         return None
 
 
+def make_qr(url, box_size=4, border=1):
+    """Generate a QR code as a PIL RGB image."""
+    try:
+        import qrcode
+        qr = qrcode.QRCode(box_size=box_size, border=border,
+                            error_correction=qrcode.constants.ERROR_CORRECT_M)
+        qr.add_data(url)
+        qr.make(fit=True)
+        return qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    except Exception as e:
+        logger.warning(f"QR code generation failed: {e}")
+        return None
+
+
 def show_splash_screen(epd, config):
     """Show a branded splash screen with the dashboard URL on the e-ink display.
     Handles full init/display/sleep cycle internally."""
@@ -207,21 +221,27 @@ def show_splash_screen(epd, config):
         cx = DISPLAY_WIDTH // 2
 
         # Title
-        draw.text((cx, 140), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 70), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
 
-        # Dashboard URL (prominent)
+        # Dashboard URL with QR code
         url_text = f"http://{ip}"
-        draw.text((cx, 230), "Open in your browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 275), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
+        draw.text((cx, 130), "Scan or open in your", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 160), "web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 205), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
 
-        # Subtitle
-        draw.text((cx, 340), "to control your display", fill=(0, 0, 0), font=font_body, anchor="mm")
+        # QR code
+        qr_img = make_qr(url_text)
+        if qr_img:
+            qr_size = min(qr_img.size[0], 130)
+            qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
+            canvas.paste(qr_img, (cx - qr_size // 2, 240))
+            qr_img.close()
 
         # Transition note
-        draw.text((cx, 420), "Your cards will appear shortly.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 430), "Your cards will appear shortly.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Bottom credit
-        draw.text((cx, 550), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         # Process for e-paper display
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
@@ -258,7 +278,7 @@ def show_setup_screen(epd, config):
 
         # Load fonts
         try:
-            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28)
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 24)
             font_heading = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
             font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
             font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
@@ -273,26 +293,33 @@ def show_setup_screen(epd, config):
         cx = DISPLAY_WIDTH // 2
 
         # Title
-        draw.text((cx, 60), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
-        draw.text((cx, 90), "WiFi Setup", fill=(0, 0, 255), font=font_heading, anchor="mm")
+        draw.text((cx, 40), "InkSlab WiFi Setup", fill=(0, 0, 0), font=font_title, anchor="mm")
 
         # Step 1
-        draw.text((cx, 155), "On your phone, connect", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 178), "to this WiFi network:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 215), "InkSlab-Setup", fill=(255, 0, 0), font=font_url, anchor="mm")
-        draw.text((cx, 243), "(no password needed)", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 90), "Step 1", fill=(0, 0, 255), font=font_heading, anchor="mm")
+        draw.text((cx, 118), "On your phone, go to Settings", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 141), "and connect to this WiFi:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 178), "InkSlab-Setup", fill=(255, 0, 0), font=font_url, anchor="mm")
+        draw.text((cx, 206), "(no password needed)", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         # Step 2
-        draw.text((cx, 300), "A setup page will appear.", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 328), "If not, open your browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 365), "10.42.0.1", fill=(0, 0, 255), font=font_url, anchor="mm")
+        draw.text((cx, 255), "Step 2", fill=(0, 0, 255), font=font_heading, anchor="mm")
+        draw.text((cx, 283), "A setup page should appear.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 306), "If not, scan this code or", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 329), "type in your web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 363), "10.42.0.1", fill=(0, 0, 255), font=font_url, anchor="mm")
+
+        # QR code for setup URL
+        qr_img = make_qr("http://10.42.0.1", box_size=3, border=1)
+        if qr_img:
+            qr_size = min(qr_img.size[0], 100)
+            qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
+            canvas.paste(qr_img, (cx - qr_size // 2, 390))
+            qr_img.close()
 
         # Step 3
-        draw.text((cx, 425), "Pick your home WiFi from", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 448), "the list and enter the password.", fill=(0, 0, 0), font=font_body, anchor="mm")
-
-        # Bottom credit
-        draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 530), "Then pick your WiFi and", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 553), "enter the password.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Process for e-paper display
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
@@ -339,19 +366,26 @@ def show_no_cards_screen(epd, config, ip=None):
 
         cx = DISPLAY_WIDTH // 2
 
-        draw.text((cx, 80), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
-        draw.text((cx, 150), "No cards downloaded yet.", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 200), "To get started, open this", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 230), "address on your phone:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 55), "InkSlab", fill=(0, 0, 0), font=font_title, anchor="mm")
+        draw.text((cx, 115), "No cards downloaded yet.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 160), "Scan or open in your", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 190), "web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         if ip:
-            draw.text((cx, 295), f"http://{ip}", fill=(0, 0, 255), font=font_url, anchor="mm")
+            url_text = f"http://{ip}"
+            draw.text((cx, 235), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
+            # QR code
+            qr_img = make_qr(url_text)
+            if qr_img:
+                qr_size = min(qr_img.size[0], 130)
+                qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
+                canvas.paste(qr_img, (cx - qr_size // 2, 270))
+                qr_img.close()
 
-        draw.text((cx, 370), "Then tap Downloads and choose", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 400), "a card game to download.", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 455), "Cards will appear automatically", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 485), "once the download finishes.", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
+        draw.text((cx, 430), "Then tap Downloads and pick", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 460), "a card game to download.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 520), "Cards will appear on this", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 550), "display once ready.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
         canvas.close()

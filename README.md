@@ -65,12 +65,12 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 
 If you received a pre-flashed InkSlab, setup takes about 30 seconds:
 
-1. **Power on** the InkSlab — the e-ink display will show WiFi setup instructions
-2. **Connect your phone** to the `InkSlab-Setup` WiFi network (no password needed)
-3. A setup page should appear automatically. If not, open `http://10.42.0.1` in your browser
+1. **Power on** the InkSlab — wait about 90 seconds for the e-ink display to show setup instructions
+2. On your phone, go to **Settings > WiFi** and connect to `InkSlab-Setup` (no password needed)
+3. A setup page should appear automatically. If not, open `http://10.42.0.1` in your web browser (Safari, Chrome, etc.) — or scan the QR code on the display
 4. **Pick your home WiFi** from the list, enter the password, and tap Connect
-5. The display will show your new dashboard IP (e.g., `http://192.168.1.42`)
-6. **Reconnect your phone** to your home WiFi and open that address — you're done!
+5. The display will show your new dashboard address (e.g., `http://192.168.1.42`) with a scannable QR code
+6. **Reconnect your phone** to your home WiFi and open that address in your web browser — you're done!
 
 To change WiFi later, go to **Settings** > **Change WiFi Network** in the dashboard.
 
@@ -109,7 +109,7 @@ After reboot, SSH back in and run:
 ```bash
 # Install system packages
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-pil python3-numpy python3-spidev python3-gpiozero python3-requests python3-flask git unzip
+sudo apt-get install -y python3-pip python3-pil python3-numpy python3-spidev python3-gpiozero python3-requests python3-flask python3-qrcode git unzip
 
 # Install hardware libraries
 cd ~
