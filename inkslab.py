@@ -170,7 +170,8 @@ def get_local_ip():
 
 
 def show_splash_screen(epd, config):
-    """Show a branded splash screen with the dashboard URL on the e-ink display."""
+    """Show a branded splash screen with the dashboard URL on the e-ink display.
+    Handles full init/display/sleep cycle internally."""
     try:
         # Wait up to 30s for an IP address (network may still be coming up)
         ip = None
@@ -220,15 +221,22 @@ def show_splash_screen(epd, config):
         img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
         final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
 
+        epd.init()
         epd.display(epd.getbuffer(final))
+        epd.sleep()
         logger.info(f"Splash screen shown: dashboard at {url_text}")
 
     except Exception as e:
         logger.warning(f"Splash screen skipped: {e}")
+        try:
+            epd.sleep()
+        except Exception:
+            pass
 
 
 def show_setup_screen(epd, config):
-    """Show WiFi setup instructions on the e-ink display when no WiFi is configured."""
+    """Show WiFi setup instructions on the e-ink display when no WiFi is configured.
+    Handles full init/display/sleep cycle internally."""
     try:
         canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
         draw = ImageDraw.Draw(canvas)
@@ -277,11 +285,17 @@ def show_setup_screen(epd, config):
         img_dithered = img.quantize(palette=palette_ref, dither=Image.Dither.FLOYDSTEINBERG)
         final = img_dithered.convert("RGB").rotate(config["rotation_angle"], expand=True)
 
+        epd.init()
         epd.display(epd.getbuffer(final))
+        epd.sleep()
         logger.info("Setup screen shown: connect to InkSlab-Setup WiFi")
 
     except Exception as e:
         logger.warning(f"Setup screen skipped: {e}")
+        try:
+            epd.sleep()
+        except Exception:
+            pass
 
 
 def show_no_cards_screen(epd, config, ip=None):
@@ -671,6 +685,7 @@ def main():
             epd = epd4in0e.EPD()
             epd.init()
             epd.Clear()
+            epd.sleep()
             logger.info("Display initialized and cleared")
             break
         except Exception as e:
@@ -739,10 +754,6 @@ def main():
 
         # Handle WiFi state changes even while waiting for cards
         if action == "wifi_setup":
-            try:
-                epd.init()
-            except Exception:
-                pass
             show_setup_screen(epd, config)
             while not os.path.exists(WIFI_CONNECTED_TRIGGER):
                 try:
@@ -761,10 +772,6 @@ def main():
             continue
 
         if action == "wifi_connected":
-            try:
-                epd.init()
-            except Exception:
-                pass
             show_splash_screen(epd, config)
             time.sleep(10)
             _no_cards_shown = False
@@ -937,10 +944,6 @@ def main():
             # WiFi connected — show splash screen with new IP, then resume cards
             if action == "wifi_connected":
                 logger.info("WiFi connected — showing splash with new IP")
-                try:
-                    epd.init()
-                except Exception:
-                    pass
                 show_splash_screen(epd, config)
                 time.sleep(10)  # Show IP for 10 seconds so user can see it
                 continue
@@ -948,10 +951,6 @@ def main():
             # WiFi setup mode — show setup instructions on display
             if action == "wifi_setup":
                 logger.info("WiFi setup mode — showing setup screen")
-                try:
-                    epd.init()
-                except Exception:
-                    pass
                 show_setup_screen(epd, config)
                 # Wait for WiFi to be configured again
                 while True:
