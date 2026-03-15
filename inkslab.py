@@ -872,7 +872,7 @@ def main():
         if deck.total > 0:
             show_splash_screen(epd, config)
             logger.info(f"Splash screen sent — waiting {EINK_RENDER_WAIT}s for e-ink render...")
-            time.sleep(30)
+            time.sleep(10)
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
             
