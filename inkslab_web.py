@@ -3295,9 +3295,9 @@ if __name__ == '__main__':
     # Note: failed connection attempts now clean up their profiles, so stale
     # profiles from bad passwords won't block re-entering setup mode.
     try:
-        if not wifi_manager.is_wifi_connected() and not wifi_manager.has_saved_wifi_profile():
+        if not wifi_manager.is_wifi_connected():
             _wifi_setup_mode = True
-            _logger.info("No WiFi profile found — entering setup mode")
+            _logger.info("No WiFi connection on boot — entering setup mode")
             wifi_manager.start_hotspot()
         else:
             _logger.info("WiFi configured — serving dashboard")
