@@ -1121,9 +1121,7 @@ def main():
 
                 # WiFi connected — show splash screen with new IP, then resume cards
                 if action == "wifi_connected":
-                    logger.info("WiFi connected — showing splash with new IP")
-                    show_splash_screen(epd, config)
-                    time.sleep(EINK_RENDER_WAIT)
+                    logger.info("WiFi connected — resuming cards")
                     continue
 
                 # WiFi setup mode — show setup instructions on display
