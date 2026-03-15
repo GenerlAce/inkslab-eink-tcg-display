@@ -1017,6 +1017,51 @@ def api_manga_search():
     except Exception as e:
         return jsonify({"results": [], "error": str(e)})
 
+@app.route('/api/metron/status')
+def api_metron_status():
+    """Check if Metron credentials are configured."""
+    creds_file = '/home/pi/.metron_credentials'
+    if not os.path.exists(creds_file):
+        return jsonify({'configured': False})
+    creds = {}
+    with open(creds_file) as f:
+        for line in f:
+            if '=' in line:
+                k, v = line.strip().split('=', 1)
+                creds[k.strip()] = v.strip()
+    username = creds.get('METRON_USERNAME', '')
+    configured = bool(username and creds.get('METRON_PASSWORD'))
+    return jsonify({'configured': configured, 'username': username if configured else ''})
+
+@app.route('/api/metron/save', methods=['POST'])
+def api_metron_save():
+    """Save Metron credentials to file. Never stored in config or logs."""
+    data = request.get_json(force=True) if request.data else {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    if not username or not password:
+        return jsonify({'ok': False, 'error': 'Username and password required'})
+    try:
+        creds_file = '/home/pi/.metron_credentials'
+        with open(creds_file, 'w') as f:
+            f.write(f'METRON_USERNAME={username}\n')
+            f.write(f'METRON_PASSWORD={password}\n')
+        os.chmod(creds_file, 0o600)
+        return jsonify({'ok': True, 'username': username})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+@app.route('/api/metron/clear', methods=['POST'])
+def api_metron_clear():
+    """Remove Metron credentials."""
+    creds_file = '/home/pi/.metron_credentials'
+    try:
+        if os.path.exists(creds_file):
+            os.remove(creds_file)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
 @app.route('/api/comics/search')
 def api_comics_search():
     """Search Metron for comic series."""
@@ -2248,6 +2293,22 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <button class="btn btn-primary btn-block" onclick="saveAutoUpdate()">Save Auto-Update Settings</button>
   </div>
   <div class="card">
+    <h3>Metron Comics Account</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
+    <div id="metron-status" style="margin-bottom:10px;"></div>
+    <div id="metron-form" style="display:none;">
+      <div class="form-group">
+        <label>Metron Username</label>
+        <input type="text" id="metron-username" placeholder="your username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Metron Password</label>
+        <input type="password" id="metron-password" placeholder="your password" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="saveMetronCreds()">Save Credentials</button>
+    </div>
+  </div>
+  <div class="card">
     <h3>Software Update</h3>
     <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD;cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
@@ -2389,7 +2450,7 @@ function showTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); }
   if (name === 'display') refreshStatus();
 }
@@ -2812,6 +2873,48 @@ function runUpdateNow(tcg, btn) {
   }).catch(function() {
     btn.disabled = false;
     btn.textContent = 'Run Now';
+  });
+}
+
+function loadMetronStatus() {
+  fetch(API + '/api/metron/status').then(r => r.json()).then(function(d) {
+    var statusEl = document.getElementById('metron-status');
+    var formEl = document.getElementById('metron-form');
+    if (!statusEl || !formEl) return;
+    if (d.configured) {
+      statusEl.innerHTML = '<div style="color:#6BCCBD;font-size:13px;">&#10003; Connected as <strong>' + esc(d.username) + '</strong> &nbsp;<button class="btn btn-secondary btn-sm" onclick="clearMetronCreds()" style="font-size:11px;">Disconnect</button></div>';
+      formEl.style.display = 'none';
+    } else {
+      statusEl.innerHTML = '<div style="color:#888;font-size:13px;">Not connected</div>';
+      formEl.style.display = 'block';
+    }
+  });
+}
+
+function saveMetronCreds() {
+  var username = document.getElementById('metron-username').value.trim();
+  var password = document.getElementById('metron-password').value.trim();
+  if (!username || !password) { showToast('Username and password required', 3000); return; }
+  fetch(API + '/api/metron/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: username, password: password})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Metron credentials saved!', 2000);
+      document.getElementById('metron-username').value = '';
+      document.getElementById('metron-password').value = '';
+      loadMetronStatus();
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown'), 3000);
+    }
+  });
+}
+
+function clearMetronCreds() {
+  if (!confirm('Disconnect Metron account? Comic downloads will stop working.')) return;
+  fetch(API + '/api/metron/clear', {method: 'POST'}).then(r => r.json()).then(function(d) {
+    if (d.ok) { showToast('Metron account disconnected', 2000); loadMetronStatus(); }
   });
 }
 
