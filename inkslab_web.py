@@ -406,7 +406,9 @@ def api_card_image(tcg, set_id, card_id):
         card_path = os.path.join(library, safe_set, safe_card + ext)
         if os.path.exists(card_path):
             mime = 'image/png' if ext == '.png' else 'image/jpeg'
-            return send_file(card_path, mimetype=mime)
+            resp = send_file(card_path, mimetype=mime)
+            resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return resp
     return '', 404
 
 

@@ -151,7 +151,28 @@
       }, 200);
     };
   }
-
+  function addHoverToBtn(btn) {
+    if (btn.dataset.hoverAdded) return;
+    btn.dataset.hoverAdded = '1';
+    btn.addEventListener('mouseenter', function(e) {
+      var row = btn.closest('.card-row');
+      if (!row) return;
+      var cb = row.querySelector('input[type=checkbox]');
+      if (!cb) return;
+      var onchange = cb.getAttribute('onchange') || '';
+      var match = onchange.match(/toggleCard\('([^']+)'\)/);
+      if (!match) return;
+      var cardId = match[1];
+      var setCards = btn.closest('.set-cards');
+      if (!setCards) return;
+      var setId = setCards.id.replace('set-', '');
+      getTcg(function(tcg) {
+        var src = '/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(cardId);
+        window.showThumbHover(e, src);
+      });
+    });
+    btn.addEventListener('mouseleave', window.hideThumbHover);
+  }
   function init() {
     var setsList = document.getElementById('sets-list');
     if (setsList) {
@@ -163,6 +184,18 @@
       document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
       document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });
     }
+    // Add hover preview to list view card names
+    var listObserver = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        mutation.addedNodes.forEach(function(node) {
+          if (node.nodeType !== 1) return;
+          var btns = node.querySelectorAll ? node.querySelectorAll('.card-preview-btn') : [];
+          btns.forEach(addHoverToBtn);
+          if (node.classList && node.classList.contains('card-preview-btn')) addHoverToBtn(node);
+        });
+      });
+    });
+    listObserver.observe(document.body, {childList: true, subtree: true});
     updateViewButtons();
     watchForSets();
   }
