@@ -178,8 +178,8 @@
     if (setsList) {
       var toggleDiv = document.createElement('div');
       toggleDiv.className = 'card';
-      toggleDiv.style.cssText = 'padding:8px 12px;margin-bottom:8px;';
-      toggleDiv.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:#6BCCBD;font-size:13px;">Collection View</span><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm" style="font-size:12px;">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="font-size:12px;">Grid</button></div></div>';
+      toggleDiv.style.cssText = 'padding:16px;margin-bottom:12px;';
+      toggleDiv.innerHTML = '<h3 style="margin:0 0 8px 0;">Collection View</h3><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;color:#6BCCBD;">Choose display style</span><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm" style="font-size:12px;">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="font-size:12px;">Grid</button></div></div>';
       setsList.parentNode.insertBefore(toggleDiv, setsList);
       document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
       document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });

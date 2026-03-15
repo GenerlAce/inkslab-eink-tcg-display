@@ -2407,15 +2407,17 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     </div>
     <div id="search-results"></div>
   </div>
-  <div class="card">
-    <h3>Filter by Rarity</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
-    <div class="rarity-filter-actions">
-      <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(true)">Select All</button>
-      <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(false)">Deselect All</button>
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Filter by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:#6BCCBD;">▼ Show</span></h3>
+    <div id="rarity-filter-body" style="display:none;">
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
+      <div class="rarity-filter-actions">
+        <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(true)">Select All</button>
+        <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(false)">Deselect All</button>
+      </div>
+      <div class="rarity-filter-wrap" id="rarity-chips"></div>
+      <div id="rarity-result" style="color:#6BCCBD;font-size:12px;margin-top:6px"></div>
     </div>
-    <div class="rarity-filter-wrap" id="rarity-chips"></div>
-    <div id="rarity-result" style="color:#6BCCBD;font-size:12px;margin-top:6px"></div>
   </div>
   <div id="sets-list"></div>
 </div>
@@ -3211,6 +3213,19 @@ function clearCollection() {
 
 // --- Rarity filtering ---
 var _rarityData = [];
+
+function toggleRarityFilter() {
+  var body = document.getElementById('rarity-filter-body');
+  var icon = document.getElementById('rarity-toggle-icon');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    icon.textContent = '▲ Hide';
+    loadRarities();
+  } else {
+    body.style.display = 'none';
+    icon.textContent = '▼ Show';
+  }
+}
 
 function loadRarities() {
   var activeTcg = _lastStatus.tcg || '';
