@@ -1,5 +1,20 @@
 # Card images (too large for git - download with scripts/download_cards.py)
 pokemon_cards/
+mtg_cards/
+lorcana_cards/
+manga_covers/
+comic_covers/
+custom_cards/
+
+# Credentials (never commit these)
+.metron_credentials
+*.credentials
+
+# Runtime files
+/tmp/inkslab_*
+inkslab_config.json
+inkslab_collection.json
+inkslab_last_update.json
 
 # Python
 __pycache__/
