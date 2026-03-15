@@ -2735,7 +2735,7 @@ function loadSets() {
     if (!sets.length) { el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
     // Sort alphabetically for manga, otherwise keep default order
     var activeTcg = _lastStatus.tcg || '';
-    if (activeTcg === 'manga') sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
+    sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
     el.innerHTML = sets.map(s => `
       <div class="set-item">
         <div class="set-header" onclick="toggleSet('${esc(s.id)}')">
