@@ -41,6 +41,8 @@ TCG_REGISTRY = {
     "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
     "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
     "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
+    "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
     "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
@@ -614,6 +616,30 @@ def create_slab_layout(img_path, master_index, header_mode="normal"):
             draw.text(((DISPLAY_WIDTH - w1) / 2, start_y), line1, font=font_set, fill=text_color)
             draw.text(((DISPLAY_WIDTH - w2) / 2, start_y + h1 + gap), line2, font=font_stats, fill=text_color)
 
+        # If no header space, draw overlay bar at top of image
+        if y_pos <= 30:
+            try:
+                font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 13)
+                font_stats = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
+            except IOError:
+                font_set = ImageFont.load_default()
+                font_stats = ImageFont.load_default()
+            line1 = info["set_info"]
+            line2 = info["stats"]
+            bar_h = 48
+            bar = Image.new("RGB", (DISPLAY_WIDTH, bar_h), bg_color)
+            canvas.paste(bar, (0, 0))
+            bar.close()
+            w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
+            w2 = draw.textbbox((0, 0), line2, font=font_stats)[2]
+            if w1 > 380:
+                try:
+                    font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
+                    w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
+                except IOError:
+                    pass
+            draw.text(((DISPLAY_WIDTH - w1) / 2, 4), line1, font=font_set, fill=text_color)
+            draw.text(((DISPLAY_WIDTH - w2) / 2, 22), line2, font=font_stats, fill=text_color)
         return canvas, info
 
 

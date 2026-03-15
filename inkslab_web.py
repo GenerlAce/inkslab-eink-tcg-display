@@ -28,6 +28,7 @@ VERSION = "1.0.0"
 # --- PATHS ---
 CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
+LAST_UPDATE_FILE = "/home/pi/inkslab_last_update.json"
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
@@ -39,6 +40,8 @@ TCG_REGISTRY = {
     "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
     "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
     "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
+    "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
     "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
@@ -54,6 +57,8 @@ DEFAULTS = {
     "day_end": 23,
     "color_saturation": 2.5,
     "collection_only": False,
+    "auto_update_sources": [],
+    "auto_update_day": 0,
     "slab_header_mode": "normal",
 }
 
@@ -72,7 +77,7 @@ _wifi_connect_lock = threading.Lock()
 _config_lock = threading.Lock()
 _collection_lock = threading.Lock()
 _custom_lock = threading.Lock()
-MIN_FREE_SPACE_MB = 50  # Refuse writes if less than this much free space
+MIN_FREE_SPACE_MB = 500  # Refuse writes if less than this much free space
 
 
 def _atomic_write_json(path, data, indent=None):
@@ -405,7 +410,9 @@ def api_card_image(tcg, set_id, card_id):
         card_path = os.path.join(library, safe_set, safe_card + ext)
         if os.path.exists(card_path):
             mime = 'image/png' if ext == '.png' else 'image/jpeg'
-            return send_file(card_path, mimetype=mime)
+            resp = send_file(card_path, mimetype=mime)
+            resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return resp
     return '', 404
 
 
@@ -925,6 +932,20 @@ def api_download_start():
         if tcg == "mtg" and since:
             cmd.extend(["--since", str(since)])
 
+        if tcg == "manga":
+            manga_id = data.get("manga_id")
+            manga_title = data.get("manga_title")
+            if manga_id and manga_title:
+                cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_manga_series.py"),
+                       "--id", manga_id, "--title", manga_title]
+
+        if tcg == "comics":
+            comic_id = data.get("comic_id")
+            comic_title = data.get("comic_title")
+            if comic_id and comic_title:
+                cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_comic_series.py"),
+                       "--id", str(comic_id), "--title", comic_title]
+
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -961,6 +982,165 @@ def api_download_stop():
             return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "No download running"})
 
+@app.route('/api/delete_series', methods=['POST'])
+def api_delete_series():
+    """Delete a specific series folder from the active TCG library."""
+    data = request.get_json(force=True) if request.data else {}
+    tcg = data.get('tcg')
+    set_id = data.get('set_id')
+    if not tcg or not set_id:
+        return jsonify({'ok': False, 'error': 'Missing tcg or set_id'})
+    library = TCG_LIBRARIES.get(tcg)
+    if not library:
+        return jsonify({'ok': False, 'error': 'Unknown TCG'})
+    safe_set = os.path.basename(set_id)
+    series_path = os.path.join(library, safe_set)
+    real = os.path.realpath(series_path)
+    if not real.startswith(os.path.realpath(library)):
+        return jsonify({'ok': False, 'error': 'Invalid path'})
+    if not os.path.isdir(series_path):
+        return jsonify({'ok': False, 'error': 'Series not found'})
+    try:
+        shutil.rmtree(series_path)
+        # Remove from master_index.json if present
+        index_path = os.path.join(library, 'master_index.json')
+        if os.path.exists(index_path):
+            try:
+                with open(index_path) as f:
+                    idx = json.load(f)
+                # Try both safe dirname and original name
+                idx.pop(safe_set, None)
+                # Also remove any key whose folder name matches
+                to_remove = [k for k in idx if os.path.basename(k) == safe_set or k == safe_set]
+                for k in to_remove:
+                    idx.pop(k, None)
+                with open(index_path, 'w') as f:
+                    json.dump(idx, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        _cache_invalidate('sets_' + tcg, 'rarities_' + tcg)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+@app.route('/api/manga/search')
+def api_manga_search():
+    """Search MangaDex for manga titles."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({"results": []})
+    try:
+        import requests as req
+        params = {
+            "title": query,
+            "limit": 10,
+            "contentRating[]": ["safe", "suggestive", "erotica"],
+            "order[relevance]": "desc",
+        }
+        r = req.get("https://api.mangadex.org/manga", params=params, timeout=10,
+                    headers={"User-Agent": "InkSlab/1.0"})
+        r.raise_for_status()
+        data = r.json()
+        results = []
+        for manga in data.get("data", []):
+            attrs = manga.get("attributes", {})
+            titles = attrs.get("title", {})
+            title = (titles.get("en") or titles.get("ja-ro") or
+                     titles.get("ja") or next(iter(titles.values()), "Unknown"))
+            results.append({
+                "id": manga["id"],
+                "title": title,
+                "year": str(attrs.get("year", "")) if attrs.get("year") else "",
+                "status": attrs.get("status", "").title(),
+                "demographic": (attrs.get("publicationDemographic") or "").title(),
+            })
+        return jsonify({"results": results})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
+
+@app.route('/api/metron/status')
+def api_metron_status():
+    """Check if Metron credentials are configured."""
+    creds_file = '/home/pi/.metron_credentials'
+    if not os.path.exists(creds_file):
+        return jsonify({'configured': False})
+    creds = {}
+    with open(creds_file) as f:
+        for line in f:
+            if '=' in line:
+                k, v = line.strip().split('=', 1)
+                creds[k.strip()] = v.strip()
+    username = creds.get('METRON_USERNAME', '')
+    configured = bool(username and creds.get('METRON_PASSWORD'))
+    return jsonify({'configured': configured, 'username': username if configured else ''})
+
+@app.route('/api/metron/save', methods=['POST'])
+def api_metron_save():
+    """Save Metron credentials to file. Never stored in config or logs."""
+    data = request.get_json(force=True) if request.data else {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    if not username or not password:
+        return jsonify({'ok': False, 'error': 'Username and password required'})
+    try:
+        creds_file = '/home/pi/.metron_credentials'
+        with open(creds_file, 'w') as f:
+            f.write(f'METRON_USERNAME={username}\n')
+            f.write(f'METRON_PASSWORD={password}\n')
+        os.chmod(creds_file, 0o600)
+        return jsonify({'ok': True, 'username': username})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+@app.route('/api/metron/clear', methods=['POST'])
+def api_metron_clear():
+    """Remove Metron credentials."""
+    creds_file = '/home/pi/.metron_credentials'
+    try:
+        if os.path.exists(creds_file):
+            os.remove(creds_file)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+@app.route('/api/comics/search')
+def api_comics_search():
+    """Search Metron for comic series."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({"results": []})
+    try:
+        import requests as req
+        creds = {}
+        creds_file = '/home/pi/.metron_credentials'
+        if os.path.exists(creds_file):
+            with open(creds_file) as f:
+                for line in f:
+                    if '=' in line:
+                        k, v = line.strip().split('=', 1)
+                        creds[k.strip()] = v.strip()
+        username = creds.get('METRON_USERNAME')
+        password = creds.get('METRON_PASSWORD')
+        if not username or not password:
+            return jsonify({"results": [], "error": "Metron credentials not configured"})
+        auth = (username, password)
+        headers = {'User-Agent': 'InkSlab/1.0 (https://github.com/costamesatechsolutions/inkslab-eink-tcg-display)', 'Accept': 'application/json'}
+        r = req.get('https://metron.cloud/api/series/', params={'name': query, 'page_size': 10}, timeout=10, headers=headers, auth=auth)
+        r.raise_for_status()
+        data = r.json()
+        results = []
+        for series in data.get('results', []):
+            results.append({
+                'id': series['id'],
+                'title': series.get('series', series.get('name', 'Unknown')),
+                'year': str(series.get('year_began', '')) if series.get('year_began') else '',
+                'publisher': '',
+                'issue_count': series.get('issue_count', '?'),
+                'status': '',
+            })
+        return jsonify({"results": results})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
 
 @app.route('/api/download/status')
 def api_download_status():
@@ -1345,15 +1525,25 @@ def api_factory_reset():
     except Exception as e:
         errors.append(f"WiFi cleanup: {e}")
 
-    # 2. Delete all downloaded card data
+    # 2. Delete card data (except kept libraries)
+    req_data = request.get_json(force=True) if request.data else {}
+    keep_cards = req_data.get("keep_cards", [])
     for tcg_key, tcg_info in TCG_REGISTRY.items():
+        if tcg_key in keep_cards:
+            continue
         card_path = tcg_info["path"]
         if os.path.isdir(card_path):
             try:
                 shutil.rmtree(card_path)
             except Exception as e:
                 errors.append(f"Delete {tcg_key}: {e}")
-
+    # 2b. Delete Metron credentials
+    for creds_f in ["/home/pi/.metron_credentials", LAST_UPDATE_FILE]:
+        if os.path.exists(creds_f):
+            try:
+                os.remove(creds_f)
+            except Exception as e:
+                errors.append(f"Delete {creds_f}: {e}")
     # 3. Reset config and collection to defaults
     for f in [CONFIG_FILE, COLLECTION_FILE]:
         try:
@@ -2050,9 +2240,9 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 
 <div class="tabs">
   <div class="tab active" data-tab="display" onclick="showTab('display')">Display</div>
-  <div class="tab" data-tab="settings" onclick="showTab('settings')">Settings</div>
   <div class="tab" data-tab="collection" onclick="showTab('collection')">Collection</div>
   <div class="tab" data-tab="downloads" onclick="showTab('downloads')">Downloads</div>
+  <div class="tab" data-tab="settings" onclick="showTab('settings')">Settings</div>
 </div>
 
 <div class="content">
@@ -2148,6 +2338,28 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
   </div>
   <div class="card">
+    <h3>Auto-Update Sources</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Automatically check for new cards weekly. Check the sources you want to keep updated.</p>
+    <div id="auto-update-list" style="margin-bottom:12px;"></div>
+    <button class="btn btn-primary btn-block" onclick="saveAutoUpdate()">Save Auto-Update Settings</button>
+  </div>
+  <div class="card">
+    <h3>Metron Comics Account</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
+    <div id="metron-status" style="margin-bottom:10px;"></div>
+    <div id="metron-form" style="display:none;">
+      <div class="form-group">
+        <label>Metron Username</label>
+        <input type="text" id="metron-username" placeholder="your username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Metron Password</label>
+        <input type="password" id="metron-password" placeholder="your password" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="saveMetronCreds()">Save Credentials</button>
+    </div>
+  </div>
+  <div class="card">
     <h3>Software Update</h3>
     <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD;cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
@@ -2166,7 +2378,14 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
     <h3 style="color:#ff6b6b">Prepare for New Owner</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Wipes everything (WiFi, cards, settings) and shows a welcome screen on the display. After it finishes, unplug the unit — it's ready to ship.</p>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
+    <div style="margin-bottom:12px;font-size:12px;color:#D8E6E4;">Keep these card libraries:<br>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-pokemon" checked> Pokemon</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-mtg" checked> Magic: The Gathering</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-lorcana" checked> Disney Lorcana</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-manga" checked> Manga</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-comics" checked> Comics</label>
+    </div>
     <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Prepare for New Owner</button>
   </div>
 </div>
@@ -2188,15 +2407,17 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     </div>
     <div id="search-results"></div>
   </div>
-  <div class="card">
-    <h3>Filter by Rarity</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
-    <div class="rarity-filter-actions">
-      <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(true)">Select All</button>
-      <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(false)">Deselect All</button>
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Filter by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:#6BCCBD;">▼ Show</span></h3>
+    <div id="rarity-filter-body" style="display:none;">
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
+      <div class="rarity-filter-actions">
+        <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(true)">Select All</button>
+        <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(false)">Deselect All</button>
+      </div>
+      <div class="rarity-filter-wrap" id="rarity-chips"></div>
+      <div id="rarity-result" style="color:#6BCCBD;font-size:12px;margin-top:6px"></div>
     </div>
-    <div class="rarity-filter-wrap" id="rarity-chips"></div>
-    <div id="rarity-result" style="color:#6BCCBD;font-size:12px;margin-top:6px"></div>
   </div>
   <div id="sets-list"></div>
 </div>
@@ -2217,28 +2438,43 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
         <button class="btn btn-secondary" id="btn-dl-mtg-since" onclick="startDownload('mtg', document.getElementById('dl-since').value)" style="flex:1">Go</button>
       </div>
     </div>
-    <button class="btn btn-danger btn-block" id="btn-dl-stop" style="display:none" onclick="stopDownload()">Stop Download</button>
-  </div>
-  <div class="card">
-    <h3>Download Log</h3>
-    <div id="dl-status" style="font-size:12px;margin-bottom:8px;color:#6BCCBD">Idle</div>
-    <div id="dl-log" class="log-box">No download running.</div>
-  </div>
-  <div class="card">
-    <h3>Custom Images</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Upload your own images. Each folder is a set.</p>
-    <div class="flex-row" style="margin-bottom:8px">
-      <input type="text" id="custom-folder-name" placeholder="New folder name..." style="flex:2;background:#1F333F;color:#D8E6E4;border:1px solid #36A5CA44;border-radius:4px;padding:8px;font-size:14px">
-      <button class="btn btn-primary" onclick="createCustomFolder()" style="flex:1">Create</button>
+    <div id="dl-manga-search" style="display:none;margin-top:12px;">
+      <div style="font-weight:600;margin-bottom:6px;color:#FF6B6B;">Search Manga Series</div>
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px;">Search for a specific manga and download all its volume covers.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="mangaSearch()"
+          style="padding:8px 14px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+      </div>
+    <div id="dl-comics-search" style="display:none;margin-top:12px;">
+      <div style="font-weight:600;margin-bottom:6px;color:#F97316;">Search Comic Series</div>
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px;">Search for a specific comic series and download all its covers.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="comicSearch()"
+          style="padding:8px 14px;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+      </div>
+      <div id="comics-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
-    <div id="custom-folders"></div>
+      <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+    </div>
+  </div>
+
+<div class="card" id="dl-status-card">
+    <h3>Download Status</h3>
+    <div id="dl-status" style="color:#6BCCBD;font-size:13px;margin-bottom:8px;">Idle</div>
+    <pre id="dl-log" style="background:#0a1a22;color:#6BCCBD;font-size:11px;padding:10px;border-radius:6px;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+    <div style="margin-top:8px;display:flex;gap:8px;">
+      <button class="btn btn-secondary btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;">Stop Download</button>
+    </div>
   </div>
   <div class="card">
-    <h3>Delete Data</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Remove all downloaded card images for a TCG.</p>
-    <div id="delete-buttons" class="flex-row" style="flex-wrap:wrap;gap:6px"></div>
+    <h3>Delete Entire Library</h3>
+    <div id="delete-buttons"></div>
   </div>
-</div>
+</div><!-- /tab-downloads -->
 
 </div><!-- /content -->
 
@@ -2274,7 +2510,7 @@ function showTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); }
   if (name === 'display') refreshStatus();
 }
@@ -2299,6 +2535,100 @@ var _rapidPoll = null;
 var _pendingAction = false;
 var _mainPoll = null;
 var _countdownTimer = null;
+
+function mangaSearch() {
+  var q = document.getElementById('manga-search-input').value.trim();
+  if (!q) return;
+  var resultsEl = document.getElementById('manga-search-results');
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = '<div style="padding:10px;color:#888;">Searching...</div>';
+  fetch(API + '/api/manga/search?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(function(data) {
+      if (!data.results || data.results.length === 0) {
+        resultsEl.innerHTML = '<div style="padding:10px;color:#888;">No results found.</div>';
+        return;
+      }
+      resultsEl.innerHTML = data.results.map(function(m) {
+        var info = [m.year, m.status, m.demographic].filter(Boolean).join(' · ');
+        return '<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div><a href="https://mangadex.org/title/' + m.id + '" target="_blank" style="font-weight:600;color:#FF6B6B;text-decoration:none;">' + esc(m.title) + '</a></div>' +
+          '<div style="font-size:12px;color:#888;">' + info + '</div></div>' +
+          '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '" ' +
+          'style="padding:6px 12px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Download All Covers</button>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<div style="padding:10px;color:#c00;">Search failed. Check connection.</div>';
+    });
+}
+
+function mangaDownloadSeries(btn) {
+  var id = btn.getAttribute('data-id');
+  var title = btn.getAttribute('data-title');
+  fetch(API + '/api/download/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: 'manga', manga_id: id, manga_title: title})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Downloading covers for ' + title + '!', 3000);
+      document.getElementById('manga-search-results').style.display = 'none';
+      document.getElementById('manga-search-input').value = '';
+      pollDownload();
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown error'), 4000);
+    }
+  });
+}
+
+function comicSearch() {
+  var q = document.getElementById('comics-search-input').value.trim();
+  if (!q) return;
+  var resultsEl = document.getElementById('comics-search-results');
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = '<div style="padding:10px;color:#888;">Searching...</div>';
+  fetch(API + '/api/comics/search?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(function(data) {
+      if (!data.results || data.results.length === 0) {
+        resultsEl.innerHTML = '<div style="padding:10px;color:#888;">No results found.</div>';
+        return;
+      }
+      resultsEl.innerHTML = data.results.map(function(m) {
+        var info = [m.issue_count + ' issues', '#' + m.id].filter(Boolean).join(' · ');
+        return '<div style="padding:10px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div><a href="https://metron.cloud/series/' + m.id + '/" target="_blank" style="font-weight:600;color:#F97316;text-decoration:none;">' + esc(m.title) + '</a></div>' +
+          '<div style="font-size:12px;color:#888;">' + esc(info) + '</div></div>' +
+          '<button onclick="comicDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '" ' +
+          'style="padding:6px 12px;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Download All</button>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<div style="padding:10px;color:#c00;">Search failed. Check connection.</div>';
+    });
+}
+
+function comicDownloadSeries(btn) {
+  var id = btn.getAttribute('data-id');
+  var title = btn.getAttribute('data-title');
+  fetch(API + '/api/download/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: 'comics', comic_id: id, comic_title: title})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Downloading covers for ' + title + '!', 3000);
+      document.getElementById('comics-search-results').style.display = 'none';
+      document.getElementById('comics-search-input').value = '';
+      pollDownload();
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown error'), 4000);
+    }
+  });
+}
 
 function startMainPoll() {
   if (_mainPoll) clearInterval(_mainPoll);
@@ -2541,6 +2871,120 @@ function switchTCG(tcg, activeBtn) {
 }
 
 // --- Settings ---
+function loadAutoUpdateStatus() {
+  fetch(API + '/api/auto_update/status').then(r => r.json()).then(function(data) {
+    var el = document.getElementById('auto-update-list');
+    if (!el) return;
+    var html = '<div style="font-size:12px;color:#888;margin-bottom:10px;">Checked sources run automatically every week.</div>';
+    Object.entries(data).forEach(function(entry) {
+      var tcg = entry[0], info = entry[1];
+      var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1F333F;">';
+      html += '<div>';
+      var descriptions = {
+        'pokemon': 'Full card list from PokeAPI',
+        'mtg': 'Full card list from Scryfall',
+        'lorcana': 'Full card list from Lorcast',
+        'manga': 'Top 500 popular titles from MangaDex',
+        'comics': 'Weekly new releases from Metron'
+      };
+      var desc = descriptions[tcg] || '';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<input type="checkbox" id="au-' + tcg + '" ' + (info.enabled ? 'checked' : '') + '>';
+      html += '<label for="au-' + tcg + '" style="color:#D8E6E4;font-size:13px;">' + esc(info.name) + '</label>';
+      html += '</div>';
+      html += '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;margin-left:24px;">' + desc + '</div>';
+      html += '<div style="font-size:11px;color:#888;margin-top:1px;margin-left:24px;">Last updated: ' + lastStr + '</div>';
+      html += '</div>';
+      html += '<button class="btn btn-secondary btn-sm" data-tcg="' + tcg + '" style="font-size:11px;" onclick="runUpdateNow(this.dataset.tcg, this)">Run Now</button>';
+      html += '</div>';
+    });
+    el.innerHTML = html || '<div style="color:#6BCCBD;font-size:12px;">No sources available</div>';
+  }).catch(function() {
+    var el = document.getElementById('auto-update-list');
+    if (el) el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;">Failed to load</div>';
+  });
+}
+
+function saveAutoUpdate() {
+  var sources = [];
+  document.querySelectorAll('[id^="au-"]').forEach(function(cb) {
+    if (cb.checked) sources.push(cb.id.replace('au-', ''));
+  });
+  fetch(API + '/api/auto_update/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sources: sources})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) showToast('Auto-update settings saved!', 2000);
+  });
+}
+
+function runUpdateNow(tcg, btn) {
+  if (!confirm('Run update for ' + tcg.toUpperCase() + ' now? This will start a download.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  fetch(API + '/api/auto_update/run_now', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: tcg})
+  }).then(r => r.json()).then(function(d) {
+    btn.disabled = false;
+    btn.textContent = 'Run Now';
+    if (d.ok) {
+      showToast(tcg.toUpperCase() + ' update started!', 2000);
+      showTab('downloads');
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown'), 3000);
+    }
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Run Now';
+  });
+}
+
+function loadMetronStatus() {
+  fetch(API + '/api/metron/status').then(r => r.json()).then(function(d) {
+    var statusEl = document.getElementById('metron-status');
+    var formEl = document.getElementById('metron-form');
+    if (!statusEl || !formEl) return;
+    if (d.configured) {
+      statusEl.innerHTML = '<div style="color:#6BCCBD;font-size:13px;">&#10003; Connected as <strong>' + esc(d.username) + '</strong> &nbsp;<button class="btn btn-secondary btn-sm" onclick="clearMetronCreds()" style="font-size:11px;">Disconnect</button></div>';
+      formEl.style.display = 'none';
+    } else {
+      statusEl.innerHTML = '<div style="color:#888;font-size:13px;">Not connected</div>';
+      formEl.style.display = 'block';
+    }
+  });
+}
+
+function saveMetronCreds() {
+  var username = document.getElementById('metron-username').value.trim();
+  var password = document.getElementById('metron-password').value.trim();
+  if (!username || !password) { showToast('Username and password required', 3000); return; }
+  fetch(API + '/api/metron/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: username, password: password})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Metron credentials saved!', 2000);
+      document.getElementById('metron-username').value = '';
+      document.getElementById('metron-password').value = '';
+      loadMetronStatus();
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown'), 3000);
+    }
+  });
+}
+
+function clearMetronCreds() {
+  if (!confirm('Disconnect Metron account? Comic downloads will stop working.')) return;
+  fetch(API + '/api/metron/clear', {method: 'POST'}).then(r => r.json()).then(function(d) {
+    if (d.ok) { showToast('Metron account disconnected', 2000); loadMetronStatus(); }
+  });
+}
+
 function loadSettings() {
   fetch(API + '/api/config').then(r => r.json()).then(c => {
     document.getElementById('cfg-tcg').value = c.active_tcg;
@@ -2602,11 +3046,16 @@ function loadWifiInfo() {
 }
 
 function factoryReset(btn) {
-  if (!confirm('PREPARE FOR NEW OWNER\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL downloaded cards\\n- Reset all settings\\n- Show a welcome screen on the display\\n\\nAfter it finishes, wait ~30 seconds for the display to update, then unplug. The unit is ready to ship.\\n\\nAre you sure?')) return;
+  var keepList = [];
+  ['pokemon','mtg','lorcana','manga','comics'].forEach(function(t) {
+    var cb = document.getElementById('keep-' + t);
+    if (cb && cb.checked) keepList.push(t);
+  });
+  if (!confirm('PREPARE FOR NEW OWNER\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL unchecked card libraries\\n- Reset all settings\\n- Show a welcome screen on the display\\n\\nAfter it finishes, wait ~30 seconds for the display to update, then unplug. The unit is ready to ship.\\n\\nAre you sure?')) return;
   if (!confirm('This cannot be undone. Continue?')) return;
   btn.disabled = true;
   btn.textContent = 'Resetting...';
-  fetch(API + '/api/factory_reset', {method:'POST'}).then(r => r.json()).then(function(d) {
+  fetch(API + '/api/factory_reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({keep_cards: keepList})}).then(r => r.json()).then(function(d) {
     if (d.ok) {
       showToast('Done! Wait ~30s for the display to update, then unplug to ship.', 8000);
       document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Ready to ship</strong> — Wait for the display to update, then unplug.';
@@ -2632,11 +3081,53 @@ function changeWifi() {
 }
 
 // --- Collection ---
+var _deleteConfirmId = null;
+function deleteSeriesStep(setId, name) {
+  var btn = document.getElementById('delbtn-' + setId);
+  if (!btn) return;
+  if (_deleteConfirmId === setId) {
+    // Second click - confirm delete
+    var tcg = _lastStatus.tcg || '';
+    fetch(API + '/api/delete_series', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg, set_id: setId})})
+      .then(r => r.json()).then(function(d) {
+        if (d.ok) {
+          showToast('Deleted: ' + name, 2000);
+          _deleteConfirmId = null;
+          loadSets();
+        } else {
+          showToast('Error: ' + (d.error || 'Unknown'), 3000);
+        }
+      });
+  } else {
+    // First click - turn red
+    if (_deleteConfirmId) {
+      var prev = document.getElementById('delbtn-' + _deleteConfirmId);
+      if (prev) { prev.style.background = '#1F333F'; prev.style.color = '#6BCCBD'; prev.textContent = 'Delete'; }
+    }
+    _deleteConfirmId = setId;
+    btn.style.background = '#ff6b6b';
+    btn.style.color = '#fff';
+    btn.textContent = 'Confirm?';
+    // Auto-reset after 4 seconds
+    setTimeout(function() {
+      if (_deleteConfirmId === setId) {
+        _deleteConfirmId = null;
+        btn.style.background = '#1F333F';
+        btn.style.color = '#6BCCBD';
+        btn.textContent = 'Delete';
+      }
+    }, 4000);
+  }
+}
+
 function loadSets() {
   const el = document.getElementById('sets-list');
   el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">Loading sets...</div>';
   fetch(API + '/api/sets').then(r => r.json()).then(sets => {
     if (!sets.length) { el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
+    // Sort alphabetically for manga, otherwise keep default order
+    var activeTcg = _lastStatus.tcg || '';
+    sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
     el.innerHTML = sets.map(s => `
       <div class="set-item">
         <div class="set-header" onclick="toggleSet('${esc(s.id)}')">
@@ -2644,7 +3135,7 @@ function loadSets() {
             <span class="set-name">${esc(s.name)}</span>
             ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
           </span>
-          <span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span>
+          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" onclick="event.stopPropagation();deleteSeriesStep('${esc(s.id)}','${esc(s.name)}')" style="padding:2px 8px;border:none;border-radius:4px;background:#1F333F;color:#6BCCBD;font-size:11px;cursor:pointer;">Delete</button></span>
         </div>
         <div class="set-cards" id="set-${esc(s.id)}"></div>
       </div>
@@ -2701,7 +3192,15 @@ function toggleSetAll(setId, owned) {
   fetch(API + '/api/collection/toggle_set', {method:'POST', body: JSON.stringify({set_id: setId, owned: owned})})
     .then(() => {
       const el = document.getElementById('set-' + setId);
+      // Update list view checkboxes
       el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = owned);
+      // Update grid view thumbnails
+      el.querySelectorAll('.grid-thumb').forEach(function(img) {
+        var cardId = img.id.replace('gthumb-', '');
+        var check = document.getElementById('gcheck-' + cardId);
+        if (owned) { img.classList.add('owned'); if (check) check.classList.add('show'); }
+        else { img.classList.remove('owned'); if (check) check.classList.remove('show'); }
+      });
     });
 }
 
@@ -2713,7 +3212,24 @@ function clearCollection() {
 // --- Rarity filtering ---
 var _rarityData = [];
 
+function toggleRarityFilter() {
+  var body = document.getElementById('rarity-filter-body');
+  var icon = document.getElementById('rarity-toggle-icon');
+  if (body.style.display === 'none') {
+    body.style.display = 'block';
+    icon.textContent = '▲ Hide';
+    loadRarities();
+  } else {
+    body.style.display = 'none';
+    icon.textContent = '▼ Show';
+  }
+}
+
 function loadRarities() {
+  var activeTcg = _lastStatus.tcg || '';
+  var raritySection = document.getElementById('rarity-chips') && document.getElementById('rarity-chips').closest('.card');
+  if (raritySection) raritySection.style.display = activeTcg === 'manga' ? 'none' : '';
+  if (activeTcg === 'manga') return;
   fetch(API + '/api/rarities').then(function(r) { return r.json(); }).then(function(rarities) {
     _rarityData = rarities;
     renderRarityChips();
@@ -3235,6 +3751,11 @@ function buildDynamicUI(registry) {
   // Show MTG since-year filter only if MTG is in the registry
   var mtgSince = document.getElementById('dl-mtg-since');
   if (mtgSince) mtgSince.style.display = registry.mtg ? 'block' : 'none';
+  // Manga series search
+  var mangaSearch = document.getElementById('dl-manga-search');
+  if (mangaSearch) mangaSearch.style.display = registry.manga ? 'block' : 'none';
+  var comicsSearch = document.getElementById('dl-comics-search');
+  if (comicsSearch) comicsSearch.style.display = registry.comics ? 'block' : 'none';
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
@@ -3272,6 +3793,8 @@ function buildDynamicUI(registry) {
   });
 })();
 </script>
+<script src="/static/collection_view.js"></script>
+<script src="/static/delete_library.js"></script>
 </body>
 </html>"""
 
@@ -3283,11 +3806,129 @@ def dashboard():
     return DASHBOARD_HTML
 
 
+# --- Auto-update background thread ---
+import datetime
+
+def _run_auto_updates():
+    """Background thread: check weekly and run enabled downloaders."""
+    import time as _time
+    import logging as _logging
+    _tlog = _logging.getLogger(__name__)
+    _time.sleep(5)  # brief startup delay
+    while True:
+        try:
+            config = load_config()
+            sources = config.get("auto_update_sources", [])
+            if sources:
+                now = datetime.datetime.now()
+                last_times = {}
+                if os.path.exists(LAST_UPDATE_FILE):
+                    try:
+                        with open(LAST_UPDATE_FILE) as f:
+                            last_times = json.load(f)
+                    except Exception:
+                        pass
+                for tcg in sources:
+                    last_str = last_times.get(tcg)
+                    run_it = not last_str
+                    if not run_it and last_str:
+                        try:
+                            last_dt = datetime.datetime.fromisoformat(last_str)
+                            if (now - last_dt).days >= 7:
+                                run_it = True
+                        except Exception:
+                            run_it = True
+                    if run_it:
+                        reg = TCG_REGISTRY.get(tcg)
+                        if not reg or not reg.get("download_script"):
+                            continue
+                        if not _has_disk_space():
+                            _tlog.warning(f"Auto-update: skipping {tcg} - low disk space")
+                            continue
+                        if not _has_disk_space():
+                            _tlog.warning(f"Auto-update: skipping {tcg} - low disk space")
+                            continue
+                        _tlog.info(f"Auto-update: running {tcg} downloader")
+                        cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
+                        try:
+                            subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
+                            last_times[tcg] = now.isoformat()
+                            with open(LAST_UPDATE_FILE, "w") as f:
+                                json.dump(last_times, f)
+                            _tlog.info(f"Auto-update: {tcg} complete")
+                        except Exception as e:
+                            _tlog.error(f"Auto-update {tcg} failed: {e}")
+        except Exception as e:
+            _tlog.error(f"Auto-update thread error: {e}")
+        _time.sleep(3600)  # check every hour
+
+@app.route('/api/auto_update/status')
+def api_auto_update_status():
+    """Return last update times and configured sources."""
+    last_times = {}
+    if os.path.exists(LAST_UPDATE_FILE):
+        try:
+            with open(LAST_UPDATE_FILE) as f:
+                last_times = json.load(f)
+        except Exception:
+            pass
+    config = load_config()
+    sources = config.get('auto_update_sources', [])
+    result = {}
+    for tcg, info in TCG_REGISTRY.items():
+        if not info.get('download_script'):
+            continue
+        result[tcg] = {
+            'name': info['name'],
+            'enabled': tcg in sources,
+            'last_update': last_times.get(tcg, None),
+        }
+    return jsonify(result)
+
+@app.route('/api/auto_update/save', methods=['POST'])
+def api_auto_update_save():
+    """Save auto-update source selection."""
+    data = request.get_json(force=True) if request.data else {}
+    sources = data.get('sources', [])
+    config = load_config()
+    config['auto_update_sources'] = sources
+    _atomic_write_json(CONFIG_FILE, config, indent=2)
+    return jsonify({'ok': True})
+
+@app.route('/api/auto_update/run_now', methods=['POST'])
+def api_auto_update_run_now():
+    """Manually trigger update for a specific TCG."""
+    global _download_proc, _download_tcg, _download_log_fh
+    data = request.get_json(force=True) if request.data else {}
+    tcg = data.get('tcg')
+    reg = TCG_REGISTRY.get(tcg)
+    if not reg or not reg.get('download_script'):
+        return jsonify({'ok': False, 'error': 'Unknown TCG'})
+    with _download_lock:
+        if _download_proc and _download_proc.poll() is None:
+            return jsonify({'ok': False, 'error': 'Download already running'})
+        _close_download_log()
+        cmd = ['python3', os.path.join(SCRIPT_DIR, 'scripts', reg['download_script'])]
+        try:
+            _download_log_fh = open(DOWNLOAD_LOG, 'w')
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'
+            _download_proc = subprocess.Popen(cmd, stdout=_download_log_fh, stderr=subprocess.STDOUT, cwd=SCRIPT_DIR, env=env)
+            _download_tcg = tcg
+        except Exception as e:
+            _close_download_log()
+            return jsonify({'ok': False, 'error': str(e)})
+    return jsonify({'ok': True, 'tcg': tcg})
+
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     _logger = logging.getLogger(__name__)
     _logger.info("InkSlab Web Dashboard starting...")
+    # Start auto-update background thread
+    import threading as _threading
+    _auto_update_thread = _threading.Thread(target=_run_auto_updates, daemon=True)
+    _auto_update_thread.start()
 
     # Enter setup mode if WiFi is not connected AND no saved profile exists.
     # If a profile exists but WiFi is temporarily down (router reboot etc),
