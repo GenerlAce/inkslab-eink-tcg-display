@@ -77,6 +77,19 @@ def fetch_all_covers(manga_id):
 
 def download_series(manga_id, title):
     dirname = safe_dirname(title)
+    # Fetch series year from API
+    series_year = ""
+    try:
+        import time as _t
+        _t.sleep(API_DELAY)
+        r = requests.get(f"{API_BASE}/manga/{manga_id}", headers=HEADERS, timeout=30)
+        if r.status_code == 200:
+            attrs = r.json().get("data", {}).get("attributes", {})
+            yr = attrs.get("year")
+            if yr:
+                series_year = str(yr)
+    except Exception:
+        pass
     print(f"Fetching all covers for: {title}")
     covers = fetch_all_covers(manga_id)
     # Deduplicate: keep one cover per volume, prefer ja > en > other
@@ -107,7 +120,7 @@ def download_series(manga_id, title):
         cover_attrs = cover.get("attributes", {})
         volume = cover_attrs.get("volume") or "?"
         slim_db[cover_id] = {"name": title, "number": str(volume),
-                             "rarity": f"Vol. {volume}" if volume != "?" else "Cover", "year": ""}
+                             "rarity": f"Vol. {volume}" if volume != "?" else "Cover", "year": series_year}
     with open(os.path.join(manga_dir, "_data.json"), "w") as f:
         json.dump(slim_db, f, ensure_ascii=False, indent=2)
     index_path = os.path.join(BASE_DIR, "master_index.json")
@@ -118,7 +131,7 @@ def download_series(manga_id, title):
                 master_index = json.load(f)
         except:
             pass
-    master_index[dirname] = {"name": title, "year": "", "id": manga_id}
+    master_index[dirname] = {"name": title, "year": series_year, "id": manga_id}
     with open(index_path, "w") as f:
         json.dump(master_index, f, ensure_ascii=False, indent=2)
     downloaded = skipped = failed = 0

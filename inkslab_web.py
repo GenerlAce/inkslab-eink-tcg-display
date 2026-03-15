@@ -2240,9 +2240,9 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 
 <div class="tabs">
   <div class="tab active" data-tab="display" onclick="showTab('display')">Display</div>
-  <div class="tab" data-tab="settings" onclick="showTab('settings')">Settings</div>
   <div class="tab" data-tab="collection" onclick="showTab('collection')">Collection</div>
   <div class="tab" data-tab="downloads" onclick="showTab('downloads')">Downloads</div>
+  <div class="tab" data-tab="settings" onclick="showTab('settings')">Settings</div>
 </div>
 
 <div class="content">
@@ -2552,7 +2552,7 @@ function mangaSearch() {
       resultsEl.innerHTML = data.results.map(function(m) {
         var info = [m.year, m.status, m.demographic].filter(Boolean).join(' · ');
         return '<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">' +
-          '<div><div style="font-weight:600;">' + m.title + '</div>' +
+          '<div><a href="https://mangadex.org/title/' + m.id + '" target="_blank" style="font-weight:600;color:#FF6B6B;text-decoration:none;">' + esc(m.title) + '</a></div>' +
           '<div style="font-size:12px;color:#888;">' + info + '</div></div>' +
           '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '" ' +
           'style="padding:6px 12px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Download All Covers</button>' +
@@ -2567,7 +2567,6 @@ function mangaSearch() {
 function mangaDownloadSeries(btn) {
   var id = btn.getAttribute('data-id');
   var title = btn.getAttribute('data-title');
-  if (!confirm('Download all covers for "' + title + '"?')) return;
   fetch(API + '/api/download/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -2615,7 +2614,6 @@ function comicSearch() {
 function comicDownloadSeries(btn) {
   var id = btn.getAttribute('data-id');
   var title = btn.getAttribute('data-title');
-  if (!confirm('Download all covers for "' + title + '"?')) return;
   fetch(API + '/api/download/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
