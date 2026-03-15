@@ -2471,7 +2471,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     </div>
   </div>
   <div class="card">
-    <h3>Delete Card Data</h3>
+    <h3>Delete Entire Library</h3>
     <div id="delete-buttons"></div>
   </div>
 </div><!-- /tab-downloads -->
@@ -3796,6 +3796,7 @@ function buildDynamicUI(registry) {
 })();
 </script>
 <script src="/static/collection_view.js"></script>
+<script src="/static/delete_library.js"></script>
 </body>
 </html>"""
 
