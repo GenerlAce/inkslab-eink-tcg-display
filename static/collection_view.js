@@ -27,7 +27,7 @@
     img.src = src;
     el.style.display = 'block';
     el.style.left = (event.clientX + 12) + 'px';
-    el.style.top = Math.max(8, event.clientY - 90) + 'px';
+    el.style.top = Math.max(8, event.clientY - 570) + 'px';
   };
 
   window.hideThumbHover = function() {
