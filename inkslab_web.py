@@ -41,6 +41,7 @@ TCG_REGISTRY = {
     "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
     "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
     "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
+    "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
     "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
@@ -937,6 +938,13 @@ def api_download_start():
             if manga_id and manga_title:
                 cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_manga_series.py"),
                        "--id", manga_id, "--title", manga_title]
+
+        if tcg == "comics":
+            comic_id = data.get("comic_id")
+            comic_title = data.get("comic_title")
+            if comic_id and comic_title:
+                cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_comic_series.py"),
+                       "--id", str(comic_id), "--title", comic_title]
 
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
@@ -3476,50 +3484,49 @@ import datetime
 def _run_auto_updates():
     """Background thread: check weekly and run enabled downloaders."""
     import time as _time
+    import logging as _logging
+    _tlog = _logging.getLogger(__name__)
+    _time.sleep(5)  # brief startup delay
     while True:
-        _time.sleep(3600)  # check every hour
         try:
             config = load_config()
-            sources = config.get('auto_update_sources', [])
-            if not sources:
-                continue
-            now = datetime.datetime.now()
-            # Check if it's been 7 days since last update
-            last_times = {}
-            if os.path.exists(LAST_UPDATE_FILE):
-                try:
-                    with open(LAST_UPDATE_FILE) as f:
-                        last_times = json.load(f)
-                except Exception:
-                    pass
-            for tcg in sources:
-                last_str = last_times.get(tcg)
-                run_it = False
-                if not last_str:
-                    run_it = True
-                else:
+            sources = config.get("auto_update_sources", [])
+            if sources:
+                now = datetime.datetime.now()
+                last_times = {}
+                if os.path.exists(LAST_UPDATE_FILE):
                     try:
-                        last_dt = datetime.datetime.fromisoformat(last_str)
-                        if (now - last_dt).days >= 7:
-                            run_it = True
+                        with open(LAST_UPDATE_FILE) as f:
+                            last_times = json.load(f)
                     except Exception:
-                        run_it = True
-                if run_it:
-                    reg = TCG_REGISTRY.get(tcg)
-                    if not reg or not reg.get('download_script'):
-                        continue
-                    logger.info(f"Auto-update: running {tcg} downloader")
-                    cmd = ['python3', os.path.join(SCRIPT_DIR, 'scripts', reg['download_script'])]
-                    try:
-                        subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
-                        last_times[tcg] = now.isoformat()
-                        with open(LAST_UPDATE_FILE, 'w') as f:
-                            json.dump(last_times, f)
-                        logger.info(f"Auto-update: {tcg} complete")
-                    except Exception as e:
-                        logger.error(f"Auto-update {tcg} failed: {e}")
+                        pass
+                for tcg in sources:
+                    last_str = last_times.get(tcg)
+                    run_it = not last_str
+                    if not run_it and last_str:
+                        try:
+                            last_dt = datetime.datetime.fromisoformat(last_str)
+                            if (now - last_dt).days >= 7:
+                                run_it = True
+                        except Exception:
+                            run_it = True
+                    if run_it:
+                        reg = TCG_REGISTRY.get(tcg)
+                        if not reg or not reg.get("download_script"):
+                            continue
+                        _tlog.info(f"Auto-update: running {tcg} downloader")
+                        cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
+                        try:
+                            subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
+                            last_times[tcg] = now.isoformat()
+                            with open(LAST_UPDATE_FILE, "w") as f:
+                                json.dump(last_times, f)
+                            _tlog.info(f"Auto-update: {tcg} complete")
+                        except Exception as e:
+                            _tlog.error(f"Auto-update {tcg} failed: {e}")
         except Exception as e:
-            logger.error(f"Auto-update thread error: {e}")
+            _tlog.error(f"Auto-update thread error: {e}")
+        _time.sleep(3600)  # check every hour
 
 @app.route('/api/auto_update/status')
 def api_auto_update_status():
