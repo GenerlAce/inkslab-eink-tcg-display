@@ -52,11 +52,11 @@ def safe_dirname(name):
     return safe.strip()[:60]
 
 
-def download_file(url, filepath, auth):
+def download_file(url, filepath, auth=None):
     if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
         return "EXISTS"
     try:
-        r = requests.get(url, headers=HEADERS, auth=auth, timeout=30)
+        r = requests.get(url, headers=HEADERS, timeout=30)
         if r.status_code == 200:
             with open(filepath, 'wb') as f:
                 f.write(r.content)
@@ -193,7 +193,11 @@ def download_series(series_id, title, auth):
                 master_index = json.load(f)
         except Exception:
             pass
-    master_index[dirname] = {"name": title, "year": "", "id": series_id}
+    # Extract year from title if present e.g. "Batman (2024)"
+    import re as _re
+    year_match = _re.search(r'\((\d{4})\)', title)
+    series_year = year_match.group(1) if year_match else ""
+    master_index[dirname] = {"name": title, "year": series_year, "id": series_id}
     with open(index_path, "w") as f:
         json.dump(master_index, f, ensure_ascii=False, indent=2)
 

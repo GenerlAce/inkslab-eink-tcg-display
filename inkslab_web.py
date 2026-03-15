@@ -1017,6 +1017,45 @@ def api_manga_search():
     except Exception as e:
         return jsonify({"results": [], "error": str(e)})
 
+@app.route('/api/comics/search')
+def api_comics_search():
+    """Search Metron for comic series."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({"results": []})
+    try:
+        import requests as req
+        creds = {}
+        creds_file = '/home/pi/.metron_credentials'
+        if os.path.exists(creds_file):
+            with open(creds_file) as f:
+                for line in f:
+                    if '=' in line:
+                        k, v = line.strip().split('=', 1)
+                        creds[k.strip()] = v.strip()
+        username = creds.get('METRON_USERNAME')
+        password = creds.get('METRON_PASSWORD')
+        if not username or not password:
+            return jsonify({"results": [], "error": "Metron credentials not configured"})
+        auth = (username, password)
+        headers = {'User-Agent': 'InkSlab/1.0 (https://github.com/costamesatechsolutions/inkslab-eink-tcg-display)', 'Accept': 'application/json'}
+        r = req.get('https://metron.cloud/api/series/', params={'name': query, 'page_size': 10}, timeout=10, headers=headers, auth=auth)
+        r.raise_for_status()
+        data = r.json()
+        results = []
+        for series in data.get('results', []):
+            results.append({
+                'id': series['id'],
+                'title': series.get('series', series.get('name', 'Unknown')),
+                'year': str(series.get('year_began', '')) if series.get('year_began') else '',
+                'publisher': '',
+                'issue_count': series.get('issue_count', '?'),
+                'status': '',
+            })
+        return jsonify({"results": results})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
+
 @app.route('/api/download/status')
 def api_download_status():
     global _download_proc, _download_tcg
@@ -2287,6 +2326,17 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
         <button onclick="mangaSearch()"
           style="padding:8px 14px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
+    <div id="dl-comics-search" style="display:none;margin-top:12px;">
+      <div style="font-weight:600;margin-bottom:6px;color:#F97316;">Search Comic Series</div>
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px;">Search for a specific comic series and download all its covers.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="comicSearch()"
+          style="padding:8px 14px;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+      </div>
+      <div id="comics-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+    </div>
       <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
   </div>
@@ -2406,6 +2456,54 @@ function mangaDownloadSeries(btn) {
       showToast('Downloading covers for ' + title + '!', 3000);
       document.getElementById('manga-search-results').style.display = 'none';
       document.getElementById('manga-search-input').value = '';
+      pollDownload();
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown error'), 4000);
+    }
+  });
+}
+
+function comicSearch() {
+  var q = document.getElementById('comics-search-input').value.trim();
+  if (!q) return;
+  var resultsEl = document.getElementById('comics-search-results');
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = '<div style="padding:10px;color:#888;">Searching...</div>';
+  fetch(API + '/api/comics/search?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(function(data) {
+      if (!data.results || data.results.length === 0) {
+        resultsEl.innerHTML = '<div style="padding:10px;color:#888;">No results found.</div>';
+        return;
+      }
+      resultsEl.innerHTML = data.results.map(function(m) {
+        var info = [m.issue_count + ' issues', '#' + m.id].filter(Boolean).join(' · ');
+        return '<div style="padding:10px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div><a href="https://metron.cloud/series/' + m.id + '/" target="_blank" style="font-weight:600;color:#F97316;text-decoration:none;">' + esc(m.title) + '</a></div>' +
+          '<div style="font-size:12px;color:#888;">' + esc(info) + '</div></div>' +
+          '<button onclick="comicDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '" ' +
+          'style="padding:6px 12px;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Download All</button>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<div style="padding:10px;color:#c00;">Search failed. Check connection.</div>';
+    });
+}
+
+function comicDownloadSeries(btn) {
+  var id = btn.getAttribute('data-id');
+  var title = btn.getAttribute('data-title');
+  if (!confirm('Download all covers for "' + title + '"?')) return;
+  fetch(API + '/api/download/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: 'comics', comic_id: id, comic_title: title})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Downloading covers for ' + title + '!', 3000);
+      document.getElementById('comics-search-results').style.display = 'none';
+      document.getElementById('comics-search-input').value = '';
       pollDownload();
     } else {
       showToast('Error: ' + (d.error || 'Unknown error'), 4000);
@@ -3429,6 +3527,8 @@ function buildDynamicUI(registry) {
   // Manga series search
   var mangaSearch = document.getElementById('dl-manga-search');
   if (mangaSearch) mangaSearch.style.display = registry.manga ? 'block' : 'none';
+  var comicsSearch = document.getElementById('dl-comics-search');
+  if (comicsSearch) comicsSearch.style.display = registry.comics ? 'block' : 'none';
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
