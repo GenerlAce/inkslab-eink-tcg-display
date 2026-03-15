@@ -3376,6 +3376,7 @@ function buildDynamicUI(registry) {
   });
 })();
 </script>
+<script src="/static/collection_view.js"></script>
 </body>
 </html>"""
 
