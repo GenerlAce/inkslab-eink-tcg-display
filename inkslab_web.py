@@ -1484,15 +1484,25 @@ def api_factory_reset():
     except Exception as e:
         errors.append(f"WiFi cleanup: {e}")
 
-    # 2. Delete all downloaded card data
+    # 2. Delete card data (except kept libraries)
+    req_data = request.get_json(force=True) if request.data else {}
+    keep_cards = req_data.get("keep_cards", [])
     for tcg_key, tcg_info in TCG_REGISTRY.items():
+        if tcg_key in keep_cards:
+            continue
         card_path = tcg_info["path"]
         if os.path.isdir(card_path):
             try:
                 shutil.rmtree(card_path)
             except Exception as e:
                 errors.append(f"Delete {tcg_key}: {e}")
-
+    # 2b. Delete Metron credentials
+    for creds_f in ["/home/pi/.metron_credentials", LAST_UPDATE_FILE]:
+        if os.path.exists(creds_f):
+            try:
+                os.remove(creds_f)
+            except Exception as e:
+                errors.append(f"Delete {creds_f}: {e}")
     # 3. Reset config and collection to defaults
     for f in [CONFIG_FILE, COLLECTION_FILE]:
         try:
@@ -2327,7 +2337,14 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
     <h3 style="color:#ff6b6b">Prepare for New Owner</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">Wipes everything (WiFi, cards, settings) and shows a welcome screen on the display. After it finishes, unplug the unit — it's ready to ship.</p>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
+    <div style="margin-bottom:12px;font-size:12px;color:#D8E6E4;">Keep these card libraries:<br>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-pokemon" checked> Pokemon</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-mtg" checked> Magic: The Gathering</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-lorcana" checked> Disney Lorcana</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-manga" checked> Manga</label>
+      <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-comics" checked> Comics</label>
+    </div>
     <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Prepare for New Owner</button>
   </div>
 </div>
@@ -2817,17 +2834,26 @@ function loadAutoUpdateStatus() {
   fetch(API + '/api/auto_update/status').then(r => r.json()).then(function(data) {
     var el = document.getElementById('auto-update-list');
     if (!el) return;
-    var html = '';
+    var html = '<div style="font-size:12px;color:#888;margin-bottom:10px;">Checked sources run automatically every week.</div>';
     Object.entries(data).forEach(function(entry) {
       var tcg = entry[0], info = entry[1];
       var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1F333F;">';
       html += '<div>';
+      var descriptions = {
+        'pokemon': 'Full card list from PokeAPI',
+        'mtg': 'Full card list from Scryfall',
+        'lorcana': 'Full card list from Lorcast',
+        'manga': 'Top 500 popular titles from MangaDex',
+        'comics': 'Weekly new releases from Metron'
+      };
+      var desc = descriptions[tcg] || '';
       html += '<div style="display:flex;align-items:center;gap:8px;">';
       html += '<input type="checkbox" id="au-' + tcg + '" ' + (info.enabled ? 'checked' : '') + '>';
       html += '<label for="au-' + tcg + '" style="color:#D8E6E4;font-size:13px;">' + esc(info.name) + '</label>';
       html += '</div>';
-      html += '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;margin-left:24px;">Last updated: ' + lastStr + '</div>';
+      html += '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;margin-left:24px;">' + desc + '</div>';
+      html += '<div style="font-size:11px;color:#888;margin-top:1px;margin-left:24px;">Last updated: ' + lastStr + '</div>';
       html += '</div>';
       html += '<button class="btn btn-secondary btn-sm" data-tcg="' + tcg + '" style="font-size:11px;" onclick="runUpdateNow(this.dataset.tcg, this)">Run Now</button>';
       html += '</div>';
@@ -2979,11 +3005,16 @@ function loadWifiInfo() {
 }
 
 function factoryReset(btn) {
-  if (!confirm('PREPARE FOR NEW OWNER\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL downloaded cards\\n- Reset all settings\\n- Show a welcome screen on the display\\n\\nAfter it finishes, wait ~30 seconds for the display to update, then unplug. The unit is ready to ship.\\n\\nAre you sure?')) return;
+  var keepList = [];
+  ['pokemon','mtg','lorcana','manga','comics'].forEach(function(t) {
+    var cb = document.getElementById('keep-' + t);
+    if (cb && cb.checked) keepList.push(t);
+  });
+  if (!confirm('PREPARE FOR NEW OWNER\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL unchecked card libraries\\n- Reset all settings\\n- Show a welcome screen on the display\\n\\nAfter it finishes, wait ~30 seconds for the display to update, then unplug. The unit is ready to ship.\\n\\nAre you sure?')) return;
   if (!confirm('This cannot be undone. Continue?')) return;
   btn.disabled = true;
   btn.textContent = 'Resetting...';
-  fetch(API + '/api/factory_reset', {method:'POST'}).then(r => r.json()).then(function(d) {
+  fetch(API + '/api/factory_reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({keep_cards: keepList})}).then(r => r.json()).then(function(d) {
     if (d.ok) {
       showToast('Done! Wait ~30s for the display to update, then unplug to ship.', 8000);
       document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Ready to ship</strong> — Wait for the display to update, then unplug.';
