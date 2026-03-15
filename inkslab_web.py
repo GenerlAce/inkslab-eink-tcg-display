@@ -982,6 +982,47 @@ def api_download_stop():
             return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "No download running"})
 
+@app.route('/api/delete_series', methods=['POST'])
+def api_delete_series():
+    """Delete a specific series folder from the active TCG library."""
+    data = request.get_json(force=True) if request.data else {}
+    tcg = data.get('tcg')
+    set_id = data.get('set_id')
+    if not tcg or not set_id:
+        return jsonify({'ok': False, 'error': 'Missing tcg or set_id'})
+    library = TCG_LIBRARIES.get(tcg)
+    if not library:
+        return jsonify({'ok': False, 'error': 'Unknown TCG'})
+    safe_set = os.path.basename(set_id)
+    series_path = os.path.join(library, safe_set)
+    real = os.path.realpath(series_path)
+    if not real.startswith(os.path.realpath(library)):
+        return jsonify({'ok': False, 'error': 'Invalid path'})
+    if not os.path.isdir(series_path):
+        return jsonify({'ok': False, 'error': 'Series not found'})
+    try:
+        shutil.rmtree(series_path)
+        # Remove from master_index.json if present
+        index_path = os.path.join(library, 'master_index.json')
+        if os.path.exists(index_path):
+            try:
+                with open(index_path) as f:
+                    idx = json.load(f)
+                # Try both safe dirname and original name
+                idx.pop(safe_set, None)
+                # Also remove any key whose folder name matches
+                to_remove = [k for k in idx if os.path.basename(k) == safe_set or k == safe_set]
+                for k in to_remove:
+                    idx.pop(k, None)
+                with open(index_path, 'w') as f:
+                    json.dump(idx, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        _cache_invalidate('sets_' + tcg, 'rarities_' + tcg)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
 @app.route('/api/manga/search')
 def api_manga_search():
     """Search MangaDex for manga titles."""
@@ -3040,6 +3081,45 @@ function changeWifi() {
 }
 
 // --- Collection ---
+var _deleteConfirmId = null;
+function deleteSeriesStep(setId, name) {
+  var btn = document.getElementById('delbtn-' + setId);
+  if (!btn) return;
+  if (_deleteConfirmId === setId) {
+    // Second click - confirm delete
+    var tcg = _lastStatus.tcg || '';
+    fetch(API + '/api/delete_series', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg, set_id: setId})})
+      .then(r => r.json()).then(function(d) {
+        if (d.ok) {
+          showToast('Deleted: ' + name, 2000);
+          _deleteConfirmId = null;
+          loadSets();
+        } else {
+          showToast('Error: ' + (d.error || 'Unknown'), 3000);
+        }
+      });
+  } else {
+    // First click - turn red
+    if (_deleteConfirmId) {
+      var prev = document.getElementById('delbtn-' + _deleteConfirmId);
+      if (prev) { prev.style.background = '#1F333F'; prev.style.color = '#6BCCBD'; prev.textContent = 'Delete'; }
+    }
+    _deleteConfirmId = setId;
+    btn.style.background = '#ff6b6b';
+    btn.style.color = '#fff';
+    btn.textContent = 'Confirm?';
+    // Auto-reset after 4 seconds
+    setTimeout(function() {
+      if (_deleteConfirmId === setId) {
+        _deleteConfirmId = null;
+        btn.style.background = '#1F333F';
+        btn.style.color = '#6BCCBD';
+        btn.textContent = 'Delete';
+      }
+    }, 4000);
+  }
+}
+
 function loadSets() {
   const el = document.getElementById('sets-list');
   el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">Loading sets...</div>';
@@ -3055,7 +3135,7 @@ function loadSets() {
             <span class="set-name">${esc(s.name)}</span>
             ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
           </span>
-          <span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span>
+          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" onclick="event.stopPropagation();deleteSeriesStep('${esc(s.id)}','${esc(s.name)}')" style="padding:2px 8px;border:none;border-radius:4px;background:#1F333F;color:#6BCCBD;font-size:11px;cursor:pointer;">Delete</button></span>
         </div>
         <div class="set-cards" id="set-${esc(s.id)}"></div>
       </div>
