@@ -2800,7 +2800,15 @@ function toggleSetAll(setId, owned) {
   fetch(API + '/api/collection/toggle_set', {method:'POST', body: JSON.stringify({set_id: setId, owned: owned})})
     .then(() => {
       const el = document.getElementById('set-' + setId);
+      // Update list view checkboxes
       el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = owned);
+      // Update grid view thumbnails
+      el.querySelectorAll('.grid-thumb').forEach(function(img) {
+        var cardId = img.id.replace('gthumb-', '');
+        var check = document.getElementById('gcheck-' + cardId);
+        if (owned) { img.classList.add('owned'); if (check) check.classList.add('show'); }
+        else { img.classList.remove('owned'); if (check) check.classList.remove('show'); }
+      });
     });
 }
 
