@@ -245,6 +245,15 @@ def connect_to_network(ssid, password):
     _run_nmcli(["dev", "wifi", "rescan"], timeout=10)
     time.sleep(3)
 
+    # Delete all existing WiFi profiles before connecting to the new one
+    rc_list, out_list, _ = _run_nmcli(["-t", "-e", "yes", "-f", "TYPE,NAME", "con", "show"])
+    if rc_list == 0:
+        for line in out_list.splitlines():
+            parts = _split_nmcli_escaped(line)
+            if len(parts) >= 2 and "wireless" in parts[0] and parts[1] != HOTSPOT_CON_NAME:
+                logger.info("Removing old WiFi profile: %s", parts[1])
+                _run_nmcli(["con", "delete", parts[1]], timeout=10)
+
     # Build connection command
     args = ["dev", "wifi", "connect", ssid, "ifname", "wlan0"]
     if password:
