@@ -875,7 +875,7 @@ def main():
             time.sleep(10)
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
-            
+
     else:
         # Not connected — show setup instructions and wait
         # (Covers both first boot AND failed previous connection attempts)
