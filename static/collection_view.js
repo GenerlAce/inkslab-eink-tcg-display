@@ -1,7 +1,7 @@
 (function() {
   var style = document.createElement('style');
   style.textContent = [
-    '.thumb-hover-preview{display:none;position:fixed;z-index:9999;pointer-events:none;border-radius:8px;border:2px solid #6BCCBD;box-shadow:0 4px 24px rgba(0,0,0,0.7);width:360px;}',
+    '.thumb-hover-preview{display:none;position:fixed;z-index:9999;pointer-events:none;border-radius:8px;border:2px solid #6BCCBD;box-shadow:0 4px 24px rgba(0,0,0,0.7);width:360px;max-width:calc(100vw - 24px);}',
     '.grid-thumb-wrap{position:relative;width:80px;cursor:pointer;text-align:center;}',
     '.grid-thumb{width:80px;height:110px;object-fit:cover;border-radius:6px;border:2px solid #1F333F;display:block;transition:border-color 0.15s;}',
     '.grid-thumb.owned{border-color:#6BCCBD;}',
@@ -16,7 +16,7 @@
   hoverDiv.className = 'thumb-hover-preview';
   var hoverImg = document.createElement('img');
   hoverImg.id = 'thumb-hover-img';
-  hoverImg.style.cssText = 'width:360px;border-radius:6px;display:block;';
+  hoverImg.style.cssText = 'width:100%;border-radius:6px;display:block;';
   hoverDiv.appendChild(hoverImg);
   document.body.appendChild(hoverDiv);
 
@@ -26,7 +26,9 @@
     if (!el || !img) return;
     img.src = src;
     el.style.display = 'block';
-    el.style.left = (event.clientX + 12) + 'px';
+    var previewLeft = event.clientX + 12;
+    if (previewLeft + 360 > window.innerWidth) previewLeft = window.innerWidth - 368;
+    el.style.left = Math.max(8, previewLeft) + 'px';
     el.style.top = Math.max(8, event.clientY - 570) + 'px';
   };
 
