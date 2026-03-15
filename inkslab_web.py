@@ -926,6 +926,13 @@ def api_download_start():
         if tcg == "mtg" and since:
             cmd.extend(["--since", str(since)])
 
+        if tcg == "manga":
+            manga_id = data.get("manga_id")
+            manga_title = data.get("manga_title")
+            if manga_id and manga_title:
+                cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_manga_series.py"),
+                       "--id", manga_id, "--title", manga_title]
+
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
@@ -962,6 +969,40 @@ def api_download_stop():
             return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "No download running"})
 
+@app.route('/api/manga/search')
+def api_manga_search():
+    """Search MangaDex for manga titles."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({"results": []})
+    try:
+        import requests as req
+        params = {
+            "title": query,
+            "limit": 10,
+            "contentRating[]": ["safe", "suggestive", "erotica"],
+            "order[relevance]": "desc",
+        }
+        r = req.get("https://api.mangadex.org/manga", params=params, timeout=10,
+                    headers={"User-Agent": "InkSlab/1.0"})
+        r.raise_for_status()
+        data = r.json()
+        results = []
+        for manga in data.get("data", []):
+            attrs = manga.get("attributes", {})
+            titles = attrs.get("title", {})
+            title = (titles.get("en") or titles.get("ja-ro") or
+                     titles.get("ja") or next(iter(titles.values()), "Unknown"))
+            results.append({
+                "id": manga["id"],
+                "title": title,
+                "year": str(attrs.get("year", "")) if attrs.get("year") else "",
+                "status": attrs.get("status", "").title(),
+                "demographic": (attrs.get("publicationDemographic") or "").title(),
+            })
+        return jsonify({"results": results})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
 
 @app.route('/api/download/status')
 def api_download_status():
@@ -2218,28 +2259,32 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
         <button class="btn btn-secondary" id="btn-dl-mtg-since" onclick="startDownload('mtg', document.getElementById('dl-since').value)" style="flex:1">Go</button>
       </div>
     </div>
-    <button class="btn btn-danger btn-block" id="btn-dl-stop" style="display:none" onclick="stopDownload()">Stop Download</button>
-  </div>
-  <div class="card">
-    <h3>Download Log</h3>
-    <div id="dl-status" style="font-size:12px;margin-bottom:8px;color:#6BCCBD">Idle</div>
-    <div id="dl-log" class="log-box">No download running.</div>
-  </div>
-  <div class="card">
-    <h3>Custom Images</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Upload your own images. Each folder is a set.</p>
-    <div class="flex-row" style="margin-bottom:8px">
-      <input type="text" id="custom-folder-name" placeholder="New folder name..." style="flex:2;background:#1F333F;color:#D8E6E4;border:1px solid #36A5CA44;border-radius:4px;padding:8px;font-size:14px">
-      <button class="btn btn-primary" onclick="createCustomFolder()" style="flex:1">Create</button>
+    <div id="dl-manga-search" style="display:none;margin-top:12px;">
+      <div style="font-weight:600;margin-bottom:6px;color:#FF6B6B;">Search Manga Series</div>
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px;">Search for a specific manga and download all its volume covers.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="mangaSearch()"
+          style="padding:8px 14px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+      </div>
+      <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
-    <div id="custom-folders"></div>
+  </div>
+
+<div class="card" id="dl-status-card">
+    <h3>Download Status</h3>
+    <div id="dl-status" style="color:#6BCCBD;font-size:13px;margin-bottom:8px;">Idle</div>
+    <pre id="dl-log" style="background:#0a1a22;color:#6BCCBD;font-size:11px;padding:10px;border-radius:6px;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+    <div style="margin-top:8px;display:flex;gap:8px;">
+      <button class="btn btn-secondary btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;">Stop Download</button>
+    </div>
   </div>
   <div class="card">
-    <h3>Delete Data</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Remove all downloaded card images for a TCG.</p>
-    <div id="delete-buttons" class="flex-row" style="flex-wrap:wrap;gap:6px"></div>
+    <h3>Delete Card Data</h3>
+    <div id="delete-buttons"></div>
   </div>
-</div>
+</div><!-- /tab-downloads -->
 
 </div><!-- /content -->
 
@@ -2300,6 +2345,54 @@ var _rapidPoll = null;
 var _pendingAction = false;
 var _mainPoll = null;
 var _countdownTimer = null;
+
+function mangaSearch() {
+  var q = document.getElementById('manga-search-input').value.trim();
+  if (!q) return;
+  var resultsEl = document.getElementById('manga-search-results');
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = '<div style="padding:10px;color:#888;">Searching...</div>';
+  fetch(API + '/api/manga/search?q=' + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(function(data) {
+      if (!data.results || data.results.length === 0) {
+        resultsEl.innerHTML = '<div style="padding:10px;color:#888;">No results found.</div>';
+        return;
+      }
+      resultsEl.innerHTML = data.results.map(function(m) {
+        var info = [m.year, m.status, m.demographic].filter(Boolean).join(' · ');
+        return '<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div><div style="font-weight:600;">' + m.title + '</div>' +
+          '<div style="font-size:12px;color:#888;">' + info + '</div></div>' +
+          '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '" ' +
+          'style="padding:6px 12px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Download All Covers</button>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<div style="padding:10px;color:#c00;">Search failed. Check connection.</div>';
+    });
+}
+
+function mangaDownloadSeries(btn) {
+  var id = btn.getAttribute('data-id');
+  var title = btn.getAttribute('data-title');
+  if (!confirm('Download all covers for "' + title + '"?')) return;
+  fetch(API + '/api/download/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: 'manga', manga_id: id, manga_title: title})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Downloading covers for ' + title + '!', 3000);
+      document.getElementById('manga-search-results').style.display = 'none';
+      document.getElementById('manga-search-input').value = '';
+      pollDownload();
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown error'), 4000);
+    }
+  });
+}
 
 function startMainPoll() {
   if (_mainPoll) clearInterval(_mainPoll);
@@ -2638,6 +2731,9 @@ function loadSets() {
   el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">Loading sets...</div>';
   fetch(API + '/api/sets').then(r => r.json()).then(sets => {
     if (!sets.length) { el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
+    // Sort alphabetically for manga, otherwise keep default order
+    var activeTcg = _lastStatus.tcg || '';
+    if (activeTcg === 'manga') sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
     el.innerHTML = sets.map(s => `
       <div class="set-item">
         <div class="set-header" onclick="toggleSet('${esc(s.id)}')">
@@ -2715,6 +2811,10 @@ function clearCollection() {
 var _rarityData = [];
 
 function loadRarities() {
+  var activeTcg = _lastStatus.tcg || '';
+  var raritySection = document.getElementById('rarity-chips') && document.getElementById('rarity-chips').closest('.card');
+  if (raritySection) raritySection.style.display = activeTcg === 'manga' ? 'none' : '';
+  if (activeTcg === 'manga') return;
   fetch(API + '/api/rarities').then(function(r) { return r.json(); }).then(function(rarities) {
     _rarityData = rarities;
     renderRarityChips();
@@ -3236,6 +3336,9 @@ function buildDynamicUI(registry) {
   // Show MTG since-year filter only if MTG is in the registry
   var mtgSince = document.getElementById('dl-mtg-since');
   if (mtgSince) mtgSince.style.display = registry.mtg ? 'block' : 'none';
+  // Manga series search
+  var mangaSearch = document.getElementById('dl-manga-search');
+  if (mangaSearch) mangaSearch.style.display = registry.manga ? 'block' : 'none';
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
