@@ -28,6 +28,7 @@ VERSION = "1.0.0"
 # --- PATHS ---
 CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
+LAST_UPDATE_FILE = "/home/pi/inkslab_last_update.json"
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
@@ -55,6 +56,8 @@ DEFAULTS = {
     "day_end": 23,
     "color_saturation": 2.5,
     "collection_only": False,
+    "auto_update_sources": [],
+    "auto_update_day": 0,
     "slab_header_mode": "normal",
 }
 
@@ -2192,6 +2195,12 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
   </div>
   <div class="card">
+    <h3>Auto-Update Sources</h3>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Automatically check for new cards weekly. Check the sources you want to keep updated.</p>
+    <div id="auto-update-list" style="margin-bottom:12px;"></div>
+    <button class="btn btn-primary btn-block" onclick="saveAutoUpdate()">Save Auto-Update Settings</button>
+  </div>
+  <div class="card">
     <h3>Software Update</h3>
     <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD;cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
@@ -2322,7 +2331,7 @@ function showTab(name) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); }
   if (name === 'display') refreshStatus();
 }
@@ -2637,6 +2646,69 @@ function switchTCG(tcg, activeBtn) {
 }
 
 // --- Settings ---
+function loadAutoUpdateStatus() {
+  fetch(API + '/api/auto_update/status').then(r => r.json()).then(function(data) {
+    var el = document.getElementById('auto-update-list');
+    if (!el) return;
+    var html = '';
+    Object.entries(data).forEach(function(entry) {
+      var tcg = entry[0], info = entry[1];
+      var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1F333F;">';
+      html += '<div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<input type="checkbox" id="au-' + tcg + '" ' + (info.enabled ? 'checked' : '') + '>';
+      html += '<label for="au-' + tcg + '" style="color:#D8E6E4;font-size:13px;">' + esc(info.name) + '</label>';
+      html += '</div>';
+      html += '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;margin-left:24px;">Last updated: ' + lastStr + '</div>';
+      html += '</div>';
+      html += '<button class="btn btn-secondary btn-sm" data-tcg="' + tcg + '" style="font-size:11px;" onclick="runUpdateNow(this.dataset.tcg, this)">Run Now</button>';
+      html += '</div>';
+    });
+    el.innerHTML = html || '<div style="color:#6BCCBD;font-size:12px;">No sources available</div>';
+  }).catch(function() {
+    var el = document.getElementById('auto-update-list');
+    if (el) el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;">Failed to load</div>';
+  });
+}
+
+function saveAutoUpdate() {
+  var sources = [];
+  document.querySelectorAll('[id^="au-"]').forEach(function(cb) {
+    if (cb.checked) sources.push(cb.id.replace('au-', ''));
+  });
+  fetch(API + '/api/auto_update/save', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sources: sources})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) showToast('Auto-update settings saved!', 2000);
+  });
+}
+
+function runUpdateNow(tcg, btn) {
+  if (!confirm('Run update for ' + tcg.toUpperCase() + ' now? This will start a download.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  fetch(API + '/api/auto_update/run_now', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: tcg})
+  }).then(r => r.json()).then(function(d) {
+    btn.disabled = false;
+    btn.textContent = 'Run Now';
+    if (d.ok) {
+      showToast(tcg.toUpperCase() + ' update started!', 2000);
+      showTab('downloads');
+    } else {
+      showToast('Error: ' + (d.error || 'Unknown'), 3000);
+    }
+  }).catch(function() {
+    btn.disabled = false;
+    btn.textContent = 'Run Now';
+  });
+}
+
 function loadSettings() {
   fetch(API + '/api/config').then(r => r.json()).then(c => {
     document.getElementById('cfg-tcg').value = c.active_tcg;
@@ -3398,11 +3470,124 @@ def dashboard():
     return DASHBOARD_HTML
 
 
+# --- Auto-update background thread ---
+import datetime
+
+def _run_auto_updates():
+    """Background thread: check weekly and run enabled downloaders."""
+    import time as _time
+    while True:
+        _time.sleep(3600)  # check every hour
+        try:
+            config = load_config()
+            sources = config.get('auto_update_sources', [])
+            if not sources:
+                continue
+            now = datetime.datetime.now()
+            # Check if it's been 7 days since last update
+            last_times = {}
+            if os.path.exists(LAST_UPDATE_FILE):
+                try:
+                    with open(LAST_UPDATE_FILE) as f:
+                        last_times = json.load(f)
+                except Exception:
+                    pass
+            for tcg in sources:
+                last_str = last_times.get(tcg)
+                run_it = False
+                if not last_str:
+                    run_it = True
+                else:
+                    try:
+                        last_dt = datetime.datetime.fromisoformat(last_str)
+                        if (now - last_dt).days >= 7:
+                            run_it = True
+                    except Exception:
+                        run_it = True
+                if run_it:
+                    reg = TCG_REGISTRY.get(tcg)
+                    if not reg or not reg.get('download_script'):
+                        continue
+                    logger.info(f"Auto-update: running {tcg} downloader")
+                    cmd = ['python3', os.path.join(SCRIPT_DIR, 'scripts', reg['download_script'])]
+                    try:
+                        subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
+                        last_times[tcg] = now.isoformat()
+                        with open(LAST_UPDATE_FILE, 'w') as f:
+                            json.dump(last_times, f)
+                        logger.info(f"Auto-update: {tcg} complete")
+                    except Exception as e:
+                        logger.error(f"Auto-update {tcg} failed: {e}")
+        except Exception as e:
+            logger.error(f"Auto-update thread error: {e}")
+
+@app.route('/api/auto_update/status')
+def api_auto_update_status():
+    """Return last update times and configured sources."""
+    last_times = {}
+    if os.path.exists(LAST_UPDATE_FILE):
+        try:
+            with open(LAST_UPDATE_FILE) as f:
+                last_times = json.load(f)
+        except Exception:
+            pass
+    config = load_config()
+    sources = config.get('auto_update_sources', [])
+    result = {}
+    for tcg, info in TCG_REGISTRY.items():
+        if not info.get('download_script'):
+            continue
+        result[tcg] = {
+            'name': info['name'],
+            'enabled': tcg in sources,
+            'last_update': last_times.get(tcg, None),
+        }
+    return jsonify(result)
+
+@app.route('/api/auto_update/save', methods=['POST'])
+def api_auto_update_save():
+    """Save auto-update source selection."""
+    data = request.get_json(force=True) if request.data else {}
+    sources = data.get('sources', [])
+    config = load_config()
+    config['auto_update_sources'] = sources
+    _atomic_write_json(CONFIG_FILE, config, indent=2)
+    return jsonify({'ok': True})
+
+@app.route('/api/auto_update/run_now', methods=['POST'])
+def api_auto_update_run_now():
+    """Manually trigger update for a specific TCG."""
+    global _download_proc, _download_tcg, _download_log_fh
+    data = request.get_json(force=True) if request.data else {}
+    tcg = data.get('tcg')
+    reg = TCG_REGISTRY.get(tcg)
+    if not reg or not reg.get('download_script'):
+        return jsonify({'ok': False, 'error': 'Unknown TCG'})
+    with _download_lock:
+        if _download_proc and _download_proc.poll() is None:
+            return jsonify({'ok': False, 'error': 'Download already running'})
+        _close_download_log()
+        cmd = ['python3', os.path.join(SCRIPT_DIR, 'scripts', reg['download_script'])]
+        try:
+            _download_log_fh = open(DOWNLOAD_LOG, 'w')
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'
+            _download_proc = subprocess.Popen(cmd, stdout=_download_log_fh, stderr=subprocess.STDOUT, cwd=SCRIPT_DIR, env=env)
+            _download_tcg = tcg
+        except Exception as e:
+            _close_download_log()
+            return jsonify({'ok': False, 'error': str(e)})
+    return jsonify({'ok': True, 'tcg': tcg})
+
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     _logger = logging.getLogger(__name__)
     _logger.info("InkSlab Web Dashboard starting...")
+    # Start auto-update background thread
+    import threading as _threading
+    _auto_update_thread = _threading.Thread(target=_run_auto_updates, daemon=True)
+    _auto_update_thread.start()
 
     # Enter setup mode if WiFi is not connected AND no saved profile exists.
     # If a profile exists but WiFi is temporarily down (router reboot etc),
