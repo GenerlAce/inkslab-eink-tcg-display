@@ -869,11 +869,10 @@ def main():
     EINK_RENDER_WAIT = EINK_RENDER_TIME + EINK_READ_TIME  # total wait before next write
 
     if wifi_connected:
-        # WiFi is working — only show splash if we actually have cards to display.
-        # If no cards, skip splash (no-cards screen shows the IP too, avoids extra flash).
-        if wifi_connected:
         if deck.total > 0:
-            pass  # skip splash, go straight to cards
+            show_splash_screen(epd, config)
+            logger.info(f"Splash screen sent — waiting {EINK_RENDER_WAIT}s for e-ink render...")
+            time.sleep(30)
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
             
