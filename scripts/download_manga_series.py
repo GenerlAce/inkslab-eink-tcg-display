@@ -79,6 +79,22 @@ def download_series(manga_id, title):
     dirname = safe_dirname(title)
     print(f"Fetching all covers for: {title}")
     covers = fetch_all_covers(manga_id)
+    # Deduplicate: keep one cover per volume, prefer ja > en > other
+    seen_volumes = {}
+    for cover in covers:
+        vol = cover.get('attributes', {}).get('volume') or '?'
+        locale = cover.get('attributes', {}).get('locale', '')
+        if vol not in seen_volumes:
+            seen_volumes[vol] = cover
+        else:
+            existing_locale = seen_volumes[vol].get('attributes', {}).get('locale', '')
+            # ja wins over everything, en wins over other
+            if locale == 'ja':
+                seen_volumes[vol] = cover
+            elif locale == 'en' and existing_locale != 'ja':
+                seen_volumes[vol] = cover
+    covers = list(seen_volumes.values())
+    covers.sort(key=lambda c: (float(c.get('attributes', {}).get('volume') or 0)))
     if not covers:
         print("No covers found for this manga.")
         return
