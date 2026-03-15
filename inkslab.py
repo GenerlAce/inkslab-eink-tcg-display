@@ -615,6 +615,30 @@ def create_slab_layout(img_path, master_index, header_mode="normal"):
             draw.text(((DISPLAY_WIDTH - w1) / 2, start_y), line1, font=font_set, fill=text_color)
             draw.text(((DISPLAY_WIDTH - w2) / 2, start_y + h1 + gap), line2, font=font_stats, fill=text_color)
 
+        # If no header space, draw overlay bar at top of image
+        if y_pos <= 30:
+            try:
+                font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 13)
+                font_stats = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
+            except IOError:
+                font_set = ImageFont.load_default()
+                font_stats = ImageFont.load_default()
+            line1 = info["set_info"]
+            line2 = info["stats"]
+            bar_h = 48
+            bar = Image.new("RGB", (DISPLAY_WIDTH, bar_h), bg_color)
+            canvas.paste(bar, (0, 0))
+            bar.close()
+            w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
+            w2 = draw.textbbox((0, 0), line2, font=font_stats)[2]
+            if w1 > 380:
+                try:
+                    font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
+                    w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
+                except IOError:
+                    pass
+            draw.text(((DISPLAY_WIDTH - w1) / 2, 4), line1, font=font_set, fill=text_color)
+            draw.text(((DISPLAY_WIDTH - w2) / 2, 22), line2, font=font_stats, fill=text_color)
         return canvas, info
 
 
