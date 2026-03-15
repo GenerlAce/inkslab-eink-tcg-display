@@ -871,12 +871,12 @@ def main():
     if wifi_connected:
         # WiFi is working — only show splash if we actually have cards to display.
         # If no cards, skip splash (no-cards screen shows the IP too, avoids extra flash).
+        if wifi_connected:
         if deck.total > 0:
-            show_splash_screen(epd, config)
-            logger.info(f"Splash screen sent — waiting {EINK_RENDER_WAIT}s for e-ink render...")
-            time.sleep(EINK_RENDER_WAIT)
+            pass  # skip splash, go straight to cards
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
+            
     else:
         # Not connected — show setup instructions and wait
         # (Covers both first boot AND failed previous connection attempts)
