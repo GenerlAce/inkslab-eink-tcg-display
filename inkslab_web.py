@@ -77,7 +77,7 @@ _wifi_connect_lock = threading.Lock()
 _config_lock = threading.Lock()
 _collection_lock = threading.Lock()
 _custom_lock = threading.Lock()
-MIN_FREE_SPACE_MB = 50  # Refuse writes if less than this much free space
+MIN_FREE_SPACE_MB = 500  # Refuse writes if less than this much free space
 
 
 def _atomic_write_json(path, data, indent=None):
@@ -3747,6 +3747,12 @@ def _run_auto_updates():
                     if run_it:
                         reg = TCG_REGISTRY.get(tcg)
                         if not reg or not reg.get("download_script"):
+                            continue
+                        if not _has_disk_space():
+                            _tlog.warning(f"Auto-update: skipping {tcg} - low disk space")
+                            continue
+                        if not _has_disk_space():
+                            _tlog.warning(f"Auto-update: skipping {tcg} - low disk space")
                             continue
                         _tlog.info(f"Auto-update: running {tcg} downloader")
                         cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
