@@ -2141,7 +2141,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .card-row label { flex: 1; cursor: pointer; display: flex; align-items: center; gap: 6px; color: #D8E6E4; }
 .card-row input[type=checkbox] { accent-color: #36A5CA; }
 .card-rarity { color: #6BCCBD; font-size: 11px; }
-.rarity-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0 6px; }
+.rarity-chips { display: none; }
 .rarity-chip { padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; background: #1F333F; color: #6BCCBD; border: 1px solid #36A5CA33; transition: all 0.15s; }
 .rarity-chip:hover { background: #263f4d; }
 .rarity-chip:active { background: #36A5CA; color: #FCFDF0; transform: scale(0.95); }
@@ -2404,7 +2404,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="search-results"></div>
   </div>
   <div class="card" style="margin-bottom:16px;">
-    <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Filter by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:#6BCCBD;">▼ Show</span></h3>
+    <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Add to Collection by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:#6BCCBD;">▼ Show</span></h3>
     <div id="rarity-filter-body" style="display:none;">
       <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
       <div class="rarity-filter-actions">
