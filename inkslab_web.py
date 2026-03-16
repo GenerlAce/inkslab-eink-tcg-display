@@ -1876,7 +1876,10 @@ WIFI_SETUP_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="InkSlab">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>InkSlab WiFi Setup</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2093,6 +2096,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="InkSlab">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
