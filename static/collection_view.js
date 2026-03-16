@@ -62,10 +62,19 @@
     } else {
       el.style.transform = '';
       el.style.marginTop = '';
-      var previewLeft = event.clientX + 12;
-      if (previewLeft + 360 > window.innerWidth) previewLeft = window.innerWidth - 368;
+      // Position right of cursor, clamp to right edge
+      var previewW = 360;
+      var previewH = el.offsetHeight || 400;
+      var previewLeft = event.clientX + 16;
+      if (previewLeft + previewW > window.innerWidth - 8) {
+        previewLeft = window.innerWidth - previewW - 8;
+      }
       el.style.left = Math.max(8, previewLeft) + 'px';
-      el.style.top = Math.max(8, event.clientY - 200) + 'px';
+      // Position above cursor, clamped to viewport
+      var previewTop = event.clientY - previewH - 8;
+      if (previewTop < 8) previewTop = event.clientY + 16;
+      if (previewTop + previewH > window.innerHeight - 8) previewTop = window.innerHeight - previewH - 8;
+      el.style.top = Math.max(8, previewTop) + 'px';
     }
   };
 
