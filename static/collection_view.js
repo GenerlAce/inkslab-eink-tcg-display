@@ -1,7 +1,8 @@
 (function() {
   var style = document.createElement('style');
   style.textContent = [
-    '.thumb-hover-preview{display:none;position:fixed;z-index:9999;pointer-events:none;border-radius:8px;border:2px solid #6BCCBD;box-shadow:0 4px 24px rgba(0,0,0,0.7);width:360px;max-width:calc(100vw - 24px);}',
+    '.thumb-hover-preview{display:none;position:fixed;z-index:9999;pointer-events:auto;border-radius:8px;border:2px solid #6BCCBD;box-shadow:0 4px 24px rgba(0,0,0,0.7);width:360px;max-width:calc(100vw - 24px);}',
+    '.thumb-hover-close{position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10000;}',
     '.grid-thumb-wrap{position:relative;width:80px;cursor:pointer;text-align:center;}',
     '.grid-thumb{width:80px;height:110px;object-fit:cover;border-radius:6px;border:2px solid #1F333F;display:block;transition:border-color 0.15s;}',
     '.grid-thumb.owned{border-color:#6BCCBD;}',
@@ -14,11 +15,36 @@
   var hoverDiv = document.createElement('div');
   hoverDiv.id = 'thumb-hover-preview';
   hoverDiv.className = 'thumb-hover-preview';
+  hoverDiv.style.position = 'fixed';
   var hoverImg = document.createElement('img');
   hoverImg.id = 'thumb-hover-img';
   hoverImg.style.cssText = 'width:100%;border-radius:6px;display:block;';
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'thumb-hover-close';
+  closeBtn.innerHTML = '&times;';
+  closeBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    window.hideThumbHover();
+  });
   hoverDiv.appendChild(hoverImg);
+  hoverDiv.appendChild(closeBtn);
+  hoverDiv.addEventListener('click', function() { window.hideThumbHover(); });
+  hoverDiv.addEventListener('touchend', function() { window.hideThumbHover(); }, {passive: true});
   document.body.appendChild(hoverDiv);
+  // Click anywhere outside to dismiss
+  document.addEventListener('click', function(e) {
+    var el = document.getElementById('thumb-hover-preview');
+    if (el && el.style.display !== 'none' && !el.contains(e.target)) {
+      window.hideThumbHover();
+    }
+  });
+  // Touch on mobile - show on tap
+  document.addEventListener('touchstart', function(e) {
+    var el = document.getElementById('thumb-hover-preview');
+    if (el && el.style.display !== 'none' && !el.contains(e.target)) {
+      window.hideThumbHover();
+    }
+  });
 
   window.showThumbHover = function(event, src) {
     var el = document.getElementById('thumb-hover-preview');
@@ -26,10 +52,21 @@
     if (!el || !img) return;
     img.src = src;
     el.style.display = 'block';
-    var previewLeft = event.clientX + 12;
-    if (previewLeft + 360 > window.innerWidth) previewLeft = window.innerWidth - 368;
-    el.style.left = Math.max(8, previewLeft) + 'px';
-    el.style.top = Math.max(8, event.clientY - 570) + 'px';
+    var isMobile = window.innerWidth < 600;
+    if (isMobile) {
+      // Center on screen for mobile
+      el.style.left = '50%';
+      el.style.transform = 'translateX(-50%)';
+      el.style.top = '50%';
+      el.style.marginTop = '-180px';
+    } else {
+      el.style.transform = '';
+      el.style.marginTop = '';
+      var previewLeft = event.clientX + 12;
+      if (previewLeft + 360 > window.innerWidth) previewLeft = window.innerWidth - 368;
+      el.style.left = Math.max(8, previewLeft) + 'px';
+      el.style.top = Math.max(8, event.clientY - 200) + 'px';
+    }
   };
 
   window.hideThumbHover = function() {
@@ -107,6 +144,23 @@
         img.addEventListener('click', function() { window.toggleCardThumb(cardId); });
         img.addEventListener('mouseenter', function(e) { window.showThumbHover(e, src); });
         img.addEventListener('mouseleave', window.hideThumbHover);
+        // Top half tap = add to collection, bottom half tap = preview
+        img.addEventListener('touchend', function(e) {
+          e.preventDefault();
+          var touch = e.changedTouches[0];
+          var rect = img.getBoundingClientRect();
+          var relY = touch.clientY - rect.top;
+          if (relY < rect.height / 2) {
+            window.toggleCardThumb(cardId);
+          } else {
+            var el = document.getElementById('thumb-hover-preview');
+            if (el && el.style.display !== 'none') {
+              window.hideThumbHover();
+            } else {
+              window.showThumbHover(touch, src);
+            }
+          }
+        }, {passive: false});
         var check = document.createElement('div');
         check.className = 'grid-check' + (isOwned ? ' show' : '');
         check.id = 'gcheck-' + cardId;
