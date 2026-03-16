@@ -26,3 +26,19 @@ document.addEventListener('mouseout', function(e) {
     window.hideThumbHover();
   }
 });
+
+// Mobile touch for queue cards (Previously / Up Next)
+document.addEventListener('touchend', function(e) {
+  var img = e.target.closest('.q-thumb');
+  if (!img) return;
+  e.preventDefault();
+  var el = document.getElementById('thumb-hover-preview');
+  if (el && el.style.display !== 'none') {
+    window.hideThumbHover();
+  } else {
+    var src = img.src;
+    if (src && typeof window.showThumbHover === 'function') {
+      window.showThumbHover(e.changedTouches[0], src);
+    }
+  }
+}, {passive: false});
