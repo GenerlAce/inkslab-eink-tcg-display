@@ -908,7 +908,7 @@ def main():
         show_setup_screen(epd, config)
         logger.info("No WiFi connection — showing setup screen, waiting...")
         wait_count = 0
-        max_wait = 600  # Give up after 10 minutes and proceed anyway
+        max_wait = 120  # Give up after 2 minutes and proceed anyway
         while wait_count < max_wait:
             if os.path.exists(WIFI_CONNECTED_TRIGGER):
                 try:
