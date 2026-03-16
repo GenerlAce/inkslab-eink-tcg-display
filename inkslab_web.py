@@ -3370,7 +3370,7 @@ function doSearch() {
       html += '<div class="search-group" style="border-bottom:1px solid #1F333F;padding:6px 0">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center">';
       html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
-      html += '<button class="btn btn-secondary btn-sm" onclick="toggleSearchGroup(this,\\'' + esc(g.name) + '\\',' + (!allOwned) + ')">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
+      html += '<button class="btn btn-secondary btn-sm search-group-btn" data-name="' + esc(g.name) + '" data-owned="' + (!allOwned) + '">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
       html += '</div>';
       html += '<div style="margin-top:4px">';
       g.cards.forEach(function(c) {
@@ -3394,6 +3394,7 @@ function toggleSearchGroup(btn, name, owned) {
       showToast((owned ? 'Added ' : 'Removed ') + (d.count || 0) + ' ' + name + ' cards');
       btn.disabled = false;
       btn.textContent = owned ? 'Remove All' : 'Add All';
+      btn.dataset.owned = (!owned).toString();
       var group = btn.closest('.search-group');
       if (group) {
         group.querySelectorAll('input[type=checkbox]').forEach(function(cb) { cb.checked = owned; });
@@ -3794,6 +3795,7 @@ function buildDynamicUI(registry) {
 </script>
 <script src="/static/collection_view.js"></script>
 <script src="/static/delete_library.js"></script>
+<script src="/static/search_fix.js"></script>
 </body>
 </html>"""
 
