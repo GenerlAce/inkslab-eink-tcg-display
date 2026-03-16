@@ -3224,8 +3224,7 @@ function toggleRarityFilter() {
 function loadRarities() {
   var activeTcg = _lastStatus.tcg || '';
   var raritySection = document.getElementById('rarity-chips') && document.getElementById('rarity-chips').closest('.card');
-  if (raritySection) raritySection.style.display = activeTcg === 'manga' ? 'none' : '';
-  if (activeTcg === 'manga') return;
+  if (raritySection) raritySection.style.display = '';
   fetch(API + '/api/rarities').then(function(r) { return r.json(); }).then(function(rarities) {
     _rarityData = rarities;
     renderRarityChips();
