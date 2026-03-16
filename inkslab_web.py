@@ -3326,7 +3326,7 @@ function loadFavorites() {
   fetch(API + '/api/collection/favorites').then(function(r) { return r.json(); }).then(function(favs) {
     var el = document.getElementById('search-filters');
     if (!favs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-    el.style.display = 'flex';
+     el.style.display = 'none';
     el.innerHTML = favs.map(function(name) {
       var safeN = name.replace(/'/g, "\\\\'");
       return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\\'' + safeN + '\\', event)">&times;</span></span>';
@@ -3367,7 +3367,7 @@ function doSearch() {
     Object.values(groups).forEach(function(g) {
       var allOwned = g.cards.every(function(c) { return c.owned; });
       var ownedCount = g.cards.filter(function(c) { return c.owned; }).length;
-      html += '<div style="border-bottom:1px solid #1F333F;padding:6px 0">';
+      html += '<div class="search-group" style="border-bottom:1px solid #1F333F;padding:6px 0">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center">';
       html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
       html += '<button class="btn btn-secondary btn-sm" onclick="toggleSearchGroup(this,\\'' + esc(g.name) + '\\',' + (!allOwned) + ')">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
@@ -3392,9 +3392,12 @@ function toggleSearchGroup(btn, name, owned) {
   fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: owned})})
     .then(function(r) { return r.json(); }).then(function(d) {
       showToast((owned ? 'Added ' : 'Removed ') + (d.count || 0) + ' ' + name + ' cards');
-      loadFavorites();
-      doSearch();
-      loadRarities();
+      btn.disabled = false;
+      btn.textContent = owned ? 'Remove All' : 'Add All';
+      var group = btn.closest('.search-group');
+      if (group) {
+        group.querySelectorAll('input[type=checkbox]').forEach(function(cb) { cb.checked = owned; });
+      }
     }).catch(function() { btn.disabled = false; btn.textContent = owned ? 'Add All' : 'Remove All'; });
 }
 
