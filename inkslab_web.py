@@ -2254,7 +2254,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   <div class="card">
     <h3>Now Showing</h3>
     <div id="st-preview-wrap" style="position:relative;max-width:150px;margin:12px auto 0">
-      <img id="st-preview" class="preview-img" style="margin:0" src="/api/card_image" onerror="this.style.display='none'" onload="this.style.display='block'" onclick="showCurrentPreview()">
+      <img id="st-preview" class="preview-img" style="margin:0" src="/api/card_image" onerror="this.style.display='none'" onload="this.style.display='block'" >
       <div id="st-preview-loading" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(22,48,62,0.9);border-radius:6px;border:2px solid #36A5CA;flex-direction:column;justify-content:center;align-items:center;color:#36A5CA;font-size:12px;font-weight:600">
         <div style="font-size:24px;margin-bottom:6px">&#8635;</div>
         <div id="st-preview-loading-text">Loading...</div>
