@@ -1010,7 +1010,7 @@ def main():
                 new_tcg = config["active_tcg"]
                 if (new_tcg != active_tcg
                         or config["collection_only"] != _deck_collection_only
-                        or action == "collection_changed"):
+                        or (action == "collection_changed" and config["collection_only"])):
                     rebuild_deck()
                     _no_cards_shown = False  # Show updated screen if TCG changed
                 else:
@@ -1062,7 +1062,7 @@ def main():
                         config, action = wait_with_polling(60)
                         if (config["active_tcg"] != active_tcg
                                 or config["collection_only"] != _deck_collection_only
-                                or action == "collection_changed"):
+                                or (action == "collection_changed" and config["collection_only"])):
                             rebuild_deck()
                             if deck.total == 0:
                                 break  # Back to no-cards loop

@@ -189,12 +189,8 @@ def save_collection(data):
         _atomic_write_json(COLLECTION_FILE, data)
     except Exception as e:
         app.logger.error(f"Failed to save collection: {e}")
-    # Signal daemon that collection changed so it can rebuild its deck
-    try:
-        with open(COLLECTION_TRIGGER, 'w') as f:
-            f.write('1')
-    except OSError:
-        pass
+    # Don't signal daemon on individual card toggles - deck rebuilds on next natural cycle
+    pass
 
 
 def _is_card_image(filename):
