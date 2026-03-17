@@ -3,24 +3,24 @@ function mtgSetSearch() {
   var resultsEl = document.getElementById('mtg-set-search-results');
   if (!q) return;
   resultsEl.style.display = 'block';
-  resultsEl.innerHTML = '<div style="padding:10px;color:#888;">Searching...</div>';
+  resultsEl.innerHTML = '<div style="padding:10px;color:var(--text-dim);">Searching...</div>';
   fetch(API + '/api/mtg/sets?q=' + encodeURIComponent(q))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var results = data.results || [];
       if (!results.length) {
-        resultsEl.innerHTML = '<div style="padding:10px;color:#888;">No sets found.</div>';
+        resultsEl.innerHTML = '<div style="padding:10px;color:var(--text-dim);">No sets found.</div>';
         return;
       }
       var html = '';
       results.forEach(function(s) {
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #222;">'
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);">'
           + '<div>'
-          + '<div style="font-weight:600;"><a href="https://scryfall.com/sets/' + esc(s.code) + '" target="_blank" style="color:#6BCCBD;text-decoration:none;">' + esc(s.name) + '</a></div>'
-          + '<div style="color:#888;font-size:12px;">' + esc(s.code.toUpperCase()) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.card_count + ' cards</div>'
+          + '<div style="font-weight:600;"><a href="https://scryfall.com/sets/' + esc(s.code) + '" target="_blank" style="color:var(--text-dim);text-decoration:none;">' + esc(s.name) + '</a></div>'
+          + '<div style="color:var(--text-dim);font-size:12px;opacity:0.7;">' + esc(s.code.toUpperCase()) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.card_count + ' cards</div>'
           + '</div>'
           + '<button onclick="mtgSetDownload(this)" data-set-code="' + esc(s.code) + '" data-set-name="' + esc(s.name) + '"'
-          + ' style="padding:6px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
+          + ' style="padding:6px 14px;background:var(--accent2);color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;
@@ -54,6 +54,10 @@ function mtgSetDownload(btn) {
       btn.disabled = false;
       btn.textContent = 'Download';
     }
+  }).catch(function() {
+    showToast('Failed to start download');
+    btn.disabled = false;
+    btn.textContent = 'Download';
   });
 }
 

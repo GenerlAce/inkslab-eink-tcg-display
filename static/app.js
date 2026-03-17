@@ -120,6 +120,9 @@ function showToast(msg, duration) {
   }, duration);
 }
 
+// --- Tab data cache (instant re-render on tab switch) ---
+var _cache = {sets: null, rarities: null, autoUpdate: null};
+
 // --- Display ---
 var _lastStatus = {};
 var _rapidPoll = null;
@@ -593,39 +596,47 @@ function switchTCG(tcg, activeBtn) {
 
 // --- Settings ---
 function loadAutoUpdateStatus() {
+  if (_cache.autoUpdate) renderAutoUpdate(_cache.autoUpdate);
   fetch(API + '/api/auto_update/status').then(r => r.json()).then(function(data) {
-    var el = document.getElementById('auto-update-list');
-    if (!el) return;
-    el.innerHTML = '';
-    Object.entries(data).forEach(function(entry) {
-      var tcg = entry[0], info = entry[1];
-      var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
-      var row = document.createElement('div');
-      row.className = 'form-row';
-      var left = document.createElement('div');
-      left.style.flex = '1';
-      left.innerHTML = '<span class="row-label">' + esc(info.name) + '</span>'
-        + '<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Last: ' + lastStr + '</div>';
-      var sw = document.createElement('label');
-      sw.className = 'switch';
-      var inp = document.createElement('input');
-      inp.type = 'checkbox';
-      inp.id = 'au-' + tcg;
-      inp.checked = !!info.enabled;
-      inp.addEventListener('change', saveAutoUpdate);
-      var slider = document.createElement('span');
-      slider.className = 'switch-slider';
-      sw.appendChild(inp);
-      sw.appendChild(slider);
-      row.appendChild(left);
-      row.appendChild(sw);
-      el.appendChild(row);
-    });
-    if (!el.children.length) el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;">No sources available</div>';
+    _cache.autoUpdate = data;
+    renderAutoUpdate(data);
   }).catch(function() {
-    var el = document.getElementById('auto-update-list');
-    if (el) el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;">Failed to load</div>';
+    if (!_cache.autoUpdate) {
+      var el = document.getElementById('auto-update-list');
+      if (el) el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;">Failed to load</div>';
+    }
   });
+}
+
+function renderAutoUpdate(data) {
+  var el = document.getElementById('auto-update-list');
+  if (!el) return;
+  el.innerHTML = '';
+  Object.entries(data).forEach(function(entry) {
+    var tcg = entry[0], info = entry[1];
+    var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
+    var row = document.createElement('div');
+    row.className = 'form-row';
+    var left = document.createElement('div');
+    left.style.flex = '1';
+    left.innerHTML = '<span class="row-label">' + esc(info.name) + '</span>'
+      + '<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Last: ' + lastStr + '</div>';
+    var sw = document.createElement('label');
+    sw.className = 'switch';
+    var inp = document.createElement('input');
+    inp.type = 'checkbox';
+    inp.id = 'au-' + tcg;
+    inp.checked = !!info.enabled;
+    inp.addEventListener('change', saveAutoUpdate);
+    var slider = document.createElement('span');
+    slider.className = 'switch-slider';
+    sw.appendChild(inp);
+    sw.appendChild(slider);
+    row.appendChild(left);
+    row.appendChild(sw);
+    el.appendChild(row);
+  });
+  if (!el.children.length) el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;">No sources available</div>';
 }
 
 function saveAutoUpdate() {
@@ -639,7 +650,7 @@ function saveAutoUpdate() {
     body: JSON.stringify({sources: sources})
   }).then(r => r.json()).then(function(d) {
     if (d.ok) showToast('Auto-update settings saved!', 2000);
-  });
+  }).catch(function() { showToast('Failed to save'); });
 }
 
 function runUpdateNow(tcg, btn) {
@@ -697,7 +708,7 @@ function saveMetronCreds() {
     } else {
       showToast('Error: ' + (d.error || 'Unknown'), 3000);
     }
-  });
+  }).catch(function() { showToast('Failed to save credentials'); });
 }
 
 function clearMetronCreds() {
@@ -734,8 +745,9 @@ function saveSettings() {
     day_end: parseInt(document.getElementById('cfg-day-end').value) || 23,
     color_saturation: parseFloat(document.getElementById('cfg-saturation').value) || 2.5,
   };
-  fetch(API + '/api/config', {method:'POST', body: JSON.stringify(cfg)})
-    .then(function() { showToast('Settings saved!'); startRapidPoll(); });
+  fetch(API + '/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)})
+    .then(function() { _cache.autoUpdate = null; showToast('Settings saved!'); startRapidPoll(); })
+    .catch(function() { showToast('Failed to save settings'); });
 }
 
 function saveCollectionMode() {
@@ -743,7 +755,8 @@ function saveCollectionMode() {
   updatePillStyle(checked);
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify({collection_only: checked}),
     headers: {'Content-Type': 'application/json'}})
-    .then(function() { showToast(checked ? 'Collection Only: ON' : 'Collection Only: OFF'); });
+    .then(function() { showToast(checked ? 'Collection Only: ON' : 'Collection Only: OFF'); })
+    .catch(function() { showToast('Failed to save'); updatePillStyle(!checked); document.getElementById('cfg-collection').checked = !checked; });
 }
 
 // --- Admin (hidden) ---
@@ -824,11 +837,12 @@ function deleteSeriesStep(setId, name) {
         if (d.ok) {
           showToast('Deleted: ' + name, 2000);
           _deleteConfirmId = null;
+          _cache.sets = null;
           loadSets();
         } else {
           showToast('Error: ' + (d.error || 'Unknown'), 3000);
         }
-      });
+      }).catch(function() { showToast('Delete failed'); });
   } else {
     // First click - turn red
     if (_deleteConfirmId) {
@@ -852,25 +866,36 @@ function deleteSeriesStep(setId, name) {
 }
 
 function loadSets() {
-  const el = document.getElementById('sets-list');
-  el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+  var el = document.getElementById('sets-list');
+  if (!el) return;
+  if (_cache.sets) {
+    renderSets(el, _cache.sets);
+  } else {
+    el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+  }
   fetch(API + '/api/sets').then(r => r.json()).then(sets => {
-    if (!sets.length) { el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
-    // Sort alphabetically for manga, otherwise keep default order
-    sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
-    el.innerHTML = sets.map(s => `
-      <div class="set-item">
-        <div class="set-header" onclick="toggleSet('${esc(s.id)}')">
-          <span>
-            <span class="set-name">${esc(s.name)}</span>
-            ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
-          </span>
-          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name)" style="padding:2px 8px;border:none;border-radius:4px;background:var(--bg-input);color:var(--text-dim);font-size:11px;cursor:pointer;">Delete</button></span>
-        </div>
-        <div class="set-cards" id="set-${esc(s.id)}"></div>
-      </div>
-    `).join('');
+    _cache.sets = sets;
+    renderSets(el, sets);
+  }).catch(function() {
+    if (!_cache.sets) el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Failed to load sets</div>';
   });
+}
+
+function renderSets(el, sets) {
+  if (!sets.length) { el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
+  sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
+  el.innerHTML = sets.map(s => `
+    <div class="set-item">
+      <div class="set-header" onclick="toggleSet('${esc(s.id)}')">
+        <span>
+          <span class="set-name">${esc(s.name)}</span>
+          ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
+        </span>
+        <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name)" style="padding:2px 8px;border:none;border-radius:4px;background:var(--bg-input);color:var(--text-dim);font-size:11px;cursor:pointer;">Delete</button></span>
+      </div>
+      <div class="set-cards" id="set-${esc(s.id)}"></div>
+    </div>
+  `).join('');
 }
 
 function toggleSet(setId) {
@@ -966,7 +991,10 @@ function toggleSetAll(setId, owned) {
 
 function clearCollection() {
   if (!confirm('Clear your entire collection for the active TCG?')) return;
-  fetch(API + '/api/collection/clear', {method:'POST'}).then(() => { loadSets(); loadRarities(); });
+  fetch(API + '/api/collection/clear', {method:'POST'}).then(() => {
+    _cache.sets = null; _cache.rarities = null;
+    loadSets(); loadRarities();
+  }).catch(function() { showToast('Failed to clear collection'); });
 }
 
 // --- Rarity filtering ---
@@ -988,10 +1016,12 @@ function toggleRarityFilter() {
 function loadRarities() {
   var raritySection = document.getElementById('rarity-chips') && document.getElementById('rarity-chips').closest('.card');
   if (raritySection) raritySection.style.display = '';
+  if (_cache.rarities) { _rarityData = _cache.rarities; renderRarityChips(); }
   fetch(API + '/api/rarities').then(function(r) { return r.json(); }).then(function(rarities) {
+    _cache.rarities = rarities;
     _rarityData = rarities;
     renderRarityChips();
-  });
+  }).catch(function() {});
 }
 
 function renderRarityChips() {
@@ -1307,9 +1337,9 @@ function startDownload(tcg, since) {
         setDownloadUI(true, tcg);
         pollDownload();
       } else {
-        alert(d.error || 'Failed to start download');
+        showToast(d.error || 'Failed to start download');
       }
-    });
+    }).catch(function() { showToast('Failed to start download'); });
 }
 
 function stopDownload() {
@@ -1319,7 +1349,7 @@ function stopDownload() {
       setDownloadUI(false);
       loadStorage();
     }
-  });
+  }).catch(function() { showToast('Failed to stop download'); });
 }
 
 let _dlPoll = null;
@@ -1381,10 +1411,10 @@ function checkUpdate() {
   fetch(API + '/api/update/check', {method:'POST'}).then(r => r.json()).then(d => {
     if (!d.ok) { el.textContent = 'Error: ' + (d.error || 'unknown'); return; }
     if (d.up_to_date) {
-      el.innerHTML = 'Up to date! <span style="color:var(--text-dim)">Version: ' + d.local + '</span>';
+      el.innerHTML = 'Up to date! <span style="color:var(--text-dim)">Version: ' + esc(d.local) + '</span>';
       document.getElementById('btn-update-now').style.display = 'none';
     } else {
-      el.innerHTML = d.behind + ' update' + (d.behind > 1 ? 's' : '') + ' available. <span style="color:var(--text-dim)">Current: ' + d.local + ' &rarr; Latest: ' + d.remote + '</span>';
+      el.innerHTML = esc(String(d.behind)) + ' update' + (d.behind > 1 ? 's' : '') + ' available. <span style="color:var(--text-dim)">Current: ' + esc(d.local) + ' &rarr; Latest: ' + esc(d.remote) + '</span>';
       document.getElementById('btn-update-now').style.display = 'block';
     }
   }).catch(function() { el.textContent = 'Failed to check. Is the Pi online?'; });
@@ -1399,7 +1429,7 @@ function startUpdate() {
   fetch(API + '/api/update/start', {method:'POST'}).then(r => r.json()).then(d => {
     if (d.ok) { pollUpdate(); }
     else { document.getElementById('update-stage').textContent = 'Error: ' + (d.error || 'unknown'); }
-  });
+  }).catch(function() { document.getElementById('update-stage').textContent = 'Failed to start update'; });
 }
 
 var _updatePoll = null;
@@ -1432,6 +1462,7 @@ function checkUpdateStatus() {
 function loadCustomFolders() {
   fetch(API + '/api/custom/folders').then(r => r.json()).then(folders => {
     var el = document.getElementById('custom-folders');
+    if (!el) return;
     if (!folders.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:12px">No custom folders yet. Create one above.</div>'; return; }
     el.innerHTML = folders.map(f => {
       return '<div class="set-item"><div class="set-header" onclick="toggleCustomFolder(\'' + esc(f.id) + '\')">'
@@ -1439,7 +1470,7 @@ function loadCustomFolders() {
         + '<span class="set-meta">' + f.card_count + ' cards</span>'
         + '</div><div class="set-cards" id="cf-' + esc(f.id) + '"></div></div>';
     }).join('');
-  });
+  }).catch(function() { showToast('Failed to load custom folders'); });
 }
 
 function refreshCustomFolder(folderId) {
@@ -1492,7 +1523,7 @@ function createCustomFolder() {
     .then(r => r.json()).then(d => {
       if (d.ok) { document.getElementById('custom-folder-name').value = ''; loadCustomFolders(); showToast('Created ' + name); }
       else showToast(d.error || 'Failed');
-    });
+    }).catch(function() { showToast('Failed to create folder'); });
 }
 
 function uploadCustomCards(folderId, files) {
@@ -1510,7 +1541,7 @@ function uploadCustomCards(folderId, files) {
         refreshCustomFolder(folderId);
         loadCustomFolders();
       }
-    });
+    }).catch(function() { showToast('Upload failed'); });
   });
 }
 
@@ -1518,25 +1549,24 @@ function renameCustomFolder(folderId) {
   var newName = prompt('New name for this set:');
   if (!newName) return;
   fetch(API + '/api/custom/rename_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: folderId, name: newName})})
-    .then(r => r.json()).then(d => { if (d.ok) { loadCustomFolders(); showToast('Renamed'); } });
+    .then(r => r.json()).then(d => { if (d.ok) { loadCustomFolders(); showToast('Renamed'); } else showToast(d.error || 'Rename failed'); })
+    .catch(function() { showToast('Rename failed'); });
 }
 
 function deleteCustomFolder(folderId) {
   if (!confirm('Delete this entire custom set and all its images?')) return;
   fetch(API + '/api/custom/folder/' + folderId, {method:'DELETE'}).then(r => r.json()).then(d => {
     if (d.ok) { loadCustomFolders(); loadStorage(); showToast('Deleted'); }
-  });
+    else showToast(d.error || 'Delete failed');
+  }).catch(function() { showToast('Delete failed'); });
 }
 
 function deleteCustomCard(folderId, cardId) {
   if (!confirm('Delete this image?')) return;
   fetch(API + '/api/custom/card/' + folderId + '/' + cardId, {method:'DELETE'}).then(r => r.json()).then(d => {
-    if (d.ok) {
-      refreshCustomFolder(folderId);
-      loadCustomFolders();
-      showToast('Deleted');
-    }
-  });
+    if (d.ok) { refreshCustomFolder(folderId); loadCustomFolders(); showToast('Deleted'); }
+    else showToast(d.error || 'Delete failed');
+  }).catch(function() { showToast('Delete failed'); });
 }
 
 function editCustomCard(folderId, cardId, name, number, rarity) {
@@ -1549,11 +1579,9 @@ function editCustomCard(folderId, cardId, name, number, rarity) {
   fetch(API + '/api/custom/card_metadata', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({folder: folderId, card_id: cardId, name: newName, number: newNum, rarity: newRarity})})
     .then(r => r.json()).then(d => {
-      if (d.ok) {
-        refreshCustomFolder(folderId);
-        showToast('Updated');
-      }
-    });
+      if (d.ok) { refreshCustomFolder(folderId); showToast('Updated'); }
+      else showToast(d.error || 'Update failed');
+    }).catch(function() { showToast('Update failed'); });
 }
 
 // --- Dynamic TCG UI ---
