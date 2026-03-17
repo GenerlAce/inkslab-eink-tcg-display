@@ -382,7 +382,7 @@ def api_current_card_image():
             if card_path and os.path.exists(card_path):
                 # Validate path is within a known card directory
                 real = os.path.realpath(card_path)
-                if not any(real.startswith(os.path.realpath(d)) for d in allowed_dirs):
+                if not any(real == os.path.realpath(d) or real.startswith(os.path.realpath(d) + os.sep) for d in allowed_dirs):
                     return '', 403
                 mime = 'image/png' if card_path.lower().endswith('.png') else 'image/jpeg'
                 resp = send_file(card_path, mimetype=mime)
@@ -997,7 +997,8 @@ def api_delete_series():
     safe_set = os.path.basename(set_id)
     series_path = os.path.join(library, safe_set)
     real = os.path.realpath(series_path)
-    if not real.startswith(os.path.realpath(library)):
+    real_lib = os.path.realpath(library)
+    if not (real == real_lib or real.startswith(real_lib + os.sep)):
         return jsonify({'ok': False, 'error': 'Invalid path'})
     if not os.path.isdir(series_path):
         return jsonify({'ok': False, 'error': 'Series not found'})
