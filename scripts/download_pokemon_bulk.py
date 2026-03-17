@@ -3,40 +3,14 @@
 Download all cards for a specific Pokemon name across all sets.
 Usage: python3 download_pokemon_bulk.py --name "Pikachu"
 """
-import os, sys, argparse, requests, json, shutil, time, random
+import os, sys, argparse, requests, json, time, random
+import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
+from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file
 
 BASE_DIR = "/home/pi/pokemon_cards"
 SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 CARDS_BASE_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/cards/en/"
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36'}
-MIN_FREE_SPACE_MB = 50
-
-def check_disk_space():
-    try:
-        st = shutil.disk_usage(BASE_DIR)
-        return (st.free // (1024 * 1024)) >= MIN_FREE_SPACE_MB
-    except Exception:
-        return True
-
-def download_file(url, filepath):
-    if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-        return "EXISTS"
-    tmp = filepath + ".tmp"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        if r.status_code == 200:
-            with open(tmp, 'wb') as f:
-                f.write(r.content)
-            if os.path.getsize(tmp) > 0:
-                os.rename(tmp, filepath)
-                return "DOWNLOADED"
-            os.remove(tmp)
-            return "FAIL: empty"
-        return f"HTTP {r.status_code}"
-    except Exception as e:
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        return f"FAIL: {e}"
 
 def main():
     parser = argparse.ArgumentParser()
@@ -107,11 +81,11 @@ def main():
             img_url = card['images'].get('large', card['images'].get('small'))
             if not img_url:
                 continue
-            if not check_disk_space():
+            if not check_disk_space(BASE_DIR):
                 print(f"Low disk space! Stopping. Downloaded {downloaded} cards.")
                 sys.exit(0)
             filepath = os.path.join(set_dir, f"{card['id']}.png")
-            status = download_file(img_url, filepath)
+            status = download_file(img_url, filepath, HEADERS)
             if status == "DOWNLOADED":
                 downloaded += 1
                 print(f"  Downloaded: {card['id']}")
