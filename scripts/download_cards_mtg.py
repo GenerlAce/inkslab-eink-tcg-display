@@ -85,8 +85,8 @@ def download_file(url, filepath):
         return f"FAIL: {e}"
 
 
-def fetch_sets(since_year=None):
-    """Fetch all MTG sets from Scryfall, filtered by type and optional year."""
+def fetch_sets(since_year=None, set_code=None):
+    """Fetch all MTG sets from Scryfall, filtered by type and optional year/set code."""
     print("1. Fetching set list from Scryfall...")
     try:
         r = requests.get(SETS_URL, headers=HEADERS, timeout=30)
@@ -107,6 +107,8 @@ def fetch_sets(since_year=None):
         if released > today:
             continue
         if since_year and released[:4] < str(since_year):
+            continue
+        if set_code and s.get("code", "").lower() != set_code.lower():
             continue
         filtered.append(s)
 
@@ -226,6 +228,8 @@ def main():
     parser = argparse.ArgumentParser(description="Download MTG card images from Scryfall")
     parser.add_argument("--since", type=int, metavar="YEAR",
                         help="Only download sets released in this year or later (e.g. --since 2018)")
+    parser.add_argument("--set", type=str, metavar="CODE",
+                        help="Only download a specific set by code (e.g. --set mh3)")
     args = parser.parse_args()
 
     print("=== MTG Card Downloader (Scryfall) ===\n")
@@ -233,7 +237,10 @@ def main():
     if args.since:
         print(f"Filtering to sets released {args.since} or later.\n")
 
-    sets = fetch_sets(since_year=args.since)
+    if args.set:
+        print("Downloading single set:", args.set)
+
+    sets = fetch_sets(since_year=args.since, set_code=args.set)
     if not sets:
         print("No sets found to download.")
         return

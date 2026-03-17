@@ -925,8 +925,10 @@ def api_download_start():
             return jsonify({"ok": False, "error": "Unknown TCG or no download script"})
 
         cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
-        if tcg == "mtg" and since:
-            cmd.extend(["--since", str(since)])
+        if tcg == mtg and since:
+            cmd.extend([--since, str(since)])
+        if tcg == mtg and data.get(mtg_set):
+            cmd.extend([--set, data.get(mtg_set)])
 
         if tcg == "pokemon" and data.get("pokemon_name"):
             cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_pokemon_bulk.py"),
@@ -1101,6 +1103,43 @@ def api_metron_clear():
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
+
+@app.route('/api/mtg/sets')
+def api_mtg_sets():
+    """Fetch available MTG sets from Scryfall for the set-search UI."""
+    q = request.args.get('q', '').strip().lower()
+    try:
+        import requests as req
+        INCLUDE_SET_TYPES = {
+            "core", "expansion", "masters", "draft_innovation",
+            "commander", "starter", "duel_deck", "planechase",
+        }
+        r = req.get("https://api.scryfall.com/sets", timeout=15,
+                    headers={"User-Agent": "InkSlab/1.0"})
+        r.raise_for_status()
+        all_sets = r.json().get("data", [])
+        import time
+        today = time.strftime("%Y-%m-%d")
+        results = []
+        for s in all_sets:
+            if s.get("set_type", "") not in INCLUDE_SET_TYPES:
+                continue
+            if s.get("released_at", "9999") > today:
+                continue
+            name = s.get("name", "")
+            code = s.get("code", "")
+            if q and q not in name.lower() and q not in code.lower():
+                continue
+            results.append({
+                "code": code,
+                "name": name,
+                "released": s.get("released_at", ""),
+                "card_count": s.get("card_count", 0),
+            })
+        results.sort(key=lambda x: x["released"], reverse=True)
+        return jsonify({"results": results[:50]})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
 
 @app.route('/api/comics/search')
 def api_comics_search():
@@ -2436,12 +2475,17 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
   <div class="card">
     <h3>Download Cards</h3>
     <div id="dl-buttons"></div>
-    <div id="dl-mtg-since" style="display:none;margin-top:8px" class="form-group">
-      <label>Download MTG since year:</label>
-      <div class="flex-row">
-        <input type="number" id="dl-since" min="1993" max="2030" value="2020" style="flex:2">
-        <button class="btn btn-secondary" id="btn-dl-mtg-since" onclick="startDownload('mtg', document.getElementById('dl-since').value)" style="flex:1">Go</button>
+    <div id="dl-mtg-search" style="display:none;margin-top:12px;">
+      <div style="font-weight:600;margin-bottom:6px;color:#6BCCBD;">Search MTG Sets</div>
+      <p style="color:#888;font-size:12px;margin-bottom:8px;">Search for a Magic set and download all its cards.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="mtgSetSearch()"
+          style="padding:8px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
+      <div id="mtg-set-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+    </div>
     </div>
     <div id="dl-pokemon-search" style="display:none;margin-top:12px;">
       <div style="font-weight:600;margin-bottom:6px;color:#36A5CA;">Search Pokemon Cards</div>
@@ -3487,15 +3531,13 @@ function loadStorage() {
 function setDownloadUI(running, tcg) {
   const btns = document.getElementById('dl-buttons');
   const stopBtn = document.getElementById('btn-dl-stop');
-  const sinceBtn = document.getElementById('btn-dl-mtg-since');
+  // MTG set search button disabling handled via dl-buttons querySelectorAll
   if (running) {
     btns.querySelectorAll('.btn').forEach(b => b.disabled = true);
-    if (sinceBtn) sinceBtn.disabled = true;
     stopBtn.style.display = 'block';
     stopBtn.textContent = 'Stop ' + (tcg || '').toUpperCase() + ' Download';
   } else {
     btns.querySelectorAll('.btn').forEach(b => b.disabled = false);
-    if (sinceBtn) sinceBtn.disabled = false;
     stopBtn.style.display = 'none';
   }
 }
@@ -3767,9 +3809,9 @@ function buildDynamicUI(registry) {
   dlEl.innerHTML = Object.entries(registry).filter(function(e) { return e[1].download_script; }).map(function(e) {
     return '<div style="margin-bottom:6px"><button class="btn btn-primary btn-block" onclick="startDownload(\\'' + e[0] + '\\')">Download ' + e[1].name + '</button></div>';
   }).join('');
-  // Show MTG since-year filter only if MTG is in the registry
-  var mtgSince = document.getElementById('dl-mtg-since');
-  if (mtgSince) mtgSince.style.display = registry.mtg ? 'block' : 'none';
+  // Show MTG set search only if MTG is in the registry
+  var mtgSearch = document.getElementById('dl-mtg-search');
+  if (mtgSearch) mtgSearch.style.display = registry.mtg ? 'block' : 'none';
   // Manga series search
   var mangaSearch = document.getElementById('dl-manga-search');
   if (mangaSearch) mangaSearch.style.display = registry.manga ? 'block' : 'none';
@@ -3818,6 +3860,7 @@ function buildDynamicUI(registry) {
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js"></script>
+<script src=/static/mtg_sets.js></script>
 </body>
 </html>"""
 
