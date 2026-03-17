@@ -55,13 +55,20 @@ body {
   align-items: center;
   gap: 8px;
 }
-.status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--accent2);
-  display: inline-block;
+.status-dot { display: none; }
+.pill-tcg {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid currentColor;
+  opacity: 0.9;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
-.status-dot.offline { background: var(--danger); }
+.pill-tcg:active { opacity: 0.6; }
 
 /* === CONTENT AREA === */
 .content {

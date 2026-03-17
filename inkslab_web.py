@@ -2153,6 +2153,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 <div class="status-pill">
   <span class="pill-logo">InkSlab</span>
+  <span id="pill-tcg" class="pill-tcg" onclick="pillTcgTap()" title="Tap to switch collection"></span>
   <div class="pill-info">
     <svg id="wifi-icon" width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:2px">
       <circle cx="8" cy="11" r="1.2" fill="#6BCCBD"/>

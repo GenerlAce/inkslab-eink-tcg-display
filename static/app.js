@@ -1,5 +1,10 @@
 const API = '';
 
+// --- Global swipe guard: prevents onclick from firing during a scroll ---
+var _touchMoved = false;
+document.addEventListener('touchstart', function() { _touchMoved = false; }, {passive: true});
+document.addEventListener('touchmove', function() { _touchMoved = true; }, {passive: true});
+
 // --- HTML escaping for safe innerHTML ---
 function esc(s) {
   if (s == null) return '';
@@ -238,9 +243,33 @@ function updatePauseBtn(paused) {
   }
 }
 
+function updatePillTcg(tcg) {
+  var pill = document.getElementById('pill-tcg');
+  if (!pill) return;
+  // Fallback to first registry key if tcg is missing
+  if (!tcg && _tcgRegistry) tcg = Object.keys(_tcgRegistry)[0];
+  if (!tcg) return;
+  var shortNames = {lorcana: 'Lorcana', mtg: 'Magic', pokemon: 'Pokemon', manga: 'Manga', comics: 'Comics', custom: 'Custom'};
+  var info = _tcgRegistry && _tcgRegistry[tcg];
+  var color = (info && info.color) || '#36A5CA';
+  var name = shortNames[tcg] || (info && info.name) || tcg.toUpperCase();
+  pill.textContent = name;
+  pill.style.color = color;
+}
+
+function pillTcgTap() {
+  var tcgs = Object.keys(_tcgRegistry || {});
+  if (!tcgs.length) return;
+  var cur = (_lastStatus && _lastStatus.tcg) || tcgs[0];
+  var idx = tcgs.indexOf(cur);
+  var next = tcgs[(idx + 1) % tcgs.length];
+  switchTCG(next, null);
+}
+
 function refreshStatus() {
   fetch(API + '/api/status').then(r => r.json()).then(d => {
-    document.getElementById('st-tcg').textContent = (d.tcg || '\\u2014').toUpperCase();
+    document.getElementById('st-tcg').textContent = (d.tcg || '\u2014').toUpperCase();
+    updatePillTcg(d.tcg);
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
     if (d.pending) {
@@ -366,21 +395,22 @@ function togglePause() {
 function switchTCG(tcg, activeBtn) {
   var btns = document.getElementById('quick-switch-btns').querySelectorAll('.btn');
   btns.forEach(function(b) { b.disabled = true; });
-  var orig = activeBtn.textContent;
-  activeBtn.textContent = 'Switching...';
+  var orig = activeBtn ? activeBtn.textContent : null;
+  if (activeBtn) activeBtn.textContent = 'Switching...';
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify({active_tcg: tcg}),
     headers:{'Content-Type':'application/json'}})
     .then(function() {
-      activeBtn.textContent = orig;
+      if (activeBtn) activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
       var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
       showToast('Switching to ' + name + '...');
       document.getElementById('st-tcg').textContent = name;
+      updatePillTcg(tcg);
       setOptimisticLoading('Switching to ' + name + '...');
       startRapidPoll();
     })
     .catch(function() {
-      activeBtn.textContent = orig;
+      if (activeBtn) activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
       showToast('Switch failed');
     });
@@ -836,12 +866,14 @@ function toggleSetRarityChip(chipEl, setId, rarity, owned) {
 
 // --- Card preview modal ---
 function showPreview(setId, cardId, label, tcg) {
+  if (_touchMoved) return;
   var t = tcg || (_lastStatus && _lastStatus.tcg) || 'pokemon';
   document.getElementById('preview-img').src = '/api/card_image/' + t + '/' + setId + '/' + cardId;
   document.getElementById('preview-name').textContent = label;
   document.getElementById('preview-modal').classList.add('open');
 }
 function showCurrentPreview() {
+  if (_touchMoved) return;
   if (!_lastStatus || !_lastStatus.set_id) return;
   showPreview(_lastStatus.set_id, _lastStatus.card_id, (_lastStatus.card_num || '') + ' ' + (_lastStatus.set_info || ''), _lastStatus.tcg);
 }
@@ -1429,13 +1461,13 @@ function buildDynamicUI(registry) {
   // Load TCG registry first, then build UI
   fetch(API + '/api/tcg_list').then(r => r.json()).then(function(registry) {
     buildDynamicUI(registry);
+    updatePillTcg(null); // show first available TCG immediately, refreshStatus will update it
     // Now do everything else
     const saved = localStorage.getItem('inkslab_tab');
     if (saved && document.getElementById('tab-' + saved)) {
       showTab(saved);
-    } else {
-      refreshStatus();
     }
+    refreshStatus();
     startMainPoll();
     startCountdown();
     fetch(API + '/api/ip').then(r => r.json()).then(d => {

@@ -170,9 +170,25 @@
         img.addEventListener('mouseenter', function(e) { window.showThumbHover(e, src); });
         img.addEventListener('mouseleave', window.hideThumbHover);
         // Top half tap = add to collection, bottom half tap = preview
+        // Track touch start to distinguish swipe from tap
+        var _touchStartX = 0, _touchStartY = 0, _touchScrollY = 0;
+        img.addEventListener('touchstart', function(e) {
+          _touchStartX = e.touches[0].clientX;
+          _touchStartY = e.touches[0].clientY;
+          // Track scroll position of nearest scrollable parent
+          var sc = img.closest('.content') || document.documentElement;
+          _touchScrollY = sc.scrollTop;
+        }, {passive: true});
         img.addEventListener('touchend', function(e) {
-          e.preventDefault();
           var touch = e.changedTouches[0];
+          var dx = Math.abs(touch.clientX - _touchStartX);
+          var dy = Math.abs(touch.clientY - _touchStartY);
+          // Also check if the page scrolled during the gesture
+          var sc = img.closest('.content') || document.documentElement;
+          var scrolled = Math.abs(sc.scrollTop - _touchScrollY);
+          // Ignore if finger moved or page scrolled — it's a scroll/swipe
+          if (dx > 8 || dy > 8 || scrolled > 5) return;
+          e.preventDefault();
           var rect = img.getBoundingClientRect();
           var relY = touch.clientY - rect.top;
           if (relY < rect.height / 2) {
