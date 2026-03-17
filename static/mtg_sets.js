@@ -16,11 +16,11 @@ function mtgSetSearch() {
       results.forEach(function(s) {
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #222;">'
           + '<div>'
-          + '<div style="color:#D8E6E4;font-weight:600;">' + esc(s.name) + '</div>'
-          + '<div style="color:#6BCCBD;font-size:12px;">' + esc(s.code.toUpperCase()) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.card_count + ' cards</div>'
+          + '<div style="font-weight:600;"><a href="https://scryfall.com/sets/' + esc(s.code) + '" target="_blank" style="color:#6BCCBD;text-decoration:none;">' + esc(s.name) + '</a></div>'
+          + '<div style="color:#888;font-size:12px;">' + esc(s.code.toUpperCase()) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.card_count + ' cards</div>'
           + '</div>'
           + '<button onclick="mtgSetDownload(this)" data-set-code="' + esc(s.code) + '" data-set-name="' + esc(s.name) + '"'
-          + ' style="padding:6px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Download</button>'
+          + ' style="padding:6px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;
@@ -56,7 +56,6 @@ function mtgSetDownload(btn) {
   });
 }
 
-// Allow Enter key in MTG set search input
 document.addEventListener('DOMContentLoaded', function() {
   var input = document.getElementById('mtg-set-search-input');
   if (input) {

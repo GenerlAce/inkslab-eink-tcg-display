@@ -22,11 +22,14 @@ function pokemonSearch() {
       var sorted = Object.values(groups).sort(function(a, b) { return b.cards.length - a.cards.length; }).slice(0, 5);
       var html = '';
       sorted.forEach(function(g) {
+        var searchUrl = 'https://www.pokemon.com/us/pokemon-tcg/pokemon-cards/?cardName=' + encodeURIComponent(g.name);
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #222;">'
-          + '<div><div style="color:#D8E6E4;font-weight:600;">' + esc(g.name) + '</div>'
-          + '<div style="color:#6BCCBD;font-size:12px;">' + g.cards.length + ' card(s) across ' + g.cards.length + ' set(s)</div></div>'
-          + '<button onclick="pokemonBulkDownloadByName(this)" data-pname="' + esc(g.name) + '" '
-          + 'style="padding:6px 14px;background:#36A5CA;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Download All</button>'
+          + '<div>'
+          + '<div style="font-weight:600;"><a href="' + searchUrl + '" target="_blank" style="color:#36A5CA;text-decoration:none;">' + esc(g.name) + '</a></div>'
+          + '<div style="color:#888;font-size:12px;">' + g.cards.length + ' card(s) in collection</div>'
+          + '</div>'
+          + '<button onclick="pokemonBulkDownloadByName(this)" data-pname="' + esc(g.name) + '"'
+          + ' style="padding:6px 14px;background:#36A5CA;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;
@@ -66,3 +69,12 @@ function pokemonBulkClick(btn) {
   if (!name) return;
   pokemonBulkDownloadByName(btn);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  var input = document.getElementById('pokemon-search-input');
+  if (input) {
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') pokemonSearch();
+    });
+  }
+});
