@@ -38,10 +38,11 @@
       window.hideThumbHover();
     }
   });
-  // Touch on mobile - show on tap
+  // Touch on mobile — hide on tap outside, but NOT on the grid thumbnails themselves
+  // (the thumbnail's own touchend handler manages show/hide toggle; firing here causes flicker)
   document.addEventListener('touchstart', function(e) {
     var el = document.getElementById('thumb-hover-preview');
-    if (el && el.style.display !== 'none' && !el.contains(e.target)) {
+    if (el && el.style.display !== 'none' && !el.contains(e.target) && !e.target.closest('.grid-thumb-wrap')) {
       window.hideThumbHover();
     }
   });

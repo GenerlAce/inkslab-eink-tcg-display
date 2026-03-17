@@ -931,6 +931,8 @@ def api_download_start():
             cmd.extend(["--since", str(since)])
         if tcg == "mtg" and data.get("mtg_set"):
             cmd.extend(["--set", data.get("mtg_set")])
+        if tcg == "lorcana" and data.get("set_code"):
+            cmd.extend(["--set", data.get("set_code")])
 
         if tcg == "pokemon" and data.get("pokemon_name"):
             cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_pokemon_bulk.py"),
@@ -1141,6 +1143,29 @@ def api_mtg_sets():
             })
         results.sort(key=lambda x: x["released"], reverse=True)
         return jsonify({"results": results[:50]})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
+
+@app.route('/api/lorcana/sets')
+def api_lorcana_sets():
+    """Fetch Lorcana sets from the Lorcast API."""
+    try:
+        import requests as req
+        r = req.get("https://api.lorcast.com/v0/sets", timeout=15,
+                    headers={"User-Agent": "InkSlab/1.0"})
+        r.raise_for_status()
+        data = r.json()
+        sets = data if isinstance(data, list) else data.get("results", data.get("data", []))
+        results = []
+        for s in sets:
+            results.append({
+                "code": s.get("code", s.get("id", "")),
+                "name": s.get("name", ""),
+                "released": s.get("released_at", s.get("released", "")),
+                "card_count": s.get("card_count", s.get("total_cards", 0)),
+            })
+        results.sort(key=lambda x: x["released"], reverse=True)
+        return jsonify({"results": results})
     except Exception as e:
         return jsonify({"results": [], "error": str(e)})
 
@@ -2153,14 +2178,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 <div class="status-pill">
   <span class="pill-logo">InkSlab</span>
-  <span id="pill-tcg" class="pill-tcg" onclick="pillTcgTap()" title="Tap to switch collection"></span>
+  <span id="pill-tcg" class="pill-tcg"></span>
   <div class="pill-info">
     <svg id="wifi-icon" width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:2px">
       <circle cx="8" cy="11" r="1.2" fill="#6BCCBD"/>
       <path d="M5.2 8.2A3.8 3.8 0 0 1 8 7a3.8 3.8 0 0 1 2.8 1.2" stroke="#6BCCBD" stroke-width="1.3" stroke-linecap="round" fill="none"/>
       <path d="M2.5 5.5A7.5 7.5 0 0 1 8 3.5a7.5 7.5 0 0 1 5.5 2" stroke="#6BCCBD" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.5"/>
     </svg>
-    <span class="status-dot" id="status-dot"></span>
     <span id="status-text">Loading...</span>
   </div>
 </div>
@@ -2365,6 +2389,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="card">
     <h3>Downloads</h3>
     <div id="dl-buttons"></div>
+    <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="lorcanaSearch()"
+          style="padding:8px 14px;background:#C084FC;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+      </div>
+      <div id="lorcana-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+    </div>
     <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
@@ -2376,7 +2409,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
     <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="pokemon-search-input" type="text" placeholder="e.g. Pikachu, Charizard, Mewtwo..."
+        <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
           style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
         <button onclick="pokemonSearch()"
           style="padding:8px 14px;background:#36A5CA;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>

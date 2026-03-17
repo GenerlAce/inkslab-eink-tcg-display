@@ -4,6 +4,11 @@ const API = '';
 var _touchMoved = false;
 document.addEventListener('touchstart', function() { _touchMoved = false; }, {passive: true});
 document.addEventListener('touchmove', function() { _touchMoved = true; }, {passive: true});
+document.addEventListener('touchend', function(e) {
+  if (e.changedTouches.length) {
+    window._lastTouchEnd = {x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY};
+  }
+}, {passive: true});
 
 // --- HTML escaping for safe innerHTML ---
 function esc(s) {
@@ -61,6 +66,59 @@ var _rapidPoll = null;
 var _pendingAction = false;
 var _mainPoll = null;
 var _countdownTimer = null;
+
+function lorcanaSearch() {
+  var q = document.getElementById('lorcana-search-input').value.trim().toLowerCase();
+  var resultsEl = document.getElementById('lorcana-search-results');
+  resultsEl.style.display = 'block';
+  resultsEl.innerHTML = '<div style="padding:10px;color:#888;">Loading sets...</div>';
+  fetch(API + '/api/lorcana/sets')
+    .then(r => r.json())
+    .then(function(data) {
+      var sets = data.results || [];
+      if (q) sets = sets.filter(function(s) { return s.name.toLowerCase().indexOf(q) !== -1; });
+      if (!sets.length) {
+        resultsEl.innerHTML = '<div style="padding:10px;color:#888;">No sets found.</div>';
+        return;
+      }
+      resultsEl.innerHTML = sets.map(function(s) {
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #222;">'
+          + '<div><div style="font-weight:600;">' + esc(s.name) + '</div>'
+          + '<div style="color:#888;font-size:12px;">' + esc(s.released) + (s.card_count ? ' &middot; ' + s.card_count + ' cards' : '') + '</div></div>'
+          + '<button data-code="' + esc(s.code) + '" data-name="' + esc(s.name) + '" onclick="lorcanaDownloadSet(this)"'
+          + ' style="padding:6px 14px;background:#C084FC;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download</button>'
+          + '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      resultsEl.innerHTML = '<div style="padding:10px;color:#c00;">Failed to load sets. Check connection.</div>';
+    });
+}
+
+function lorcanaDownloadSet(btn) {
+  var code = btn.dataset.code;
+  var name = btn.dataset.name;
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  fetch(API + '/api/download/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tcg: 'lorcana', set_code: code})
+  }).then(r => r.json()).then(function(d) {
+    if (d.ok) {
+      showToast('Downloading ' + name + '!');
+      closeAllDlSearch();
+      document.getElementById('lorcana-search-results').style.display = 'none';
+      document.getElementById('lorcana-search-input').value = '';
+      setDownloadUI(true, 'lorcana');
+      pollDownload();
+    } else {
+      showToast(d.error || 'Failed to start download');
+      btn.disabled = false;
+      btn.textContent = 'Download';
+    }
+  });
+}
 
 function mangaSearch() {
   var q = document.getElementById('manga-search-input').value.trim();
@@ -222,12 +280,36 @@ function renderQueue(d) {
   var queueCard = document.getElementById('queue-card');
   if (!next.length) { queueCard.style.display = 'none'; return; }
   queueCard.style.display = 'block';
-  document.getElementById('q-next-list').innerHTML = next.map(function(c) {
-    return '<div class="q-card" onclick="showPreview(\'' + esc(c.set_id) + '\',\'' + esc(c.card_id) + '\',\'' + esc(c.card_num) + ' ' + esc(c.set_info) + '\')">'
+  var listEl = document.getElementById('q-next-list');
+  listEl.innerHTML = next.map(function(c) {
+    return '<div class="q-card" data-set-id="' + esc(c.set_id) + '" data-card-id="' + esc(c.card_id) + '" data-label="' + esc(c.card_num) + ' ' + esc(c.set_info) + '">'
       + '<img class="q-thumb" src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '" onerror="this.style.display=\'none\'">'
       + '<div class="q-num">' + esc(c.card_num) + '</div>'
       + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
   }).join('');
+  // Attach swipe-safe tap listeners — use touchend+preventDefault (same as collection grid)
+  listEl.querySelectorAll('.q-card').forEach(function(card) {
+    var _startX = 0, _startY = 0, _startScrollContent = 0, _startScrollWindow = 0;
+    card.addEventListener('touchstart', function(e) {
+      _startX = e.touches[0].clientX;
+      _startY = e.touches[0].clientY;
+      var sc = card.closest('.content');
+      _startScrollContent = sc ? sc.scrollTop : 0;
+      _startScrollWindow = window.scrollY || document.documentElement.scrollTop || 0;
+    }, {passive: true});
+    card.addEventListener('touchend', function(e) {
+      if (_touchMoved) return;
+      var touch = e.changedTouches[0];
+      var dx = Math.abs(touch.clientX - _startX);
+      var dy = Math.abs(touch.clientY - _startY);
+      var sc = card.closest('.content');
+      var scrolledContent = sc ? Math.abs(sc.scrollTop - _startScrollContent) : 0;
+      var scrolledWindow = Math.abs((window.scrollY || document.documentElement.scrollTop || 0) - _startScrollWindow);
+      if (dx > 8 || dy > 8 || scrolledContent > 4 || scrolledWindow > 4) return;
+      e.preventDefault();
+      showPreview(card.dataset.setId, card.dataset.cardId, card.dataset.label);
+    }, {passive: false});
+  });
 }
 
 function updatePauseBtn(paused) {
@@ -257,6 +339,20 @@ function updatePillTcg(tcg) {
   pill.style.color = color;
 }
 
+function updateQuickSwitchActive(tcg) {
+  document.querySelectorAll('#quick-switch-btns .btn').forEach(function(b) {
+    var color = b.dataset.color || '#36A5CA';
+    if (b.dataset.tcg === tcg) {
+      b.style.background = color;
+      b.style.color = '#010001';
+    } else {
+      b.style.background = 'transparent';
+      b.style.color = color;
+    }
+    b.style.borderColor = color;
+  });
+}
+
 function pillTcgTap() {
   var tcgs = Object.keys(_tcgRegistry || {});
   if (!tcgs.length) return;
@@ -270,6 +366,7 @@ function refreshStatus() {
   fetch(API + '/api/status').then(r => r.json()).then(d => {
     document.getElementById('st-tcg').textContent = (d.tcg || '\u2014').toUpperCase();
     updatePillTcg(d.tcg);
+    updateQuickSwitchActive(d.tcg || '');
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
     if (d.pending) {
@@ -406,6 +503,7 @@ function switchTCG(tcg, activeBtn) {
       showToast('Switching to ' + name + '...');
       document.getElementById('st-tcg').textContent = name;
       updatePillTcg(tcg);
+      updateQuickSwitchActive(tcg);
       setOptimisticLoading('Switching to ' + name + '...');
       startRapidPoll();
     })
@@ -682,7 +780,7 @@ function loadSets() {
             <span class="set-name">${esc(s.name)}</span>
             ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
           </span>
-          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" onclick="event.stopPropagation();deleteSeriesStep('${esc(s.id)}','${esc(s.name)}')" style="padding:2px 8px;border:none;border-radius:4px;background:#1F333F;color:#6BCCBD;font-size:11px;cursor:pointer;">Delete</button></span>
+          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name)" style="padding:2px 8px;border:none;border-radius:4px;background:#1F333F;color:#6BCCBD;font-size:11px;cursor:pointer;">Delete</button></span>
         </div>
         <div class="set-cards" id="set-${esc(s.id)}"></div>
       </div>
@@ -1033,7 +1131,7 @@ function loadStorage() {
 }
 
 function closeAllDlSearch() {
-  ['dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
+  ['dl-lorcana-search','dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -1050,7 +1148,7 @@ function toggleDlSearch(panelId, btn) {
   if (!panel) return;
   var wasOpen = panel.style.display !== 'none';
   // Close all panels and reset all search buttons (accordion)
-  ['dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
+  ['dl-lorcana-search','dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -1353,21 +1451,24 @@ function buildDynamicUI(registry) {
     var color = e[1].color || '#36A5CA';
     var b = document.createElement('button');
     b.className = 'btn';
+    b.dataset.tcg = e[0];
+    b.dataset.color = color;
     b.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;';
     b.textContent = shortNames[e[0]] || e[1].name;
-    b.addEventListener('mouseover', function() { b.style.background = color; b.style.color = '#010001'; });
-    b.addEventListener('mouseout', function() { b.style.background = 'transparent'; b.style.color = color; });
+    b.addEventListener('mouseover', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = color; b.style.color = '#010001'; } });
+    b.addEventListener('mouseout', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = 'transparent'; b.style.color = color; } });
     b.addEventListener('click', function() { switchTCG(e[0], b); });
     qsEl.appendChild(b);
   });
+  updateQuickSwitchActive(_lastStatus.tcg || '');
   // Settings TCG dropdown
   var sel = document.getElementById('cfg-tcg');
   sel.innerHTML = Object.entries(registry).map(function(e) {
     return '<option value="' + e[0] + '">' + e[1].name + '</option>';
   }).join('');
   // Download buttons with inline Search toggle (only for TCGs with download scripts)
-  var searchPanels = {mtg: 'dl-mtg-search', pokemon: 'dl-pokemon-search', manga: 'dl-manga-search', comics: 'dl-comics-search'};
-  var searchLabels = {mtg: 'Search Sets', pokemon: 'Search Cards', manga: 'Search Series', comics: 'Search Series'};
+  var searchPanels = {lorcana: 'dl-lorcana-search', mtg: 'dl-mtg-search', pokemon: 'dl-pokemon-search', manga: 'dl-manga-search', comics: 'dl-comics-search'};
+  var searchLabels = {lorcana: 'Search Sets', mtg: 'Search Sets', pokemon: 'Search Sets', manga: 'Search Series', comics: 'Search Series'};
   var dlEl = document.getElementById('dl-buttons');
   dlEl.innerHTML = '';
   Object.entries(registry).filter(function(e) { return e[1].download_script; }).forEach(function(e) {
