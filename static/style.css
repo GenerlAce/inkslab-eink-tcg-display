@@ -445,7 +445,8 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 /* === SEARCH === */
 .search-wrap { position: relative; margin-bottom: 12px; }
-.search-wrap input { width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border-hi); border-radius: 8px; padding: 10px 12px 10px 34px; font-size: 14px; }
+.search-wrap input { width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border-hi); border-radius: 8px; padding: 10px 32px 10px 34px; font-size: 14px; }
+.search-clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-dim); font-size: 14px; cursor: pointer; padding: 4px 6px; line-height: 1; }
 .search-wrap input:focus { outline: none; border-color: var(--accent); }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none; }
 .search-results { max-height: 400px; overflow-y: auto; }
@@ -475,3 +476,18 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 /* === ANIMATIONS === */
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .preview-spin { animation: spin 1.2s linear infinite; display: inline-block; }
+
+/* === TWO-COL CARD GRID (collection tab top) === */
+/* Mobile: merge both cards into one visual block */
+.two-col-cards { display: flex; flex-direction: column; }
+.two-col-cards .card:first-child { border-radius: 10px 10px 0 0; margin-bottom: 0; border-bottom: none; }
+.collection-only-card { border-radius: 0 0 10px 10px; border-top: 1px solid var(--border); margin-bottom: 8px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.collection-only-card h3 { margin: 0; font-size: 13px; }
+.collection-only-card p { display: none; }
+@media (min-width: 600px) {
+  .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0; }
+  .two-col-cards .card:first-child { border-radius: 10px; margin-bottom: 0; border-bottom: 1px solid var(--border); }
+  .collection-only-card { border-radius: 10px; border-top: 1px solid var(--border); flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; margin-bottom: 0; }
+  .collection-only-card h3 { font-size: inherit; }
+  .collection-only-card p { display: block; }
+}

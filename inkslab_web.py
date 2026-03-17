@@ -241,6 +241,7 @@ def api_status():
         status.pop('pending', None)
     if status.get('display_updating') and time.time() - status.get('timestamp', 0) > 60:
         status.pop('display_updating', None)
+    status['collection_only'] = load_config().get('collection_only', False)
     return jsonify(status)
 
 
@@ -2199,6 +2200,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
 <link rel="stylesheet" href="/static/style.css">
+<script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
 <body>
 
@@ -2312,14 +2314,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <span class="row-label">Color Saturation</span>
       <input type="number" id="cfg-saturation" min="0.5" max="5.0" step="0.1" value="2.5">
     </div>
-    <hr class="settings-divider">
-    <div class="form-row">
-      <span class="row-label">Collection Mode</span>
-      <label class="switch">
-        <input type="checkbox" id="cfg-collection">
-        <span class="switch-slider"></span>
-      </label>
-    </div>
     </div><!-- end settings-display-grid -->
     <hr class="settings-divider" style="margin:12px 0">
     <div class="form-row">
@@ -2393,10 +2387,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 <!-- COLLECTION TAB -->
 <div id="tab-collection" class="panel">
-  <div class="card">
-    <h3>My Collection</h3>
-    <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Mark the cards you own. Enable "collection mode" in Settings to only display owned cards.</p>
-    <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
+  <div class="two-col-cards">
+    <div class="card">
+      <h3>My Collection</h3>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Mark cards as owned to build your collection. Enable <strong>Collection Only Mode</strong> to display only your owned cards.</p>
+      <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
+    </div>
+    <div class="card collection-only-card">
+      <h3>Collection Only Mode</h3>
+      <p style="color:var(--text-dim);font-size:12px;margin:0">When ON, only cards you have marked as owned will display on the e-ink screen.</p>
+      <label class="switch">
+        <input type="checkbox" id="cfg-collection" onchange="saveCollectionMode()">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
   </div>
   <div class="card">
     <h3>Search Cards</h3>
@@ -2405,6 +2409,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
       <input type="text" id="search-input" placeholder="Search by card name..." oninput="debounceSearch()">
+      <button id="search-clear" class="search-clear-btn" onclick="clearSearch()" style="display:none">&#10005;</button>
     </div>
     <div id="search-results"></div>
   </div>
@@ -2507,7 +2512,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
-<div id="toast" style="display:none;position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:#6BCCBD;color:#010001;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
+<div id="toast" style="display:none;position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:var(--accent);color:#010001;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
 
 <nav class="bottom-nav">
   <div class="nav-item active" data-tab="display" onclick="showTab('display')">

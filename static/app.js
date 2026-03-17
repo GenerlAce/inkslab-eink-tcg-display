@@ -54,10 +54,10 @@ function saveTheme(mode) {
   }
 }
 
-// Apply saved theme on load
+// Apply saved theme on load (use cached last TCG for auto mode to avoid flash)
 (function() {
   var t = localStorage.getItem('inkslab_theme') || 'default';
-  applyTheme(t === 'auto' ? 'default' : t);
+  applyTheme(t === 'auto' ? (localStorage.getItem('inkslab_last_tcg') || 'default') : t);
 })();
 
 // --- Global swipe guard: prevents onclick from firing during a scroll ---
@@ -379,6 +379,7 @@ function updatePauseBtn(paused) {
 }
 
 function updatePillTcg(tcg) {
+  var explicit = !!tcg;
   var pill = document.getElementById('pill-tcg');
   if (!pill) return;
   // Fallback to first registry key if tcg is missing
@@ -389,9 +390,25 @@ function updatePillTcg(tcg) {
   var color = (info && info.color) || '#36A5CA';
   var name = shortNames[tcg] || (info && info.name) || tcg.toUpperCase();
   pill.textContent = name;
-  pill.style.color = color;
-  // Auto theme: swap CSS vars to match active collection (bar color comes from --bg-panel)
-  if ((localStorage.getItem('inkslab_theme') || 'default') === 'auto') applyTheme(tcg);
+  pill.dataset.color = color;
+  // Auto theme: only apply when tcg was explicitly provided (not a null fallback)
+  if (explicit && (localStorage.getItem('inkslab_theme') || 'default') === 'auto') {
+    localStorage.setItem('inkslab_last_tcg', tcg);
+    applyTheme(tcg);
+  }
+}
+
+function updatePillStyle(collectionOnly) {
+  var pill = document.getElementById('pill-tcg');
+  if (!pill) return;
+  var color = pill.dataset.color || 'var(--accent)';
+  if (collectionOnly) {
+    pill.style.background = color;
+    pill.style.color = '#010001';
+  } else {
+    pill.style.background = '';
+    pill.style.color = color;
+  }
 }
 
 function updateQuickSwitchActive(tcg) {
@@ -422,6 +439,10 @@ function refreshStatus() {
     document.getElementById('st-tcg').textContent = (d.tcg || '\u2014').toUpperCase();
     updatePillTcg(d.tcg);
     updateQuickSwitchActive(d.tcg || '');
+    var collOnly = !!d.collection_only;
+    updatePillStyle(collOnly);
+    var collCb = document.getElementById('cfg-collection');
+    if (collCb) collCb.checked = collOnly;
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
     if (d.pending) {
@@ -712,10 +733,17 @@ function saveSettings() {
     day_start: parseInt(document.getElementById('cfg-day-start').value) || 7,
     day_end: parseInt(document.getElementById('cfg-day-end').value) || 23,
     color_saturation: parseFloat(document.getElementById('cfg-saturation').value) || 2.5,
-    collection_only: document.getElementById('cfg-collection').checked,
   };
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify(cfg)})
     .then(function() { showToast('Settings saved!'); startRapidPoll(); });
+}
+
+function saveCollectionMode() {
+  var checked = document.getElementById('cfg-collection').checked;
+  updatePillStyle(checked);
+  fetch(API + '/api/config', {method:'POST', body: JSON.stringify({collection_only: checked}),
+    headers: {'Content-Type': 'application/json'}})
+    .then(function() { showToast(checked ? 'Collection Only: ON' : 'Collection Only: OFF'); });
 }
 
 // --- Admin (hidden) ---
@@ -1055,7 +1083,18 @@ var _searchTimer = null;
 
 function debounceSearch() {
   if (_searchTimer) clearTimeout(_searchTimer);
+  var clearBtn = document.getElementById('search-clear');
+  if (clearBtn) clearBtn.style.display = document.getElementById('search-input').value ? '' : 'none';
   _searchTimer = setTimeout(doSearch, 350);
+}
+
+function clearSearch() {
+  var inp = document.getElementById('search-input');
+  if (inp) { inp.value = ''; inp.focus(); }
+  var clearBtn = document.getElementById('search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  var el = document.getElementById('search-results');
+  if (el) el.innerHTML = '';
 }
 
 function loadFavorites() {
@@ -1645,7 +1684,6 @@ function buildDynamicUI(registry) {
   // Load TCG registry first, then build UI
   fetch(API + '/api/tcg_list').then(r => r.json()).then(function(registry) {
     buildDynamicUI(registry);
-    updatePillTcg(null); // show first available TCG immediately, refreshStatus will update it
     // Now do everything else
     const saved = localStorage.getItem('inkslab_tab');
     if (saved && document.getElementById('tab-' + saved)) {
