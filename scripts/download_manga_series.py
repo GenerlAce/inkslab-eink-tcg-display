@@ -199,6 +199,7 @@ def main():
     parser.add_argument("--title", help="Manga title")
     args = parser.parse_args()
     os.makedirs(BASE_DIR, exist_ok=True)
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     if args.id and args.title:
         print(f"=== MangaDex Series Downloader: {args.title} ===\n")
         download_series(args.id, args.title)

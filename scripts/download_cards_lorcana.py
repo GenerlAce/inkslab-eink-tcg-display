@@ -227,6 +227,7 @@ def process_set(set_info, cards):
 
 
 def main():
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print("=== Disney Lorcana Card Downloader (Lorcast API) ===\n")
 
     sets = fetch_sets()
@@ -253,7 +254,6 @@ def main():
     print(f"2. Saved master_index.json ({len(master_index)} sets)\n")
 
     print("3. Downloading cards per set...")
-    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
 
     total_downloaded = 0
     total_skipped = 0

@@ -19,6 +19,7 @@ def main():
     target = args.name.strip().lower()
 
     os.makedirs(BASE_DIR, exist_ok=True)
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print(f"=== Pokemon Bulk Downloader: {args.name} ===")
     print("Fetching set list...")
 

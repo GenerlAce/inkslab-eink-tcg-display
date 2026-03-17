@@ -199,6 +199,7 @@ def main():
                         help="Only download a specific set by code (e.g. --set mh3)")
     args = parser.parse_args()
 
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print("=== MTG Card Downloader (Scryfall) ===\n")
 
     if args.since:
@@ -227,7 +228,6 @@ def main():
     print(f"2. Saved master_index.json ({len(master_index)} sets)\n")
 
     print("3. Downloading cards per set...")
-    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
 
     total_downloaded = 0
     total_skipped = 0

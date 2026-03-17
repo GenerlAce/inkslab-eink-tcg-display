@@ -34,7 +34,7 @@
   // Click anywhere outside to dismiss
   document.addEventListener('click', function(e) {
     var el = document.getElementById('thumb-hover-preview');
-    if (el && el.style.display !== 'none' && !el.contains(e.target)) {
+    if (el && el.style.display !== 'none' && !el.contains(e.target) && !e.target.closest('.card-row') && !e.target.closest('.grid-thumb-wrap')) {
       window.hideThumbHover();
     }
   });

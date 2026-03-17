@@ -45,10 +45,11 @@
         resetBtn(tcg);
       });
     } else {
-      // First click - turn darker red to signal confirm
+      // First click - solid red to signal confirm needed
       _confirmTcg = tcg;
-      btn.style.background = '#DC2626';
+      btn.style.background = '#EF4444';
       btn.style.color = '#010001';
+      btn.style.border = '1px solid #EF4444';
       btn.textContent = 'Confirm Delete?';
       _confirmTimer = setTimeout(function() { resetBtn(tcg); }, 4000);
     }
@@ -58,10 +59,19 @@
   function upgradeBtns() {
     var el = document.getElementById('delete-buttons');
     if (!el || !window._tcgRegistry) return;
-    el.innerHTML = Object.entries(window._tcgRegistry).map(function(e) {
+    el.innerHTML = '';
+    Object.entries(window._tcgRegistry).forEach(function(e) {
       var tcg = e[0], info = e[1];
-      return '<button id="delLib-' + tcg + '" class="btn btn-sm" style="flex:1;background:transparent;color:#EF4444;border:1px solid #EF4444;" onmouseover="this.style.background=\'#EF4444\';this.style.color=\'#010001\'" onmouseout="this.style.background=\'transparent\';this.style.color=\'#EF4444\'" onclick="deleteLibraryStep(\'' + tcg + '\')">Delete ' + info.name + '</button>';
-    }).join('');
+      var b = document.createElement('button');
+      b.id = 'delLib-' + tcg;
+      b.className = 'btn btn-sm';
+      b.style.cssText = 'flex:1;background:transparent;color:#EF4444;border:1px solid #EF4444;';
+      b.textContent = 'Delete ' + info.name;
+      b.addEventListener('mouseover', function() { if (_confirmTcg !== tcg) { b.style.background = '#EF4444'; b.style.color = '#010001'; } });
+      b.addEventListener('mouseout', function() { if (_confirmTcg !== tcg) { b.style.background = 'transparent'; b.style.color = '#EF4444'; } });
+      b.addEventListener('click', function() { deleteLibraryStep(tcg); });
+      el.appendChild(b);
+    });
   }
 
   // Wait for registry to be loaded then upgrade buttons

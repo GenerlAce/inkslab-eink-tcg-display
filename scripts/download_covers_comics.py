@@ -259,6 +259,7 @@ def main():
                         help="Fetch all issues since this date (YYYY-MM-DD)")
     args = parser.parse_args()
 
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print("=== Metron Weekly Comic Cover Downloader ===\n")
 
     username, password = load_credentials()

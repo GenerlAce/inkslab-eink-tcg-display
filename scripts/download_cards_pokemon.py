@@ -33,6 +33,7 @@ COOLDOWN_SECONDS = 30
 def main():
     os.makedirs(BASE_DIR, exist_ok=True)
 
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print("=== Pokemon Card Downloader ===")
     print("1. Fetching master set list...")
 
@@ -63,7 +64,6 @@ def main():
     download_count = 0
 
     print(f"\n2. Downloading cards from {total_sets} sets...")
-    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
 
     for i, s in enumerate(sets):
         set_id = s['id']

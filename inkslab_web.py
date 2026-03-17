@@ -2219,7 +2219,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
 .rarity-toggle.selected .rt-count { background: rgba(255,255,255,0.25); }
 .rarity-toggle .rt-check { font-size: 10px; width: 12px; }
 .rarity-filter-actions { display: flex; gap: 6px; margin-bottom: 8px; }
-.card-preview-btn { cursor: pointer; color: #36A5CA; font-size: 11px; margin-left: 6px; text-decoration: underline; }
+.card-preview-btn { cursor: default; color: #36A5CA; font-size: 11px; margin-left: 6px; }
 .log-box { background: #0a1a22; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: #6BCCBD; border: 1px solid #1F333F; }
 .badge { display: inline-block; background: #6BCCBD; color: #010001; border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
 .flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2558,6 +2558,14 @@ function esc(s) {
 }
 
 // --- Tab persistence ---
+function equalizeSearchBtns() {
+  var btns = document.querySelectorAll('[data-search-btn]');
+  btns.forEach(function(b) { b.style.width = ''; });
+  var maxW = 0;
+  btns.forEach(function(b) { maxW = Math.max(maxW, b.offsetWidth); });
+  if (maxW > 0) btns.forEach(function(b) { b.style.width = maxW + 'px'; });
+}
+
 function showTab(name) {
   localStorage.setItem('inkslab_tab', name);
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -2565,7 +2573,7 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
   if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); }
-  if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); }
+  if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
 }
 
@@ -3247,7 +3255,7 @@ function toggleSet(setId) {
       <div class="card-row" data-rarity="${esc(c.rarity)}">
         <label>
           <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${esc(c.id)}', this)">
-          <span class="card-preview-btn" onclick="event.preventDefault();showPreview('${esc(c.set_id)}','${esc(c.id)}','${esc(c.name)} #${esc(c.number)}')">#${esc(c.number)} ${esc(c.name)}</span>
+          <span class="card-preview-btn">#${esc(c.number)} ${esc(c.name)}</span>
         </label>
         <span class="card-rarity">${esc(c.rarity)}</span>
       </div>
@@ -3466,7 +3474,7 @@ function doSearch() {
       g.cards.forEach(function(c) {
         html += '<div class="search-result"><label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer">';
         html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\\'' + esc(c.id) + '\\', this)" style="accent-color:#36A5CA">';
-        html += '<span><span class="card-preview-btn" onclick="event.preventDefault();showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.id) + '\\',\\'' + esc(c.name) + ' #' + esc(c.number) + '\\')">#' + esc(c.number) + '</span>';
+        html += '<span><span class="card-preview-btn">#' + esc(c.number) + '</span>';
         html += ' <span class="search-result-set">' + esc(c.set_name) + '</span></span>';
         html += '</label><span class="search-result-rarity">' + esc(c.rarity) + '</span></div>';
       });
@@ -3767,7 +3775,7 @@ function _loadCustomFolderContent(folderId, el) {
     if (cards.length) {
       cards.forEach(c => {
         html += '<div class="card-row"><label style="flex:1;cursor:pointer">';
-        html += '<span class="card-preview-btn" onclick="showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.id) + '\\',\\'' + esc(c.name||'') + '\\',\\'custom\\')">#' + esc(c.number) + ' ' + esc(c.name) + '</span>';
+        html += '<span class="card-preview-btn">#' + esc(c.number) + ' ' + esc(c.name) + '</span>';
         html += '</label>';
         html += '<span style="display:flex;gap:4px;align-items:center">';
         html += '<span class="card-rarity">' + esc(c.rarity || '') + '</span>';
@@ -3881,13 +3889,6 @@ function buildDynamicUI(registry) {
       + '<button class="btn btn-block" style="background:' + color + ';color:#010001;border:none;flex:1;" onclick="startDownload(\\'' + e[0] + '\\')">Download All ' + e[1].name + '</button>'
       + searchBtn + '</div>';
   }).join('');
-  // Equalise search button widths to widest
-  requestAnimationFrame(function() {
-    var btns = dlEl.querySelectorAll('[data-search-btn]');
-    var maxW = 0;
-    btns.forEach(function(b) { maxW = Math.max(maxW, b.offsetWidth); });
-    btns.forEach(function(b) { b.style.width = maxW + 'px'; });
-  });
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {

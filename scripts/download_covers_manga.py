@@ -97,6 +97,7 @@ def fetch_popular_manga(offset=0):
 
 
 def main():
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print("=== MangaDex Cover Downloader ===\n")
     print(f"Saving to: {BASE_DIR}")
     print(f"Content ratings: {', '.join(CONTENT_RATINGS)}")
@@ -145,7 +146,6 @@ def main():
     print(f"2. Saved master_index.json ({len(master_index)} manga)\n")
 
     print("3. Downloading covers...")
-    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
 
     total_downloaded = 0
     total_skipped = 0
