@@ -3252,7 +3252,7 @@ function toggleSet(setId) {
     html += cards.map(c => `
       <div class="card-row" data-rarity="${esc(c.rarity)}">
         <label>
-          <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${esc(c.id)}')">
+          <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${esc(c.id)}', this)">
           <span class="card-preview-btn" onclick="event.preventDefault();showPreview('${esc(c.set_id)}','${esc(c.id)}','${esc(c.name)} #${esc(c.number)}')">#${esc(c.number)} ${esc(c.name)}</span>
         </label>
         <span class="card-rarity">${esc(c.rarity)}</span>
@@ -3262,8 +3262,23 @@ function toggleSet(setId) {
   });
 }
 
-function toggleCard(cardId) {
-  fetch(API + '/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: cardId})});
+function toggleCard(cardId, el) {
+  var owned = el ? el.checked : null;
+  // Update badge immediately
+  if (el) {
+    var setItem = el.closest('.set-item');
+    if (setItem) {
+      var badge = setItem.querySelector('.badge');
+      if (owned) {
+        if (badge) { badge.textContent = parseInt(badge.textContent) + 1; }
+        else { var sn = setItem.querySelector('.set-name'); if (sn) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '1'; sn.after(badge); } }
+      } else if (badge) {
+        var n = parseInt(badge.textContent) - 1;
+        if (n <= 0) badge.remove(); else badge.textContent = n;
+      }
+    }
+  }
+  fetch(API + '/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: cardId, owned: owned})});
 }
 
 function toggleSetAll(setId, owned) {
@@ -3456,7 +3471,7 @@ function doSearch() {
       html += '<div style="margin-top:4px">';
       g.cards.forEach(function(c) {
         html += '<div class="search-result"><label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer">';
-        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\\'' + esc(c.id) + '\\')" style="accent-color:#36A5CA">';
+        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\\'' + esc(c.id) + '\\', this)" style="accent-color:#36A5CA">';
         html += '<span><span class="card-preview-btn" onclick="event.preventDefault();showPreview(\\'' + esc(c.set_id) + '\\',\\'' + esc(c.id) + '\\',\\'' + esc(c.name) + ' #' + esc(c.number) + '\\')">#' + esc(c.number) + '</span>';
         html += ' <span class="search-result-set">' + esc(c.set_name) + '</span></span>';
         html += '</label><span class="search-result-rarity">' + esc(c.rarity) + '</span></div>';

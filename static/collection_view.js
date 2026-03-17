@@ -90,6 +90,21 @@
     var nowOwned = !check.classList.contains('show');
     if (nowOwned) { img.classList.add('owned'); check.classList.add('show'); }
     else { img.classList.remove('owned'); check.classList.remove('show'); }
+    // Update the set badge count immediately without waiting for a page reload
+    var setItem = img.closest('.set-item');
+    if (setItem) {
+      var badge = setItem.querySelector('.badge');
+      if (nowOwned) {
+        if (badge) { badge.textContent = parseInt(badge.textContent) + 1; }
+        else {
+          var setName = setItem.querySelector('.set-name');
+          if (setName) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '1'; setName.after(badge); }
+        }
+      } else if (badge) {
+        var n = parseInt(badge.textContent) - 1;
+        if (n <= 0) badge.remove(); else badge.textContent = n;
+      }
+    }
     fetch('/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: cardId, owned: nowOwned})});
   };
 
@@ -125,6 +140,7 @@
   }
 
   function convertToGrid(container, setId) {
+    if (container.querySelector('.grid-thumb-wrap')) { container.style.visibility = ''; return; }
     getTcg(function(tcg) {
       var rows = container.querySelectorAll('.card-row');
       if (!rows.length) return;
@@ -134,7 +150,7 @@
         var cb = row.querySelector('input[type=checkbox]');
         if (!cb) return;
         var onchange = cb.getAttribute('onchange') || '';
-        var match = onchange.match(/toggleCard\('([^']+)'\)/);
+        var match = onchange.match(/toggleCard\('([^']+)'/);
         if (!match) return;
         var cardId = match[1];
         var isOwned = cb.checked;
@@ -186,6 +202,7 @@
       container.innerHTML = '';
       if (firstDiv) container.appendChild(firstDiv);
       container.appendChild(gridDiv);
+      container.style.visibility = '';
     });
   }
 
@@ -199,18 +216,23 @@
       orig(setId);
       var mode = localStorage.getItem('inkslab_collection_view') || 'list';
       if (mode !== 'grid') return;
+      var el = document.getElementById('set-' + setId);
+      if (!el || !el.classList.contains('open')) return; // closing
+      if (el.dataset.enhanced) return; // already grid, imgs preserved
+      // Hide immediately so list never flashes before grid is ready
+      el.style.visibility = 'hidden';
       var attempts = 0;
       var check = setInterval(function() {
         attempts++;
         var el = document.getElementById('set-' + setId);
-        if (!el || !el.classList.contains('open')) { clearInterval(check); return; }
+        if (!el || !el.classList.contains('open')) { if (el) el.style.visibility = ''; clearInterval(check); return; }
         if (el.dataset.enhanced) { clearInterval(check); return; }
         if (el.dataset.loaded) {
           clearInterval(check);
           el.dataset.enhanced = '1';
           convertToGrid(el, setId);
         }
-        if (attempts > 20) clearInterval(check);
+        if (attempts > 20) { el.style.visibility = ''; clearInterval(check); }
       }, 200);
     };
   }
@@ -223,7 +245,7 @@
       var cb = row.querySelector('input[type=checkbox]');
       if (!cb) return;
       var onchange = cb.getAttribute('onchange') || '';
-      var match = onchange.match(/toggleCard\('([^']+)'\)/);
+      var match = onchange.match(/toggleCard\('([^']+)'/);
       if (!match) return;
       var cardId = match[1];
       var setCards = btn.closest('.set-cards');
