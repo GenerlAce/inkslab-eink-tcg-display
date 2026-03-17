@@ -3,12 +3,12 @@
   style.textContent = [
     '.thumb-hover-preview{display:none;position:fixed;z-index:9999;pointer-events:auto;border-radius:8px;border:2px solid #6BCCBD;box-shadow:0 4px 24px rgba(0,0,0,0.7);width:360px;max-width:calc(100vw - 24px);}',
     '.thumb-hover-close{position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10000;}',
-    '.grid-thumb-wrap{position:relative;width:80px;cursor:pointer;text-align:center;}',
-    '.grid-thumb{width:80px;height:110px;object-fit:cover;border-radius:6px;border:2px solid #1F333F;display:block;transition:border-color 0.15s;}',
+    '.grid-thumb-wrap{position:relative;width:100%;cursor:pointer;text-align:center;}',
+    '.grid-thumb{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:6px;border:2px solid #1F333F;display:block;transition:border-color 0.15s;}',
     '.grid-thumb.owned{border-color:#6BCCBD;}',
     '.grid-check{display:none;position:absolute;top:3px;right:3px;background:#6BCCBD;color:#010001;border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-size:11px;font-weight:bold;}',
     '.grid-check.show{display:flex;}',
-    '.grid-label{font-size:9px;color:#6BCCBD;text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:80px;}',
+    '.grid-label{font-size:9px;color:#6BCCBD;text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:100%;}',
   ].join('');
   document.head.appendChild(style);
 
@@ -145,7 +145,7 @@
       var rows = container.querySelectorAll('.card-row');
       if (!rows.length) return;
       var gridDiv = document.createElement('div');
-      gridDiv.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;padding:6px 0;';
+      gridDiv.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px 0;';
       rows.forEach(function(row) {
         var cb = row.querySelector('input[type=checkbox]');
         if (!cb) return;
