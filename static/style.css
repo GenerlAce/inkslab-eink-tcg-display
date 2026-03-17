@@ -43,6 +43,7 @@ body {
   z-index: 50;
   font-size: 12px;
   color: var(--text-dim);
+  transition: background 0.6s ease;
 }
 .status-pill .pill-logo {
   font-size: 14px;
@@ -54,6 +55,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: var(--text-hi);
+  font-weight: 700;
 }
 .status-dot { display: none; }
 .pill-tcg {
@@ -310,7 +313,7 @@ body {
 .btn-primary { background: var(--accent); color: var(--text-hi); }
 .btn-primary:hover { background: #2b8aaa; }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border-hi); }
-.btn-secondary:hover { background: #263f4d; }
+.btn-secondary:hover { background: var(--bg-card); }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: #DC2626; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
@@ -355,7 +358,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .card-preview-btn { cursor: default; color: var(--accent); font-size: 11px; margin-left: 6px; }
 .rarity-chips { display: none; }
 .rarity-chip { padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border-hi); transition: all 0.15s; }
-.rarity-chip:hover { background: #263f4d; }
+.rarity-chip:hover { background: var(--bg-card); }
 .rarity-chip:active { background: var(--accent); color: var(--text-hi); transform: scale(0.95); }
 .rarity-chip.active { background: var(--accent); color: var(--text-hi); border-color: var(--accent); }
 .chip-count { font-size: 9px; opacity: 0.7; margin-left: 2px; }
@@ -382,7 +385,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .storage-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
 /* === MISC === */
-.log-box { background: #0a1a22; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; line-height: 1.6; color: var(--text-dim); border: 1px solid var(--border); }
+.log-box { background: #050505; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; line-height: 1.7; color: #FCFDF0; border: 1px solid var(--border); }
 .badge { display: inline-block; background: var(--accent2); color: var(--bg); border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
 .flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .flex-row > * { flex: 1 1 calc(50% - 4px); min-width: 0; box-sizing: border-box; }
@@ -456,7 +459,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-result-set { color: var(--text-dim); font-size: 11px; }
 .search-result-rarity { color: var(--text-dim); font-size: 11px; }
 .search-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.search-filter-chip { display: inline-flex; align-items: center; gap: 4px; background: #36A5CA22; border: 1px solid #36A5CA88; color: var(--text); border-radius: 16px; padding: 4px 8px 4px 10px; font-size: 12px; }
+.search-filter-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--border-hi); border: 1px solid var(--accent); color: var(--text); border-radius: 16px; padding: 4px 8px 4px 10px; font-size: 12px; }
 .search-filter-chip .sfc-count { color: var(--text-dim); font-size: 11px; }
 .search-filter-chip .sfc-x { cursor: pointer; color: var(--text-dim); font-size: 14px; line-height: 1; margin-left: 2px; padding: 0 2px; border-radius: 50%; }
 .search-filter-chip .sfc-x:hover { color: #ff6b6b; background: #ff6b6b22; }

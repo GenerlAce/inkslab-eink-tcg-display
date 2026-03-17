@@ -2,11 +2,11 @@
   var style = document.createElement('style');
   style.textContent = [
     '.grid-thumb-wrap{position:relative;width:100%;cursor:pointer;text-align:center;min-width:0;}',
-    '.grid-thumb{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:6px;border:2px solid #1F333F;display:block;transition:border-color 0.15s;}',
-    '.grid-thumb.owned{border-color:#6BCCBD;}',
-    '.grid-check{display:none;position:absolute;top:3px;right:3px;background:#6BCCBD;color:#010001;border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-size:11px;font-weight:bold;}',
+    '.grid-thumb{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:6px;border:2px solid var(--border);display:block;transition:border-color 0.15s;}',
+    '.grid-thumb.owned{border-color:var(--accent2);}',
+    '.grid-check{display:none;position:absolute;top:3px;right:3px;background:var(--accent2);color:#010001;border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-size:11px;font-weight:bold;}',
     '.grid-check.show{display:flex;}',
-    '.grid-label{font-size:9px;color:#6BCCBD;text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:100%;}',
+    '.grid-label{font-size:9px;color:var(--text-dim);text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:100%;}',
   ].join('');
   document.head.appendChild(style);
 
@@ -62,8 +62,8 @@
     var mode = localStorage.getItem('inkslab_collection_view') || 'list';
     var lb = document.getElementById('btn-view-list');
     var gb = document.getElementById('btn-view-grid');
-    if (lb) lb.style.background = mode === 'list' ? '#36A5CA' : '';
-    if (gb) gb.style.background = mode === 'grid' ? '#36A5CA' : '';
+    if (lb) lb.style.background = mode === 'list' ? 'var(--accent)' : '';
+    if (gb) gb.style.background = mode === 'grid' ? 'var(--accent)' : '';
   }
 
   function openPreviewModal(src, label) {
@@ -207,7 +207,7 @@
         var toggleDiv = document.createElement('div');
         toggleDiv.className = 'card';
         toggleDiv.style.cssText = 'padding:16px;margin-bottom:12px;';
-        toggleDiv.innerHTML = '<h3 style="margin:0 0 8px 0;">Collection View</h3><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;color:#6BCCBD;">Choose display style</span><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm" style="font-size:12px;">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="font-size:12px;">Grid</button></div></div>';
+        toggleDiv.innerHTML = '<h3 style="margin:0 0 8px 0;">Collection View</h3><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;color:var(--text-dim);">Choose display style</span><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm" style="font-size:12px;">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="font-size:12px;">Grid</button></div></div>';
         setsList.parentNode.insertBefore(toggleDiv, setsList);
         document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
         document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });

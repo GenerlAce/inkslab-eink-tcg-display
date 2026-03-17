@@ -1,5 +1,65 @@
 const API = '';
 
+// --- UI Themes ---
+var THEMES = {
+  'default': {
+    '--bg-card': '#16303E', '--bg-panel': '#132E3E', '--bg-input': '#1F333F', '--border': '#1F333F',
+    '--text': '#D8E6E4', '--text-dim': '#6BCCBD', '--text-hi': '#FCFDF0',
+    '--accent': '#36A5CA', '--accent2': '#6BCCBD', '--border-hi': '#36A5CA44'
+  },
+  'lorcana': {
+    '--bg-card': '#1A0B2E', '--bg-panel': '#130823', '--bg-input': '#211040', '--border': '#2D1554',
+    '--text': '#E8D0F8', '--text-dim': '#C084FC', '--text-hi': '#F5EEFF',
+    '--accent': '#C084FC', '--accent2': '#A855F7', '--border-hi': '#C084FC44'
+  },
+  'pokemon': {
+    '--bg-card': '#0D1E2E', '--bg-panel': '#091629', '--bg-input': '#122035', '--border': '#1A3550',
+    '--text': '#C8E8F8', '--text-dim': '#36A5CA', '--text-hi': '#E8F4FA',
+    '--accent': '#36A5CA', '--accent2': '#5bbfe0', '--border-hi': '#36A5CA44'
+  },
+  'mtg': {
+    '--bg-card': '#0E1E1C', '--bg-panel': '#091816', '--bg-input': '#132220', '--border': '#1C3330',
+    '--text': '#C8E8E4', '--text-dim': '#6BCCBD', '--text-hi': '#E8F8F5',
+    '--accent': '#6BCCBD', '--accent2': '#4db8a8', '--border-hi': '#6BCCBD44'
+  },
+  'manga': {
+    '--bg-card': '#2A0F20', '--bg-panel': '#200B18', '--bg-input': '#33102A', '--border': '#401535',
+    '--text': '#F8D0E8', '--text-dim': '#F472B6', '--text-hi': '#FFF0F8',
+    '--accent': '#F472B6', '--accent2': '#EC4899', '--border-hi': '#F472B644'
+  },
+  'comics': {
+    '--bg-card': '#2A1000', '--bg-panel': '#200C00', '--bg-input': '#301500', '--border': '#3D1800',
+    '--text': '#F8DCC0', '--text-dim': '#F97316', '--text-hi': '#FFF4EC',
+    '--accent': '#F97316', '--accent2': '#EA580C', '--border-hi': '#F9731644'
+  },
+  'custom': {
+    '--bg-card': '#241600', '--bg-panel': '#1B1000', '--bg-input': '#2E1C00', '--border': '#392200',
+    '--text': '#F8E8C0', '--text-dim': '#F59E0B', '--text-hi': '#FFF8E8',
+    '--accent': '#F59E0B', '--accent2': '#D97706', '--border-hi': '#F59E0B44'
+  }
+};
+
+function applyTheme(themeKey) {
+  var palette = THEMES[themeKey] || THEMES['default'];
+  var root = document.documentElement;
+  Object.keys(palette).forEach(function(k) { root.style.setProperty(k, palette[k]); });
+}
+
+function saveTheme(mode) {
+  localStorage.setItem('inkslab_theme', mode);
+  if (mode === 'auto') {
+    applyTheme((_lastStatus && _lastStatus.tcg) || 'default');
+  } else {
+    applyTheme(mode);
+  }
+}
+
+// Apply saved theme on load
+(function() {
+  var t = localStorage.getItem('inkslab_theme') || 'default';
+  applyTheme(t === 'auto' ? 'default' : t);
+})();
+
 // --- Global swipe guard: prevents onclick from firing during a scroll ---
 var _touchMoved = false;
 document.addEventListener('touchstart', function() { _touchMoved = false; }, {passive: true});
@@ -330,6 +390,8 @@ function updatePillTcg(tcg) {
   var name = shortNames[tcg] || (info && info.name) || tcg.toUpperCase();
   pill.textContent = name;
   pill.style.color = color;
+  // Auto theme: swap CSS vars to match active collection (bar color comes from --bg-panel)
+  if ((localStorage.getItem('inkslab_theme') || 'default') === 'auto') applyTheme(tcg);
 }
 
 function updateQuickSwitchActive(tcg) {
@@ -365,11 +427,11 @@ function refreshStatus() {
     if (d.pending) {
       errEl.textContent = d.pending;
       errRow.style.display = 'block';
-      errEl.style.color = '#36A5CA';
+      errEl.style.color = 'var(--accent)';
     } else if (d.display_updating) {
       errEl.textContent = 'Updating display...';
       errRow.style.display = 'block';
-      errEl.style.color = '#36A5CA';
+      errEl.style.color = 'var(--accent)';
     } else if (d.error) {
       errEl.textContent = d.error;
       errRow.style.display = 'block';
@@ -437,7 +499,7 @@ function setOptimisticLoading(msg) {
   errRow.style.display = 'block';
   var errEl = document.getElementById('st-error');
   errEl.textContent = msg;
-  errEl.style.color = '#36A5CA';
+  errEl.style.color = 'var(--accent)';
 }
 
 function nextCard() {
@@ -522,7 +584,7 @@ function loadAutoUpdateStatus() {
       var left = document.createElement('div');
       left.style.flex = '1';
       left.innerHTML = '<span class="row-label">' + esc(info.name) + '</span>'
-        + '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;">Last: ' + lastStr + '</div>';
+        + '<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Last: ' + lastStr + '</div>';
       var sw = document.createElement('label');
       sw.className = 'switch';
       var inp = document.createElement('input');
@@ -538,7 +600,7 @@ function loadAutoUpdateStatus() {
       row.appendChild(sw);
       el.appendChild(row);
     });
-    if (!el.children.length) el.innerHTML = '<div style="color:#6BCCBD;font-size:12px;">No sources available</div>';
+    if (!el.children.length) el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;">No sources available</div>';
   }).catch(function() {
     var el = document.getElementById('auto-update-list');
     if (el) el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;">Failed to load</div>';
@@ -588,7 +650,7 @@ function loadMetronStatus() {
     var formEl = document.getElementById('metron-form');
     if (!statusEl || !formEl) return;
     if (d.configured) {
-      statusEl.innerHTML = '<div style="color:#6BCCBD;font-size:13px;">&#10003; Connected as <strong>' + esc(d.username) + '</strong> &nbsp;<button class="btn btn-secondary btn-sm" onclick="clearMetronCreds()" style="font-size:11px;">Disconnect</button></div>';
+      statusEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;">&#10003; Connected as <strong>' + esc(d.username) + '</strong> &nbsp;<button class="btn btn-secondary btn-sm" onclick="clearMetronCreds()" style="font-size:11px;">Disconnect</button></div>';
       formEl.style.display = 'none';
     } else {
       statusEl.innerHTML = '<div style="color:#888;font-size:13px;">Not connected</div>';
@@ -635,6 +697,8 @@ function loadSettings() {
     document.getElementById('cfg-day-end').value = c.day_end;
     document.getElementById('cfg-saturation').value = c.color_saturation;
     document.getElementById('cfg-collection').checked = c.collection_only;
+    var themeEl = document.getElementById('cfg-theme');
+    if (themeEl) themeEl.value = localStorage.getItem('inkslab_theme') || 'default';
   });
 }
 
@@ -741,7 +805,7 @@ function deleteSeriesStep(setId, name) {
     // First click - turn red
     if (_deleteConfirmId) {
       var prev = document.getElementById('delbtn-' + _deleteConfirmId);
-      if (prev) { prev.style.background = '#1F333F'; prev.style.color = '#6BCCBD'; prev.textContent = 'Delete'; }
+      if (prev) { prev.style.background = 'var(--bg-input)'; prev.style.color = 'var(--text-dim)'; prev.textContent = 'Delete'; }
     }
     _deleteConfirmId = setId;
     btn.style.background = '#ff6b6b';
@@ -751,8 +815,8 @@ function deleteSeriesStep(setId, name) {
     setTimeout(function() {
       if (_deleteConfirmId === setId) {
         _deleteConfirmId = null;
-        btn.style.background = '#1F333F';
-        btn.style.color = '#6BCCBD';
+        btn.style.background = 'var(--bg-input)';
+        btn.style.color = 'var(--text-dim)';
         btn.textContent = 'Delete';
       }
     }, 4000);
@@ -761,11 +825,10 @@ function deleteSeriesStep(setId, name) {
 
 function loadSets() {
   const el = document.getElementById('sets-list');
-  el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">Loading sets...</div>';
+  el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
   fetch(API + '/api/sets').then(r => r.json()).then(sets => {
-    if (!sets.length) { el.innerHTML = '<div style="color:#6BCCBD;padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
+    if (!sets.length) { el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
     // Sort alphabetically for manga, otherwise keep default order
-    var activeTcg = _lastStatus.tcg || '';
     sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
     el.innerHTML = sets.map(s => `
       <div class="set-item">
@@ -774,7 +837,7 @@ function loadSets() {
             <span class="set-name">${esc(s.name)}</span>
             ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
           </span>
-          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name)" style="padding:2px 8px;border:none;border-radius:4px;background:#1F333F;color:#6BCCBD;font-size:11px;cursor:pointer;">Delete</button></span>
+          <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name)" style="padding:2px 8px;border:none;border-radius:4px;background:var(--bg-input);color:var(--text-dim);font-size:11px;cursor:pointer;">Delete</button></span>
         </div>
         <div class="set-cards" id="set-${esc(s.id)}"></div>
       </div>
@@ -787,7 +850,7 @@ function toggleSet(setId) {
   if (el.classList.contains('open')) { el.classList.remove('open'); return; }
   el.classList.add('open');
   if (el.dataset.loaded) return;
-  el.innerHTML = '<div style="padding:8px;color:#6BCCBD;font-size:12px">Loading...</div>';
+  el.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + setId + '/cards').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
     // Extract unique rarities for chips
@@ -895,7 +958,6 @@ function toggleRarityFilter() {
 }
 
 function loadRarities() {
-  var activeTcg = _lastStatus.tcg || '';
   var raritySection = document.getElementById('rarity-chips') && document.getElementById('rarity-chips').closest('.card');
   if (raritySection) raritySection.style.display = '';
   fetch(API + '/api/rarities').then(function(r) { return r.json(); }).then(function(rarities) {
@@ -906,7 +968,7 @@ function loadRarities() {
 
 function renderRarityChips() {
   var el = document.getElementById('rarity-chips');
-  if (!_rarityData.length) { el.innerHTML = '<span style="color:#6BCCBD;font-size:12px">No cards downloaded yet</span>'; return; }
+  if (!_rarityData.length) { el.innerHTML = '<span style="color:var(--text-dim);font-size:12px">No cards downloaded yet</span>'; return; }
   el.innerHTML = _rarityData.map(function(r) {
     var sel = r.owned > 0;
     var safeR = r.name.replace(/'/g, "\'");
@@ -1024,32 +1086,32 @@ function doSearch() {
   var q = document.getElementById('search-input').value.trim();
   var el = document.getElementById('search-results');
   if (q.length < 2) { el.innerHTML = ''; return; }
-  el.innerHTML = '<div style="color:#6BCCBD;font-size:12px;padding:8px">Searching...</div>';
+  el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px">Searching...</div>';
   fetch(API + '/api/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(data) {
     var results = data.results;
-    if (!results.length) { el.innerHTML = '<div style="color:#6BCCBD;font-size:12px;padding:8px">No results found (searched ' + data.sets_searched + ' sets)</div>'; return; }
+    if (!results.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px">No results found (searched ' + data.sets_searched + ' sets)</div>'; return; }
     var groups = {};
     results.forEach(function(c) {
       var key = c.name.toLowerCase();
       if (!groups[key]) groups[key] = {name: c.name, cards: []};
       groups[key].cards.push(c);
     });
-    var header = '<div style="font-size:11px;color:#6BCCBD;margin-bottom:6px">' + data.total + ' results across ' + data.sets_searched + ' sets';
+    var header = '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">' + data.total + ' results across ' + data.sets_searched + ' sets';
     if (data.total > results.length) header += ' (showing ' + results.length + ')';
     header += '</div>';
     var html = header;
     Object.values(groups).forEach(function(g) {
       var allOwned = g.cards.every(function(c) { return c.owned; });
       var ownedCount = g.cards.filter(function(c) { return c.owned; }).length;
-      html += '<div class="search-group" style="border-bottom:1px solid #1F333F;padding:6px 0">';
+      html += '<div class="search-group" style="border-bottom:1px solid var(--border);padding:6px 0">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-      html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
+      html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:var(--text-dim);font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
       html += '<button class="btn btn-secondary btn-sm search-group-btn" data-name="' + esc(g.name) + '" data-owned="' + (!allOwned) + '">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
       html += '</div>';
       html += '<div style="margin-top:4px">';
       g.cards.forEach(function(c) {
         html += '<div class="search-result"><label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer">';
-        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\'' + esc(c.id) + '\', this)" style="accent-color:#36A5CA">';
+        html += '<input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\'' + esc(c.id) + '\', this)" style="accent-color:var(--accent)">';
         html += '<span><span class="card-preview-btn">#' + esc(c.number) + '</span>';
         html += ' <span class="search-result-set">' + esc(c.set_name) + '</span></span>';
         html += '</label><span class="search-result-rarity">' + esc(c.rarity) + '</span></div>';
@@ -1091,11 +1153,11 @@ function loadStorage() {
   fetch(API + '/api/storage').then(function(r) { return r.json(); }).then(function(info) {
     var el = document.getElementById('storage-info');
     if (info._computing) {
-      el.innerHTML = '<div style="color:#6BCCBD;text-align:center;padding:12px"><span class="preview-spin" style="display:inline-block;font-size:18px">&#8635;</span><div style="margin-top:6px">Calculating storage...</div></div>';
+      el.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:12px"><span class="preview-spin" style="display:inline-block;font-size:18px">&#8635;</span><div style="margin-top:6px">Calculating storage...</div></div>';
       setTimeout(loadStorage, 3000);
       return;
     }
-    if (!info._disk) { el.innerHTML = '<div style="color:#6BCCBD">Loading...</div>'; setTimeout(loadStorage, 3000); return; }
+    if (!info._disk) { el.innerHTML = '<div style="color:var(--text-dim)">Loading...</div>'; setTimeout(loadStorage, 3000); return; }
     var totalGb = info._disk.total_gb || 1;
     var freeGb = info._disk.free_gb || 0;
     // Dynamic: sum up all TCG sizes
@@ -1128,7 +1190,7 @@ function loadStorage() {
       html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:' + color + '"></span>' + name + '</div>';
     });
     html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#E8786B"></span>System</div>';
-    html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#1F333F;border:1px solid #36A5CA44"></span>Free</div>';
+    html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:var(--bg-input);border:1px solid var(--border-hi)"></span>Free</div>';
     html += '</div></div>';
     tcgEntries.forEach(function(e) {
       var tcg = e[0], d = e[1];
@@ -1230,7 +1292,19 @@ function pollDownload() {
 function checkDownload() {
   fetch(API + '/api/download/status').then(r => r.json()).then(d => {
     const logEl = document.getElementById('dl-log');
-    logEl.textContent = d.lines.join('\\n') || 'No output yet.';
+    var lines = d.lines.length ? d.lines : ['No output yet.'];
+    // Strip tqdm progress bar lines (contain \r or lots of █ / % characters mid-line)
+    lines = lines.filter(function(l) { return l.trim() && !/^\s*[\d]+%\|/.test(l) && !/\r/.test(l); });
+    logEl.innerHTML = lines.map(function(l) {
+      var clean = l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      var style = 'color:#FCFDF0';
+      if (/error|fail|exception/i.test(l)) style = 'color:#FF6B6B;font-weight:600';
+      else if (/warning|warn/i.test(l)) style = 'color:#FACC15';
+      else if (/done|complete|finish|success|saved|total/i.test(l)) style = 'color:var(--accent2);font-weight:600';
+      else if (/downloading|fetching|processing|writing/i.test(l)) style = 'color:var(--accent)';
+      else if (/^\[|\bINFO\b|\bDEBUG\b/.test(l)) style = 'color:#aaa';
+      return '<span style="' + style + '">' + clean + '</span>';
+    }).join('\n');
     logEl.scrollTop = logEl.scrollHeight;
     if (d.running) {
       document.getElementById('dl-status').textContent = 'Downloading ' + (d.tcg || '').toUpperCase() + '...';
@@ -1268,10 +1342,10 @@ function checkUpdate() {
   fetch(API + '/api/update/check', {method:'POST'}).then(r => r.json()).then(d => {
     if (!d.ok) { el.textContent = 'Error: ' + (d.error || 'unknown'); return; }
     if (d.up_to_date) {
-      el.innerHTML = 'Up to date! <span style="color:#6BCCBD">Version: ' + d.local + '</span>';
+      el.innerHTML = 'Up to date! <span style="color:var(--text-dim)">Version: ' + d.local + '</span>';
       document.getElementById('btn-update-now').style.display = 'none';
     } else {
-      el.innerHTML = d.behind + ' update' + (d.behind > 1 ? 's' : '') + ' available. <span style="color:#6BCCBD">Current: ' + d.local + ' &rarr; Latest: ' + d.remote + '</span>';
+      el.innerHTML = d.behind + ' update' + (d.behind > 1 ? 's' : '') + ' available. <span style="color:var(--text-dim)">Current: ' + d.local + ' &rarr; Latest: ' + d.remote + '</span>';
       document.getElementById('btn-update-now').style.display = 'block';
     }
   }).catch(function() { el.textContent = 'Failed to check. Is the Pi online?'; });
@@ -1319,7 +1393,7 @@ function checkUpdateStatus() {
 function loadCustomFolders() {
   fetch(API + '/api/custom/folders').then(r => r.json()).then(folders => {
     var el = document.getElementById('custom-folders');
-    if (!folders.length) { el.innerHTML = '<div style="color:#6BCCBD;font-size:12px">No custom folders yet. Create one above.</div>'; return; }
+    if (!folders.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:12px">No custom folders yet. Create one above.</div>'; return; }
     el.innerHTML = folders.map(f => {
       return '<div class="set-item"><div class="set-header" onclick="toggleCustomFolder(\'' + esc(f.id) + '\')">'
         + '<span><span class="set-name">' + esc(f.name) + '</span></span>'
@@ -1346,7 +1420,7 @@ function toggleCustomFolder(folderId) {
 }
 
 function _loadCustomFolderContent(folderId, el) {
-  el.innerHTML = '<div style="padding:8px;color:#6BCCBD;font-size:12px">Loading...</div>';
+  el.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + folderId + '/cards?tcg=custom').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
     var html = '<div style="padding:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center">';
@@ -1361,12 +1435,12 @@ function _loadCustomFolderContent(folderId, el) {
         html += '</label>';
         html += '<span style="display:flex;gap:4px;align-items:center">';
         html += '<span class="card-rarity">' + esc(c.rarity || '') + '</span>';
-        html += '<span style="cursor:pointer;color:#6BCCBD;font-size:11px" onclick="editCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\',\'' + esc(c.name||'') + '\',\'' + esc(c.number) + '\',\'' + esc(c.rarity||'') + '\')">edit</span>';
+        html += '<span style="cursor:pointer;color:var(--text-dim);font-size:11px" onclick="editCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\',\'' + esc(c.name||'') + '\',\'' + esc(c.number) + '\',\'' + esc(c.rarity||'') + '\')">edit</span>';
         html += '<span style="cursor:pointer;color:#ff6b6b;font-size:11px" onclick="deleteCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\')">x</span>';
         html += '</span></div>';
       });
     } else {
-      html += '<div style="color:#6BCCBD;font-size:12px;padding:8px">No images yet. Upload some!</div>';
+      html += '<div style="color:var(--text-dim);font-size:12px;padding:8px">No images yet. Upload some!</div>';
     }
     el.innerHTML = html;
   });

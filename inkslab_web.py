@@ -2207,9 +2207,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <span id="pill-tcg" class="pill-tcg"></span>
   <div class="pill-info">
     <svg id="wifi-icon" width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:2px">
-      <circle cx="8" cy="11" r="1.2" fill="#6BCCBD"/>
-      <path d="M5.2 8.2A3.8 3.8 0 0 1 8 7a3.8 3.8 0 0 1 2.8 1.2" stroke="#6BCCBD" stroke-width="1.3" stroke-linecap="round" fill="none"/>
-      <path d="M2.5 5.5A7.5 7.5 0 0 1 8 3.5a7.5 7.5 0 0 1 5.5 2" stroke="#6BCCBD" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.5"/>
+      <circle cx="8" cy="11" r="1.2" fill="currentColor"/>
+      <path d="M5.2 8.2A3.8 3.8 0 0 1 8 7a3.8 3.8 0 0 1 2.8 1.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+      <path d="M2.5 5.5A7.5 7.5 0 0 1 8 3.5a7.5 7.5 0 0 1 5.5 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.7"/>
     </svg>
     <span id="status-text">Loading...</span>
   </div>
@@ -2321,18 +2321,32 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </label>
     </div>
     </div><!-- end settings-display-grid -->
+    <hr class="settings-divider" style="margin:12px 0">
+    <div class="form-row">
+      <span class="row-label">UI Theme</span>
+      <select id="cfg-theme" onchange="saveTheme(this.value)">
+        <option value="default">Default (Blue/Green)</option>
+        <option value="auto">Auto (Match Collection)</option>
+        <option value="lorcana">Lorcana (Purple)</option>
+        <option value="pokemon">Pokemon (Yellow)</option>
+        <option value="mtg">Magic (Gold)</option>
+        <option value="manga">Manga (Pink)</option>
+        <option value="comics">Comics (Orange)</option>
+        <option value="custom">Custom (Amber)</option>
+      </select>
+    </div>
     <div style="margin-top:14px">
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
     </div>
   </div>
   <div class="card">
     <h3>Auto-Update Sources</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
     <div id="auto-update-list"></div>
   </div>
   <div class="card">
     <h3>Metron Comics Account</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
     <div id="metron-status" style="margin-bottom:10px;"></div>
     <div id="metron-form" style="display:none;">
       <div class="form-group">
@@ -2348,24 +2362,24 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
   <div class="card">
     <h3>Software Update</h3>
-    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:#6BCCBD;cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
+    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:var(--text-dim);cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
       <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
       <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
     </div>
     <div id="update-progress" style="display:none">
-      <div style="background:#1F333F;border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:#36A5CA;width:0%;transition:width 0.5s"></div></div>
-      <div id="update-stage" style="font-size:12px;color:#6BCCBD;text-align:center"></div>
+      <div style="background:var(--bg-input);border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:var(--accent);width:0%;transition:width 0.5s"></div></div>
+      <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
     </div>
   </div>
   <div class="card">
     <h3>WiFi Network</h3>
-    <div id="wifi-info" style="font-size:13px;color:#6BCCBD;margin-bottom:10px">Checking WiFi...</div>
+    <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
     <h3 style="color:#ff6b6b">Prepare for New Owner</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
     <div style="margin-bottom:12px;font-size:12px;color:#D8E6E4;">Keep these card libraries:<br>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-pokemon" checked> Pokemon</label>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-mtg" checked> Magic: The Gathering</label>
@@ -2381,12 +2395,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="tab-collection" class="panel">
   <div class="card">
     <h3>My Collection</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Mark the cards you own. Enable "collection mode" in Settings to only display owned cards.</p>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Mark the cards you own. Enable "collection mode" in Settings to only display owned cards.</p>
     <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
   </div>
   <div class="card">
     <h3>Search Cards</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Find a card by name and add all versions to your collection.</p>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Find a card by name and add all versions to your collection.</p>
     <div id="search-filters" class="search-filters" style="display:none"></div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
@@ -2395,15 +2409,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div id="search-results"></div>
   </div>
   <div class="card" style="margin-bottom:16px;">
-    <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Add to Collection by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:#6BCCBD;">▼ Show</span></h3>
+    <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Add to Collection by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:var(--text-dim);">▼ Show</span></h3>
     <div id="rarity-filter-body" style="display:none;">
-      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>
       <div class="rarity-filter-actions">
         <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(true)">Select All</button>
         <button class="btn btn-secondary btn-sm" onclick="selectAllRarities(false)">Deselect All</button>
       </div>
       <div class="rarity-filter-wrap" id="rarity-chips"></div>
-      <div id="rarity-result" style="color:#6BCCBD;font-size:12px;margin-top:6px"></div>
+      <div id="rarity-result" style="color:var(--text-dim);font-size:12px;margin-top:6px"></div>
     </div>
   </div>
   <div id="sets-list"></div>
@@ -2468,7 +2482,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div class="card" id="dl-status-card">
     <h3>Download Status</h3>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div id="dl-status" style="color:#6BCCBD;font-size:13px;">Idle</div>
+      <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
       <div style="display:flex;gap:6px;align-items:center;">
         <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:#EF4444;color:#010001;border:none;">Stop</button>
         <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
