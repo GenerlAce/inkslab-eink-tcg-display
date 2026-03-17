@@ -43,6 +43,7 @@ function mtgSetDownload(btn) {
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.ok) {
       showToast('Downloading ' + name + '...');
+      if (window.closeAllDlSearch) closeAllDlSearch();
       document.getElementById('mtg-set-search-results').style.display = 'none';
       document.getElementById('mtg-set-search-input').value = '';
       document.getElementById('dl-status').textContent = 'Downloading ' + name + '...';

@@ -29,7 +29,7 @@ function pokemonSearch() {
           + '<div style="color:#888;font-size:12px;">' + g.cards.length + ' card(s) in collection</div>'
           + '</div>'
           + '<button onclick="pokemonBulkDownloadByName(this)" data-pname="' + esc(g.name) + '"'
-          + ' style="padding:6px 14px;background:#36A5CA;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
+          + ' style="padding:6px 14px;background:#36A5CA;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;
@@ -51,6 +51,7 @@ function pokemonBulkDownloadByName(btn) {
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (d.ok) {
       showToast('Downloading all ' + name + ' cards...');
+      if (window.closeAllDlSearch) closeAllDlSearch();
       document.getElementById('pokemon-search-results').style.display = 'none';
       document.getElementById('pokemon-search-input').value = '';
       document.getElementById('dl-status').textContent = 'Downloading ' + name + '...';

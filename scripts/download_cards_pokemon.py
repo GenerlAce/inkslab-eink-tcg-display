@@ -63,7 +63,7 @@ def main():
     download_count = 0
 
     print(f"\n2. Downloading cards from {total_sets} sets...")
-    print("   Press CTRL+C to stop (you can resume later).\n")
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
 
     for i, s in enumerate(sets):
         set_id = s['id']

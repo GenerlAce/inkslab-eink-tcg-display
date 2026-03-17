@@ -2167,8 +2167,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-primary:hover { background: #2b8aaa; }
 .btn-secondary { background: #1F333F; color: #D8E6E4; border: 1px solid #36A5CA33; }
 .btn-secondary:hover { background: #263f4d; }
-.btn-danger { background: #8b2020; color: #FCFDF0; }
-.btn-danger:hover { background: #a52a2a; }
+.btn-danger { background: #EF4444; color: #fff; }
+.btn-danger:hover { background: #DC2626; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn-block { display: block; width: 100%; text-align: center; }
 .btn:active { transform: scale(0.95); }
@@ -2476,14 +2476,9 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="storage-info"></div>
   </div>
   <div class="card">
-    <h3>Download All</h3>
+    <h3>Downloads</h3>
     <div id="dl-buttons"></div>
-  </div>
-  <div class="card">
-    <h3>Search &amp; Download</h3>
-    <div id="dl-mtg-search" style="display:none;margin-top:8px;">
-      <div style="font-weight:600;margin-bottom:6px;color:#6BCCBD;">Search MTG Sets</div>
-      <p style="color:#888;font-size:12px;margin-bottom:8px;">Search for a Magic set and download all its cards.</p>
+    <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
           style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
@@ -2492,36 +2487,30 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
       </div>
       <div id="mtg-set-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-pokemon-search" style="display:none;margin-top:8px;">
-      <div style="font-weight:600;margin-bottom:6px;color:#36A5CA;">Search Pokemon Cards</div>
-      <p style="color:#888;font-size:12px;margin-bottom:8px;">Search for a specific Pokemon and download all its cards across every set.</p>
+    <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="pokemon-search-input" type="text" placeholder="e.g. Pikachu, Charizard, Mewtwo..."
           style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
         <button onclick="pokemonSearch()"
-          style="padding:8px 14px;background:#36A5CA;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#36A5CA;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
       <div id="pokemon-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-manga-search" style="display:none;margin-top:8px;">
-      <div style="font-weight:600;margin-bottom:6px;color:#FF6B6B;">Search Manga Series</div>
-      <p style="color:#888;font-size:12px;margin-bottom:8px;">Search for a specific manga and download all its volume covers.</p>
+    <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
           style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
         <button onclick="mangaSearch()"
-          style="padding:8px 14px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#FF6B6B;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
       <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-comics-search" style="display:none;margin-top:8px;">
-      <div style="font-weight:600;margin-bottom:6px;color:#F97316;">Search Comic Series</div>
-      <p style="color:#888;font-size:12px;margin-bottom:8px;">Search for a specific comic series and download all its covers.</p>
+    <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
           style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
         <button onclick="comicSearch()"
-          style="padding:8px 14px;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#F97316;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
       <div id="comics-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
@@ -2532,7 +2521,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
     <div id="dl-status" style="color:#6BCCBD;font-size:13px;margin-bottom:8px;">Idle</div>
     <pre id="dl-log" style="background:#0a1a22;color:#6BCCBD;font-size:11px;padding:10px;border-radius:6px;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
     <div style="margin-top:8px;display:flex;gap:8px;">
-      <button class="btn btn-secondary btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;">Stop Download</button>
+      <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:#EF4444;color:#010001;border:none;">Stop Download</button>
     </div>
   </div>
   <div class="card">
@@ -2622,7 +2611,7 @@ function mangaSearch() {
           + '<div style="color:#888;font-size:12px;">' + esc(info) + '</div>'
           + '</div>'
           + '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '"'
-          + ' style="padding:6px 14px;background:#FF6B6B;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
+          + ' style="padding:6px 14px;background:#FF6B6B;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       }).join('');
     })
@@ -2644,6 +2633,7 @@ function mangaDownloadSeries(btn) {
   }).then(r => r.json()).then(function(d) {
     if (d.ok) {
       showToast('Downloading covers for ' + title + '!');
+      closeAllDlSearch();
       document.getElementById('manga-search-results').style.display = 'none';
       document.getElementById('manga-search-input').value = '';
       setDownloadUI(true, 'manga');
@@ -2677,7 +2667,7 @@ function comicSearch() {
           + '<div style="color:#888;font-size:12px;">' + esc(info) + '</div>'
           + '</div>'
           + '<button onclick="comicDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '"'
-          + ' style="padding:6px 14px;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
+          + ' style="padding:6px 14px;background:#F97316;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       }).join('');
     })
@@ -2699,6 +2689,7 @@ function comicDownloadSeries(btn) {
   }).then(r => r.json()).then(function(d) {
     if (d.ok) {
       showToast('Downloading covers for ' + title + '!');
+      closeAllDlSearch();
       document.getElementById('comics-search-results').style.display = 'none';
       document.getElementById('comics-search-input').value = '';
       setDownloadUI(true, 'comics');
@@ -3564,6 +3555,43 @@ function loadStorage() {
   });
 }
 
+function closeAllDlSearch() {
+  ['dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.querySelectorAll('[data-search-btn]').forEach(function(b) {
+    var c = b.getAttribute('data-color');
+    b.style.background = 'transparent';
+    b.style.color = c;
+  });
+}
+
+function toggleDlSearch(panelId, btn) {
+  var panel = document.getElementById(panelId);
+  if (!panel) return;
+  var wasOpen = panel.style.display !== 'none';
+  // Close all panels and reset all search buttons (accordion)
+  ['dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.querySelectorAll('[data-search-btn]').forEach(function(b) {
+    var c = b.getAttribute('data-color');
+    b.style.background = 'transparent';
+    b.style.color = c;
+  });
+  // Open this one if it was closed
+  if (!wasOpen) {
+    panel.style.display = 'block';
+    if (btn) {
+      var color = btn.getAttribute('data-color');
+      btn.style.background = color;
+      btn.style.color = '#010001';
+    }
+  }
+}
+
 function setDownloadUI(running, tcg) {
   const btns = document.getElementById('dl-buttons');
   const stopBtn = document.getElementById('btn-dl-stop');
@@ -3840,26 +3868,30 @@ function buildDynamicUI(registry) {
   sel.innerHTML = Object.entries(registry).map(function(e) {
     return '<option value="' + e[0] + '">' + e[1].name + '</option>';
   }).join('');
-  // Download buttons (only for TCGs with download scripts)
+  // Download buttons with inline Search toggle (only for TCGs with download scripts)
+  var searchPanels = {mtg: 'dl-mtg-search', pokemon: 'dl-pokemon-search', manga: 'dl-manga-search', comics: 'dl-comics-search'};
+  var searchLabels = {mtg: 'Search Sets', pokemon: 'Search Cards', manga: 'Search Series', comics: 'Search Series'};
   var dlEl = document.getElementById('dl-buttons');
   dlEl.innerHTML = Object.entries(registry).filter(function(e) { return e[1].download_script; }).map(function(e) {
     var color = e[1].color || '#36A5CA';
-    return '<div style="margin-bottom:6px"><button class="btn btn-block" style="background:' + color + ';color:#010001;border:none;" onclick="startDownload(\\'' + e[0] + '\\')">Download All ' + e[1].name + '</button></div>';
+    var panelId = searchPanels[e[0]];
+    var label = searchLabels[e[0]];
+    var searchBtn = panelId ? '<button class="btn" data-search-btn="1" data-color="' + color + '" style="background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;padding:8px 12px;" onclick="toggleDlSearch(\\'' + panelId + '\\', this)">' + label + '</button>' : '';
+    return '<div style="display:flex;gap:6px;margin-bottom:6px;">'
+      + '<button class="btn btn-block" style="background:' + color + ';color:#010001;border:none;flex:1;" onclick="startDownload(\\'' + e[0] + '\\')">Download All ' + e[1].name + '</button>'
+      + searchBtn + '</div>';
   }).join('');
-  // Show MTG set search only if MTG is in the registry
-  var mtgSearch = document.getElementById('dl-mtg-search');
-  if (mtgSearch) mtgSearch.style.display = registry.mtg ? 'block' : 'none';
-  // Manga series search
-  var mangaSearch = document.getElementById('dl-manga-search');
-  if (mangaSearch) mangaSearch.style.display = registry.manga ? 'block' : 'none';
-  var comicsSearch = document.getElementById('dl-comics-search');
-  if (comicsSearch) comicsSearch.style.display = registry.comics ? 'block' : 'none';
-  var pokemonSearch = document.getElementById('dl-pokemon-search');
-  if (pokemonSearch) pokemonSearch.style.display = registry.pokemon ? 'block' : 'none';
+  // Equalise search button widths to widest
+  requestAnimationFrame(function() {
+    var btns = dlEl.querySelectorAll('[data-search-btn]');
+    var maxW = 0;
+    btns.forEach(function(b) { maxW = Math.max(maxW, b.offsetWidth); });
+    btns.forEach(function(b) { b.style.width = maxW + 'px'; });
+  });
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
-    return '<button class="btn btn-danger btn-sm" style="flex:1" onclick="deleteData(\\'' + e[0] + '\\', this)">Delete ' + e[1].name + '</button>';
+    return '<button class="btn btn-sm" style="flex:1;background:#EF4444;color:#fff;border:none;" onclick="deleteData(\\'' + e[0] + '\\', this)">Delete ' + e[1].name + '</button>';
   }).join('');
 }
 
