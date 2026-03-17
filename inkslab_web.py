@@ -37,9 +37,9 @@ DOWNLOAD_LOG = "/tmp/inkslab_download.log"
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 TCG_REGISTRY = {
-    "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
-    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
     "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
+    "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
     "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
     "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
     "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
@@ -415,7 +415,7 @@ def api_card_image(tcg, set_id, card_id):
 @app.route('/api/tcg_list')
 def api_tcg_list():
     """Return the TCG registry for dynamic UI generation."""
-    return jsonify(TCG_REGISTRY)
+    return app.response_class(json.dumps(TCG_REGISTRY), mimetype='application/json')
 
 
 @app.route('/api/sets')
@@ -3843,7 +3843,8 @@ function buildDynamicUI(registry) {
   // Download buttons (only for TCGs with download scripts)
   var dlEl = document.getElementById('dl-buttons');
   dlEl.innerHTML = Object.entries(registry).filter(function(e) { return e[1].download_script; }).map(function(e) {
-    return '<div style="margin-bottom:6px"><button class="btn btn-primary btn-block" onclick="startDownload(\\'' + e[0] + '\\')">Download ' + e[1].name + '</button></div>';
+    var color = e[1].color || '#36A5CA';
+    return '<div style="margin-bottom:6px"><button class="btn btn-block" style="background:' + color + ';color:#010001;border:none;" onclick="startDownload(\\'' + e[0] + '\\')">Download All ' + e[1].name + '</button></div>';
   }).join('');
   // Show MTG set search only if MTG is in the registry
   var mtgSearch = document.getElementById('dl-mtg-search');
