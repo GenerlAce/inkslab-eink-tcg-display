@@ -154,8 +154,8 @@ body {
 }
 @media (min-width: 600px) {
   #st-preview-wrap { max-width: 260px; }
-  /* Up Next: 8 cols, capped width so cards stay compact */
-  .q-list { grid-template-columns: repeat(8, 1fr); gap: 4px; max-width: 480px; }
+  /* Up Next: 8 cols, full width on desktop */
+  .q-list { grid-template-columns: repeat(8, 1fr); gap: 6px; }
   /* Collection grid: 6 columns on desktop */
   .card-grid { grid-template-columns: repeat(6, 1fr); }
   /* Settings: 2-col grid for Display Settings on desktop */

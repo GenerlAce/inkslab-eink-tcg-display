@@ -388,6 +388,7 @@ function refreshStatus() {
           || d.tcg !== _lastStatus.tcg
           || (_lastStatus.pending && !d.pending));
         if (needsReload) {
+          img.style.display = '';
           img.src = '/api/card_image?t=' + Date.now();
         }
       } else {
@@ -854,6 +855,21 @@ function toggleSetAll(setId, owned) {
         if (owned) { img.classList.add('owned'); if (check) check.classList.add('show'); }
         else { img.classList.remove('owned'); if (check) check.classList.remove('show'); }
       });
+      // Update the set badge count
+      const setItem = el.closest('.set-item');
+      if (setItem) {
+        const badge = setItem.querySelector('.badge');
+        if (owned) {
+          const count = el.querySelectorAll('input[type=checkbox]').length || el.querySelectorAll('.grid-thumb').length;
+          if (badge) { badge.textContent = count; }
+          else if (count > 0) {
+            const sn = setItem.querySelector('.set-name');
+            if (sn) { const b = document.createElement('span'); b.className = 'badge'; b.textContent = count; sn.after(b); }
+          }
+        } else if (badge) {
+          badge.remove();
+        }
+      }
     });
 }
 

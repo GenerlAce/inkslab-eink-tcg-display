@@ -32,6 +32,7 @@ LAST_UPDATE_FILE = "/home/pi/inkslab_last_update.json"
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
+REDRAW_TRIGGER = "/tmp/inkslab_redraw"
 DOWNLOAD_LOG = "/tmp/inkslab_download.log"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -253,13 +254,16 @@ def api_set_config():
     updates = request.get_json(force=True)
     with _config_lock:
         config = load_config()
+        # Only track keys that actually changed value
+        changed = {k for k in updates if k in DEFAULTS and config.get(k) != updates[k]}
         for key in DEFAULTS:
             if key in updates:
                 config[key] = updates[key]
         save_config(config)
-    # Write interim status so the web UI reflects the change instantly,
-    # even if the display daemon is blocked on a 15-30s e-paper refresh.
-    if 'active_tcg' in updates:
+
+    # Only active_tcg forces an immediate card advance
+    if 'active_tcg' in changed:
+        # Write interim status so the web UI reflects the change instantly
         try:
             status = {}
             if os.path.exists(STATUS_FILE):
@@ -273,12 +277,19 @@ def api_set_config():
                 json.dump(status, f)
         except Exception:
             pass
-    # Wake the display daemon immediately so it picks up the change within ~1 second
-    try:
-        with open(NEXT_TRIGGER, 'w') as f:
-            f.write('1')
-    except OSError:
-        pass
+        try:
+            with open(NEXT_TRIGGER, 'w') as f:
+                f.write('1')
+        except OSError:
+            pass
+    elif changed & {'color_saturation', 'slab_header_mode', 'rotation_angle'}:
+        # Re-render the current card with new display settings, no advance
+        try:
+            with open(REDRAW_TRIGGER, 'w') as f:
+                f.write('1')
+        except OSError:
+            pass
+    # collection_only and interval/timing changes take effect on next natural card advance
     return jsonify(config)
 
 
@@ -556,6 +567,9 @@ def api_collection_toggle():
 
         save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
+    if config.get("collection_only"):
+        try: open(COLLECTION_TRIGGER, 'w').close()
+        except Exception: pass
     return jsonify({"card_id": card_id, "owned": owned})
 
 
@@ -597,6 +611,9 @@ def api_collection_toggle_set():
 
         save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
+    if config.get("collection_only"):
+        try: open(COLLECTION_TRIGGER, 'w').close()
+        except Exception: pass
     return jsonify({"set_id": set_id, "owned": owned, "count": len(card_ids)})
 
 
@@ -685,6 +702,9 @@ def api_collection_toggle_all():
 
         save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
+    if config.get("collection_only"):
+        try: open(COLLECTION_TRIGGER, 'w').close()
+        except Exception: pass
     return jsonify({"owned": owned, "count": count})
 
 
@@ -714,6 +734,9 @@ def api_collection_toggle_batch():
 
         save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
+    if config.get("collection_only"):
+        try: open(COLLECTION_TRIGGER, 'w').close()
+        except Exception: pass
     return jsonify({"owned": owned, "count": len(card_ids)})
 
 
@@ -771,6 +794,9 @@ def api_collection_toggle_rarity():
 
         save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
+    if config.get("collection_only"):
+        try: open(COLLECTION_TRIGGER, 'w').close()
+        except Exception: pass
     return jsonify({"rarity": rarity, "owned": owned, "count": len(matching_ids)})
 
 
@@ -1631,7 +1657,7 @@ def api_factory_reset():
 
     # 5. Clean up temp files, logs, and user traces
     _close_download_log()
-    for tmp_file in [STATUS_FILE, DOWNLOAD_LOG, NEXT_TRIGGER, COLLECTION_TRIGGER,
+    for tmp_file in [STATUS_FILE, DOWNLOAD_LOG, NEXT_TRIGGER, COLLECTION_TRIGGER, REDRAW_TRIGGER,
                      "/tmp/inkslab_prev", "/tmp/inkslab_pause",
                      "/tmp/inkslab_wifi_connected", "/tmp/inkslab_update_status.json",
                      "/tmp/inkslab_update.lock"]:
@@ -2461,7 +2487,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <!-- Card preview modal -->
 <div class="modal-overlay" id="preview-modal" onclick="closePreview()">
   <div class="modal-content" onclick="event.stopPropagation()">
-    <img id="preview-img" src="">
+    <img id="preview-img" src="" onclick="closePreview()" style="cursor:pointer">
     <p id="preview-name"></p>
     <button class="btn btn-secondary btn-sm modal-close" onclick="closePreview()">Close</button>
   </div>

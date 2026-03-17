@@ -57,6 +57,7 @@ NEXT_TRIGGER = "/tmp/inkslab_next"
 PREV_TRIGGER = "/tmp/inkslab_prev"
 PAUSE_FILE = "/tmp/inkslab_pause"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
+REDRAW_TRIGGER = "/tmp/inkslab_redraw"
 WIFI_CONNECTED_TRIGGER = "/tmp/inkslab_wifi_connected"
 WIFI_SETUP_TRIGGER = "/tmp/inkslab_wifi_setup"
 UNBOX_TRIGGER = "/tmp/inkslab_unbox"
@@ -792,6 +793,15 @@ def wait_with_polling(seconds, config_check_interval=5):
             logger.info("Skip trigger detected — advancing to next card")
             return load_config(), "next"
 
+        # Check for redraw trigger (re-render current card with new settings, no advance)
+        if os.path.exists(REDRAW_TRIGGER):
+            try:
+                os.remove(REDRAW_TRIGGER)
+            except OSError:
+                pass
+            logger.info("Redraw trigger detected — re-rendering current card")
+            return load_config(), "redraw"
+
         # Check for WiFi state change triggers
         if os.path.exists(WIFI_CONNECTED_TRIGGER):
             try:
@@ -1175,42 +1185,55 @@ def main():
                     show_unbox_screen(epd, config)
                     continue
 
+                # Re-render current card with new settings (e.g. saturation change), no advance
+                if action == "redraw":
+                    if deck.history:
+                        current = deck.history.pop(0)
+                        deck.deck.insert(0, current)
+                    continue
+
                 # Collection content changed — rebuild deck but keep showing current card
                 if action == "collection_changed" and config["collection_only"]:
-                    rebuild_deck(preserve_history=True)
+                    # Loop to handle rapid successive collection changes without cycling the card
+                    while action == "collection_changed":
+                        rebuild_deck(preserve_history=True)
+                        if deck.total == 0:
+                            break  # handled below
+                        new_next = []
+                        for nc in deck.peek(5):
+                            try:
+                                new_next.append(card_summary(nc, master_index))
+                            except Exception:
+                                pass
+                        new_prev = []
+                        for pc in deck.history[:4]:
+                            try:
+                                new_prev.append(card_summary(pc, master_index))
+                            except Exception:
+                                pass
+                        paused = os.path.exists(PAUSE_FILE)
+                        remaining = max(0, next_change - int(time.time())) if next_change else 0
+                        write_status({
+                            "card_path": card_path,
+                            "set_name": card_info.get("set_name", ""),
+                            "set_info": card_info.get("set_info", ""),
+                            "card_num": card_info.get("card_num", ""),
+                            "rarity": card_info.get("rarity", ""),
+                            "timestamp": int(time.time()),
+                            "tcg": active_tcg,
+                            "total_cards": deck.total,
+                            "prev_cards": new_prev,
+                            "next_cards": new_next,
+                            "next_change": next_change,
+                            "paused": paused,
+                            "interval": wait,
+                        })
+                        logger.info(f"Collection updated — deck rebuilt ({deck.total} cards), queue refreshed")
+                        if remaining <= 0:
+                            break  # natural advance time reached
+                        config, action = wait_with_polling(remaining)
                     if deck.total == 0:
                         break  # Back to no-cards loop
-                    new_next = []
-                    for nc in deck.peek(5):
-                        try:
-                            new_next.append(card_summary(nc, master_index))
-                        except Exception:
-                            pass
-                    new_prev = []
-                    for pc in deck.history[:4]:
-                        try:
-                            new_prev.append(card_summary(pc, master_index))
-                        except Exception:
-                            pass
-                    paused = os.path.exists(PAUSE_FILE)
-                    remaining = max(0, next_change - int(time.time())) if next_change else wait
-                    write_status({
-                        "card_path": card_path,
-                        "set_name": card_info.get("set_name", ""),
-                        "set_info": card_info.get("set_info", ""),
-                        "card_num": card_info.get("card_num", ""),
-                        "rarity": card_info.get("rarity", ""),
-                        "timestamp": int(time.time()),
-                        "tcg": active_tcg,
-                        "total_cards": deck.total,
-                        "prev_cards": new_prev,
-                        "next_cards": new_next,
-                        "next_change": next_change,
-                        "paused": paused,
-                        "interval": wait,
-                    })
-                    logger.info(f"Collection updated — deck rebuilt ({deck.total} cards), queue refreshed")
-                    config, action = wait_with_polling(remaining)
                     if action == "prev":
                         if len(deck.history) > 1:
                             current = deck.history.pop(0)
@@ -1220,10 +1243,11 @@ def main():
                         continue
 
                 # If TCG or collection mode changed, rebuild and advance to new card
+                # Also always rebuild in collection_only mode so newly added cards appear
                 new_tcg = config["active_tcg"]
                 needs_rebuild = (new_tcg != active_tcg
                                  or config["collection_only"] != _deck_collection_only
-                                 or action == "collection_changed")
+                                 or config["collection_only"])
                 if needs_rebuild:
                     rebuild_deck(preserve_history=(new_tcg == active_tcg))
                     if deck.total == 0:
