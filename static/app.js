@@ -333,26 +333,15 @@ function startCountdown() {
 }
 
 var _lastQueueKey = '';
-function renderQueue(d) {
-  var tcg = (d.tcg || '').toLowerCase();
-  var next = (d.next_cards || []).slice(0, window.innerWidth >= 600 ? 8 : 4);
-  // Skip re-render if queue hasn't changed (avoids image flash on every poll)
-  var queueKey = JSON.stringify(next.map(function(c){return c.card_id}));
-  if (queueKey === _lastQueueKey) return;
-  _lastQueueKey = queueKey;
-  var queueCard = document.getElementById('queue-card');
-  if (!next.length) { queueCard.style.display = 'none'; return; }
-  queueCard.style.display = 'block';
-  var listEl = document.getElementById('q-next-list');
-  var qCols = window.innerWidth >= 600 ? 8 : 4;
-  listEl.style.gridTemplateColumns = 'repeat(' + qCols + ', 1fr)';
-  listEl.innerHTML = next.map(function(c) {
-    return '<div class="q-card" data-src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '">'
-      + '<img class="q-thumb" src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '" onerror="this.style.display=\'none\'">'
-      + '<div class="q-num">' + esc(c.card_num) + '</div>'
-      + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
-  }).join('');
-  // Click/tap to open centered preview modal
+var _lastPrevKey = '';
+function _qCardHtml(tcg, c) {
+  var url = '/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id);
+  return '<div class="q-card" data-src="' + url + '">'
+    + '<img class="q-thumb" src="' + url + '" onerror="this.style.display=\'none\'">'
+    + '<div class="q-num">' + esc(c.card_num) + '</div>'
+    + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
+}
+function _attachQCardClicks(listEl) {
   listEl.querySelectorAll('.q-card').forEach(function(card) {
     card.addEventListener('click', function() {
       if (_touchMoved) return;
@@ -366,6 +355,46 @@ function renderQueue(d) {
       }
     });
   });
+}
+function renderQueue(d) {
+  var tcg = (d.tcg || '').toLowerCase();
+  var isDesktop = window.innerWidth >= 600;
+
+  // --- Up Next ---
+  var next = (d.next_cards || []).slice(0, isDesktop ? 5 : 4);
+  var queueKey = JSON.stringify(next.map(function(c){return c.card_id}));
+  if (queueKey !== _lastQueueKey) {
+    _lastQueueKey = queueKey;
+    var queueCard = document.getElementById('queue-card');
+    if (!next.length) {
+      queueCard.style.display = 'none';
+    } else {
+      queueCard.style.display = 'block';
+      var listEl = document.getElementById('q-next-list');
+      var qCols = Math.min(next.length, isDesktop ? 5 : 4);
+      listEl.style.gridTemplateColumns = 'repeat(' + qCols + ', 1fr)';
+      listEl.innerHTML = next.map(function(c) { return _qCardHtml(tcg, c); }).join('');
+      _attachQCardClicks(listEl);
+    }
+  }
+
+  // --- Previous (desktop only) ---
+  if (isDesktop) {
+    var prev = (d.prev_cards || []).slice(0, 3);
+    var prevKey = JSON.stringify(prev.map(function(c){return c.card_id}));
+    if (prevKey !== _lastPrevKey) {
+      _lastPrevKey = prevKey;
+      var prevCard = document.getElementById('prev-card');
+      if (!prev.length) {
+        prevCard.style.display = 'none';
+      } else {
+        prevCard.style.display = 'block';
+        var prevListEl = document.getElementById('q-prev-list');
+        prevListEl.innerHTML = prev.map(function(c) { return _qCardHtml(tcg, c); }).join('');
+        _attachQCardClicks(prevListEl);
+      }
+    }
+  }
 }
 
 function updatePauseBtn(paused) {

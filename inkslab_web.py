@@ -2307,9 +2307,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <span style="color:#ff6b6b;font-size:12px" id="st-error"></span>
     </div>
   </div>
-  <div class="card" id="queue-card" style="display:none">
-    <div class="q-label">Up Next</div>
-    <div class="q-list" id="q-next-list"></div>
+  <div class="queue-row">
+    <div class="card" id="queue-card" style="display:none">
+      <div class="q-label">Up Next</div>
+      <div class="q-list" id="q-next-list"></div>
+    </div>
+    <div class="card" id="prev-card" style="display:none">
+      <div class="q-label">Previous</div>
+      <div class="q-list" id="q-prev-list"></div>
+    </div>
   </div>
   <div class="card">
     <h3>Quick Switch</h3>

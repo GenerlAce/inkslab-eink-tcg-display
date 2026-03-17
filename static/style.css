@@ -291,6 +291,16 @@ body {
 .q-num { font-size: 10px; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-rarity { font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Queue row: stacked on mobile, side-by-side on desktop */
+.queue-row { display: block; }
+#prev-card { display: none; } /* hidden on mobile */
+@media (min-width: 600px) {
+  .queue-row { display: grid; grid-template-columns: 5fr 3fr; gap: 12px; align-items: stretch; }
+  .queue-row #queue-card { min-width: 0; }
+  .queue-row #prev-card { min-width: 0; }
+  #prev-card .q-list { grid-template-columns: repeat(3, 1fr); }
+}
+
 /* Quick switch grid */
 .quick-switch-scroll {
   display: flex;
