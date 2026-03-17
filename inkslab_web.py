@@ -536,6 +536,8 @@ def api_collection_toggle():
     card_id = data.get("card_id")
     if not card_id:
         return jsonify({"error": "card_id required"}), 400
+    if not isinstance(card_id, str) or len(card_id) > 128 or not card_id.replace('-', '').replace('_', '').replace('.', '').isalnum():
+        return jsonify({"error": "invalid card_id"}), 400
 
     config = load_config()
     tcg = data.get("tcg", config["active_tcg"])
@@ -2088,7 +2090,7 @@ function doConnect() {
     body: JSON.stringify({ssid: selectedSSID, password: password})
   }).then(function(r) { return r.json(); }).then(function(d) {
     if (!d.ok) {
-      document.getElementById('status-area').innerHTML = '<div class="error-msg">' + (d.error || 'Failed') + '</div>';
+      document.getElementById('status-area').innerHTML = '<div class="error-msg">' + esc(d.error || 'Failed') + '</div>';
       document.getElementById('btn-connect').disabled = false;
       return;
     }
@@ -2108,7 +2110,7 @@ function checkConnectStatus() {
       showSuccess(cs.ip, cs.ssid);
     } else if (cs.status === 'failed') {
       clearInterval(_statusPoll); _statusPoll = null;
-      document.getElementById('status-area').innerHTML = '<div class="error-msg">' + (cs.error || 'Connection failed. Check your password.') + '</div>';
+      document.getElementById('status-area').innerHTML = '<div class="error-msg">' + esc(cs.error || 'Connection failed. Check your password.') + '</div>';
       document.getElementById('btn-connect').disabled = false;
     }
   }).catch(function() {
