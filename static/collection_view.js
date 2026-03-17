@@ -1,9 +1,7 @@
 (function() {
   var style = document.createElement('style');
   style.textContent = [
-    '.thumb-hover-preview{display:none;position:fixed;z-index:9999;pointer-events:auto;border-radius:8px;border:2px solid #6BCCBD;box-shadow:0 4px 24px rgba(0,0,0,0.7);width:360px;max-width:calc(100vw - 24px);}',
-    '.thumb-hover-close{position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10000;}',
-    '.grid-thumb-wrap{position:relative;width:100%;cursor:pointer;text-align:center;}',
+    '.grid-thumb-wrap{position:relative;width:100%;cursor:pointer;text-align:center;min-width:0;}',
     '.grid-thumb{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:6px;border:2px solid #1F333F;display:block;transition:border-color 0.15s;}',
     '.grid-thumb.owned{border-color:#6BCCBD;}',
     '.grid-check{display:none;position:absolute;top:3px;right:3px;background:#6BCCBD;color:#010001;border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-size:11px;font-weight:bold;}',
@@ -11,78 +9,6 @@
     '.grid-label{font-size:9px;color:#6BCCBD;text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:100%;}',
   ].join('');
   document.head.appendChild(style);
-
-  var hoverDiv = document.createElement('div');
-  hoverDiv.id = 'thumb-hover-preview';
-  hoverDiv.className = 'thumb-hover-preview';
-  hoverDiv.style.position = 'fixed';
-  var hoverImg = document.createElement('img');
-  hoverImg.id = 'thumb-hover-img';
-  hoverImg.style.cssText = 'width:100%;border-radius:6px;display:block;';
-  var closeBtn = document.createElement('button');
-  closeBtn.className = 'thumb-hover-close';
-  closeBtn.innerHTML = '&times;';
-  closeBtn.addEventListener('click', function(e) {
-    e.stopPropagation();
-    window.hideThumbHover();
-  });
-  hoverDiv.appendChild(hoverImg);
-  hoverDiv.appendChild(closeBtn);
-  hoverDiv.addEventListener('click', function() { window.hideThumbHover(); });
-  hoverDiv.addEventListener('touchend', function() { window.hideThumbHover(); }, {passive: true});
-  document.body.appendChild(hoverDiv);
-  // Click anywhere outside to dismiss
-  document.addEventListener('click', function(e) {
-    var el = document.getElementById('thumb-hover-preview');
-    if (el && el.style.display !== 'none' && !el.contains(e.target) && !e.target.closest('.card-row') && !e.target.closest('.grid-thumb-wrap')) {
-      window.hideThumbHover();
-    }
-  });
-  // Touch on mobile — hide on tap outside, but NOT on the grid thumbnails themselves
-  // (the thumbnail's own touchend handler manages show/hide toggle; firing here causes flicker)
-  document.addEventListener('touchstart', function(e) {
-    var el = document.getElementById('thumb-hover-preview');
-    if (el && el.style.display !== 'none' && !el.contains(e.target) && !e.target.closest('.grid-thumb-wrap')) {
-      window.hideThumbHover();
-    }
-  });
-
-  window.showThumbHover = function(event, src) {
-    var el = document.getElementById('thumb-hover-preview');
-    var img = document.getElementById('thumb-hover-img');
-    if (!el || !img) return;
-    img.src = src;
-    el.style.display = 'block';
-    var isMobile = window.innerWidth < 600;
-    if (isMobile) {
-      // Center on screen for mobile
-      el.style.left = '50%';
-      el.style.transform = 'translateX(-50%)';
-      el.style.top = '50%';
-      el.style.marginTop = '-180px';
-    } else {
-      el.style.transform = '';
-      el.style.marginTop = '';
-      // Position right of cursor, clamp to right edge
-      var previewW = 360;
-      var previewH = el.offsetHeight || 400;
-      var previewLeft = event.clientX + 16;
-      if (previewLeft + previewW > window.innerWidth - 8) {
-        previewLeft = window.innerWidth - previewW - 8;
-      }
-      el.style.left = Math.max(8, previewLeft) + 'px';
-      // Position above cursor, clamped to viewport
-      var previewTop = event.clientY - previewH - 8;
-      if (previewTop < 8) previewTop = event.clientY + 16;
-      if (previewTop + previewH > window.innerHeight - 8) previewTop = window.innerHeight - previewH - 8;
-      el.style.top = Math.max(8, previewTop) + 'px';
-    }
-  };
-
-  window.hideThumbHover = function() {
-    var el = document.getElementById('thumb-hover-preview');
-    if (el) el.style.display = 'none';
-  };
 
   window.toggleCardThumb = function(cardId) {
     var img = document.getElementById('gthumb-' + cardId);
@@ -140,13 +66,24 @@
     if (gb) gb.style.background = mode === 'grid' ? '#36A5CA' : '';
   }
 
+  function openPreviewModal(src, label) {
+    var previewImg = document.getElementById('preview-img');
+    var previewModal = document.getElementById('preview-modal');
+    if (!previewModal || !previewImg) return;
+    previewImg.src = src;
+    var previewName = document.getElementById('preview-name');
+    if (previewName) previewName.textContent = label || '';
+    previewModal.classList.add('open');
+  }
+
   function convertToGrid(container, setId) {
     if (container.querySelector('.grid-thumb-wrap')) { container.style.visibility = ''; return; }
     getTcg(function(tcg) {
       var rows = container.querySelectorAll('.card-row');
       if (!rows.length) return;
+      var cols = window.innerWidth >= 600 ? 8 : 4;
       var gridDiv = document.createElement('div');
-      gridDiv.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px 0;';
+      gridDiv.style.cssText = 'display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:6px;padding:6px 0;width:100%;';
       rows.forEach(function(row) {
         var cb = row.querySelector('input[type=checkbox]');
         if (!cb) return;
@@ -167,16 +104,25 @@
         img.src = src;
         img.dataset.src = src;
         img.onerror = function() { this.style.opacity = '0.2'; };
-        img.addEventListener('click', function() { window.toggleCardThumb(cardId); });
-        img.addEventListener('mouseenter', function(e) { window.showThumbHover(e, src); });
-        img.addEventListener('mouseleave', window.hideThumbHover);
-        // Top half tap = add to collection, bottom half tap = preview
-        // Track touch start to distinguish swipe from tap
+        // _wasScrollTouch tracks if the last touch was a scroll so we can suppress the browser's
+        // synthetic click event that fires after touchend even when the user was scrolling.
+        var _wasScrollTouch = false;
+        // Desktop: top half = toggle collection, bottom half = open preview modal
+        img.addEventListener('click', function(e) {
+          if (_wasScrollTouch) { _wasScrollTouch = false; return; }
+          var rect = img.getBoundingClientRect();
+          var relY = e.clientY - rect.top;
+          if (relY < rect.height / 2) {
+            window.toggleCardThumb(cardId);
+          } else {
+            openPreviewModal(src, rarity);
+          }
+        });
+        // Mobile: touchend handles top/bottom half tap; scrolls are ignored
         var _touchStartX = 0, _touchStartY = 0, _touchScrollY = 0;
         img.addEventListener('touchstart', function(e) {
           _touchStartX = e.touches[0].clientX;
           _touchStartY = e.touches[0].clientY;
-          // Track scroll position of nearest scrollable parent
           var sc = img.closest('.content') || document.documentElement;
           _touchScrollY = sc.scrollTop;
         }, {passive: true});
@@ -184,23 +130,19 @@
           var touch = e.changedTouches[0];
           var dx = Math.abs(touch.clientX - _touchStartX);
           var dy = Math.abs(touch.clientY - _touchStartY);
-          // Also check if the page scrolled during the gesture
           var sc = img.closest('.content') || document.documentElement;
           var scrolled = Math.abs(sc.scrollTop - _touchScrollY);
-          // Ignore if finger moved or page scrolled — it's a scroll/swipe
-          if (dx > 8 || dy > 8 || scrolled > 5) return;
-          e.preventDefault();
+          if (dx > 8 || dy > 8 || scrolled > 5) {
+            _wasScrollTouch = true; // suppress the upcoming synthetic click
+            return;
+          }
+          e.preventDefault(); // genuine tap — block synthetic click
           var rect = img.getBoundingClientRect();
           var relY = touch.clientY - rect.top;
           if (relY < rect.height / 2) {
-            window.toggleCardThumb(cardId);
+            window.toggleCardThumb(cardId); // top half: add/remove from collection
           } else {
-            var el = document.getElementById('thumb-hover-preview');
-            if (el && el.style.display !== 'none') {
-              window.hideThumbHover();
-            } else {
-              window.showThumbHover(touch, src);
-            }
+            openPreviewModal(src, rarity); // bottom half: open centered preview modal
           }
         }, {passive: false});
         var check = document.createElement('div');
@@ -253,28 +195,7 @@
       }, 200);
     };
   }
-  function addHoverToBtn(btn) {
-    if (btn.dataset.hoverAdded) return;
-    btn.dataset.hoverAdded = '1';
-    btn.addEventListener('mouseenter', function(e) {
-      var row = btn.closest('.card-row');
-      if (!row) return;
-      var cb = row.querySelector('input[type=checkbox]');
-      if (!cb) return;
-      var onchange = cb.getAttribute('onchange') || '';
-      var match = onchange.match(/toggleCard\('([^']+)'/);
-      if (!match) return;
-      var cardId = match[1];
-      var setCards = btn.closest('.set-cards');
-      if (!setCards) return;
-      var setId = setCards.id.replace('set-', '');
-      getTcg(function(tcg) {
-        var src = '/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(cardId);
-        window.showThumbHover(e, src);
-      });
-    });
-    btn.addEventListener('mouseleave', window.hideThumbHover);
-  }
+
   function init() {
     var setsList = document.getElementById('sets-list');
     if (setsList) {
@@ -286,18 +207,6 @@
       document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
       document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });
     }
-    // Add hover preview to list view card names
-    var listObserver = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        mutation.addedNodes.forEach(function(node) {
-          if (node.nodeType !== 1) return;
-          var btns = node.querySelectorAll ? node.querySelectorAll('.card-preview-btn') : [];
-          btns.forEach(addHoverToBtn);
-          if (node.classList && node.classList.contains('card-preview-btn')) addHoverToBtn(node);
-        });
-      });
-    });
-    listObserver.observe(document.body, {childList: true, subtree: true});
     updateViewButtons();
     watchForSets();
   }

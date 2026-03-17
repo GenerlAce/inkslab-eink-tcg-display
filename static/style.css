@@ -154,6 +154,13 @@ body {
 }
 @media (min-width: 600px) {
   #st-preview-wrap { max-width: 260px; }
+  /* Up Next: 8 cols, capped width so cards stay compact */
+  .q-list { grid-template-columns: repeat(8, 1fr); gap: 4px; max-width: 480px; }
+  /* Collection grid: 6 columns on desktop */
+  .card-grid { grid-template-columns: repeat(6, 1fr); }
+  /* Settings: 2-col grid for Display Settings on desktop */
+  .settings-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .settings-display-grid .form-row:nth-last-child(-n+2) { border-bottom: none; }
 }
 #st-preview-loading {
   display: none;
@@ -255,7 +262,6 @@ body {
 }
 .q-card {
   text-align: center;
-  cursor: pointer;
   min-width: 0;
 }
 .q-thumb {
@@ -266,8 +272,19 @@ body {
   border: 1.5px solid var(--border);
   display: block;
   transition: border-color 0.15s;
+  pointer-events: none;         /* prevent iOS image callout popup */
+  -webkit-touch-callout: none;
+  user-select: none;
 }
-.q-card:active .q-thumb { border-color: var(--accent); }
+.q-card:hover .q-thumb { border-color: var(--accent); } /* desktop hover hint */
+
+/* Collection card grid (4 col mobile, 6 col desktop via @media above) */
+.card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px 0; width: 100%; }
+
+/* Settings 2-col divider */
+.settings-divider { border: none; border-top: 1px solid #2d5468; margin: 8px 0; }
+.settings-display-grid .settings-divider { grid-column: 1 / -1; }
+
 .q-num { font-size: 10px; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-rarity { font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -429,6 +446,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-wrap input:focus { outline: none; border-color: var(--accent); }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none; }
 .search-results { max-height: 400px; overflow-y: auto; }
+/* Download search result panels — cap height so list doesn't fill the screen */
+#lorcana-search-results, #mtg-set-search-results, #pokemon-search-results,
+#manga-search-results, #comics-search-results {
+  max-height: 220px; overflow-y: auto;
+}
 .search-result { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .search-result-name { color: var(--text-hi); font-weight: 600; }
 .search-result-set { color: var(--text-dim); font-size: 11px; }

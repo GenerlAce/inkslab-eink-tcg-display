@@ -272,7 +272,7 @@ function startCountdown() {
 var _lastQueueKey = '';
 function renderQueue(d) {
   var tcg = (d.tcg || '').toLowerCase();
-  var next = (d.next_cards || []).slice(0, 4);
+  var next = (d.next_cards || []).slice(0, window.innerWidth >= 600 ? 8 : 4);
   // Skip re-render if queue hasn't changed (avoids image flash on every poll)
   var queueKey = JSON.stringify(next.map(function(c){return c.card_id}));
   if (queueKey === _lastQueueKey) return;
@@ -281,34 +281,27 @@ function renderQueue(d) {
   if (!next.length) { queueCard.style.display = 'none'; return; }
   queueCard.style.display = 'block';
   var listEl = document.getElementById('q-next-list');
+  var qCols = window.innerWidth >= 600 ? 8 : 4;
+  listEl.style.gridTemplateColumns = 'repeat(' + qCols + ', 1fr)';
   listEl.innerHTML = next.map(function(c) {
-    return '<div class="q-card" data-set-id="' + esc(c.set_id) + '" data-card-id="' + esc(c.card_id) + '" data-label="' + esc(c.card_num) + ' ' + esc(c.set_info) + '">'
+    return '<div class="q-card" data-src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '">'
       + '<img class="q-thumb" src="/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id) + '" onerror="this.style.display=\'none\'">'
       + '<div class="q-num">' + esc(c.card_num) + '</div>'
       + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
   }).join('');
-  // Attach swipe-safe tap listeners — use touchend+preventDefault (same as collection grid)
+  // Click/tap to open centered preview modal
   listEl.querySelectorAll('.q-card').forEach(function(card) {
-    var _startX = 0, _startY = 0, _startScrollContent = 0, _startScrollWindow = 0;
-    card.addEventListener('touchstart', function(e) {
-      _startX = e.touches[0].clientX;
-      _startY = e.touches[0].clientY;
-      var sc = card.closest('.content');
-      _startScrollContent = sc ? sc.scrollTop : 0;
-      _startScrollWindow = window.scrollY || document.documentElement.scrollTop || 0;
-    }, {passive: true});
-    card.addEventListener('touchend', function(e) {
+    card.addEventListener('click', function() {
       if (_touchMoved) return;
-      var touch = e.changedTouches[0];
-      var dx = Math.abs(touch.clientX - _startX);
-      var dy = Math.abs(touch.clientY - _startY);
-      var sc = card.closest('.content');
-      var scrolledContent = sc ? Math.abs(sc.scrollTop - _startScrollContent) : 0;
-      var scrolledWindow = Math.abs((window.scrollY || document.documentElement.scrollTop || 0) - _startScrollWindow);
-      if (dx > 8 || dy > 8 || scrolledContent > 4 || scrolledWindow > 4) return;
-      e.preventDefault();
-      showPreview(card.dataset.setId, card.dataset.cardId, card.dataset.label);
-    }, {passive: false});
+      var previewImg = document.getElementById('preview-img');
+      var previewModal = document.getElementById('preview-modal');
+      if (previewModal && previewImg) {
+        previewImg.src = card.dataset.src;
+        var previewName = document.getElementById('preview-name');
+        if (previewName) previewName.textContent = '';
+        previewModal.classList.add('open');
+      }
+    });
   });
 }
 

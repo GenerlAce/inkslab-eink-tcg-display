@@ -2249,6 +2249,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="tab-settings" class="panel">
   <div class="card">
     <h3>Display Settings</h3>
+    <div class="settings-display-grid">
     <div class="form-row">
       <span class="row-label">Active TCG</span>
       <select id="cfg-tcg"></select>
@@ -2285,6 +2286,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <span class="row-label">Color Saturation</span>
       <input type="number" id="cfg-saturation" min="0.5" max="5.0" step="0.1" value="2.5">
     </div>
+    <hr class="settings-divider">
     <div class="form-row">
       <span class="row-label">Collection Mode</span>
       <label class="switch">
@@ -2292,6 +2294,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <span class="switch-slider"></span>
       </label>
     </div>
+    </div><!-- end settings-display-grid -->
     <div style="margin-top:14px">
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
     </div>
@@ -2396,7 +2399,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button onclick="lorcanaSearch()"
           style="padding:8px 14px;background:#C084FC;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="lorcana-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+      <div id="lorcana-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
     </div>
     <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -2405,7 +2408,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button onclick="mtgSetSearch()"
           style="padding:8px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="mtg-set-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+      <div id="mtg-set-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
     </div>
     <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -2414,7 +2417,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button onclick="pokemonSearch()"
           style="padding:8px 14px;background:#36A5CA;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="pokemon-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+      <div id="pokemon-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
     </div>
     <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -2423,7 +2426,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button onclick="mangaSearch()"
           style="padding:8px 14px;background:#F472B6;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+      <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
     </div>
     <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -2432,7 +2435,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button onclick="comicSearch()"
           style="padding:8px 14px;background:#F97316;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="comics-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+      <div id="comics-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
     </div>
   </div>
 
