@@ -928,6 +928,9 @@ def api_download_start():
         if tcg == "mtg" and since:
             cmd.extend(["--since", str(since)])
 
+        if tcg == "pokemon" and data.get("pokemon_name"):
+            cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_pokemon_bulk.py"),
+                   "--name", data.get("pokemon_name")]
         if tcg == "manga":
             manga_id = data.get("manga_id")
             manga_title = data.get("manga_title")
@@ -2440,6 +2443,17 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
         <button class="btn btn-secondary" id="btn-dl-mtg-since" onclick="startDownload('mtg', document.getElementById('dl-since').value)" style="flex:1">Go</button>
       </div>
     </div>
+    <div id="dl-pokemon-search" style="display:none;margin-top:12px;">
+      <div style="font-weight:600;margin-bottom:6px;color:#36A5CA;">Search Pokemon Cards</div>
+      <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px;">Search for a specific Pokemon and download all its cards across every set.</p>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <input id="pokemon-search-input" type="text" placeholder="e.g. Pikachu, Charizard, Mewtwo..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+        <button onclick="pokemonSearch()"
+          style="padding:8px 14px;background:#36A5CA;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+      </div>
+      <div id="pokemon-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
+    </div>
     <div id="dl-manga-search" style="display:none;margin-top:12px;">
       <div style="font-weight:600;margin-bottom:6px;color:#FF6B6B;">Search Manga Series</div>
       <p style="color:#6BCCBD;font-size:12px;margin-bottom:8px;">Search for a specific manga and download all its volume covers.</p>
@@ -3376,6 +3390,7 @@ function doSearch() {
       html += '<div style="display:flex;justify-content:space-between;align-items:center">';
       html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
       html += '<button class="btn btn-secondary btn-sm search-group-btn" data-name="' + esc(g.name) + '" data-owned="' + (!allOwned) + '">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
+      if (_lastStatus && _lastStatus.tcg === 'pokemon') { html += '<button class="btn btn-secondary btn-sm" style="margin-left:4px" data-pname="' + esc(g.name) + '" onclick="pokemonBulkClick(this)">DL All</button>'; }
       html += '</div>';
       html += '<div style="margin-top:4px">';
       g.cards.forEach(function(c) {
@@ -3761,6 +3776,8 @@ function buildDynamicUI(registry) {
   if (mangaSearch) mangaSearch.style.display = registry.manga ? 'block' : 'none';
   var comicsSearch = document.getElementById('dl-comics-search');
   if (comicsSearch) comicsSearch.style.display = registry.comics ? 'block' : 'none';
+  var pokemonSearch = document.getElementById('dl-pokemon-search');
+  if (pokemonSearch) pokemonSearch.style.display = registry.pokemon ? 'block' : 'none';
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
@@ -3801,6 +3818,7 @@ function buildDynamicUI(registry) {
 <script src="/static/collection_view.js"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
+<script src="/static/pokemon_bulk.js"></script>
 </body>
 </html>"""
 
