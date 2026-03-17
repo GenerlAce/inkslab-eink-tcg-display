@@ -526,7 +526,7 @@ def api_set_cards(set_id):
             "set_id": set_id,
         })
 
-    cards.sort(key=lambda x: (x["number"].zfill(5) if x["number"].isdigit() else x["number"]))
+    cards.sort(key=lambda x: (float(x["number"]) if x["number"].replace('.', '', 1).isdigit() else float('inf'), x["number"]))
     return jsonify(cards)
 
 
