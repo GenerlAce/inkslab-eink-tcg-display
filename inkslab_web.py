@@ -3390,7 +3390,6 @@ function doSearch() {
       html += '<div style="display:flex;justify-content:space-between;align-items:center">';
       html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:#6BCCBD;font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
       html += '<button class="btn btn-secondary btn-sm search-group-btn" data-name="' + esc(g.name) + '" data-owned="' + (!allOwned) + '">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
-      if (_lastStatus && _lastStatus.tcg === 'pokemon') { html += '<button class="btn btn-secondary btn-sm" style="margin-left:4px" data-pname="' + esc(g.name) + '" onclick="pokemonBulkClick(this)">DL All</button>'; }
       html += '</div>';
       html += '<div style="margin-top:4px">';
       g.cards.forEach(function(c) {
