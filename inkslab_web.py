@@ -40,7 +40,7 @@ TCG_REGISTRY = {
     "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
     "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
     "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
-    "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
+    "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#F472B6", "download_script": "download_covers_manga.py"},
     "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
     "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
 }
@@ -2501,7 +2501,7 @@ select, input[type=number] { background: #1F333F; color: #D8E6E4; border: 1px so
         <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
           style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
         <button onclick="mangaSearch()"
-          style="padding:8px 14px;background:#FF6B6B;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#F472B6;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
       <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;overflow:hidden;margin-bottom:8px;"></div>
     </div>
@@ -2615,11 +2615,11 @@ function mangaSearch() {
         var info = [m.year, m.status, m.demographic].filter(Boolean).join(' · ');
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #222;">'
           + '<div>'
-          + '<div style="font-weight:600;"><a href="https://mangadex.org/title/' + m.id + '" target="_blank" style="color:#FF6B6B;text-decoration:none;">' + esc(m.title) + '</a></div>'
+          + '<div style="font-weight:600;"><a href="https://mangadex.org/title/' + m.id + '" target="_blank" style="color:#F472B6;text-decoration:none;">' + esc(m.title) + '</a></div>'
           + '<div style="color:#888;font-size:12px;">' + esc(info) + '</div>'
           + '</div>'
           + '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '"'
-          + ' style="padding:6px 14px;background:#FF6B6B;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
+          + ' style="padding:6px 14px;background:#F472B6;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       }).join('');
     })
@@ -3570,8 +3570,9 @@ function closeAllDlSearch() {
   });
   document.querySelectorAll('[data-search-btn]').forEach(function(b) {
     var c = b.getAttribute('data-color');
-    b.style.background = 'transparent';
-    b.style.color = c;
+    b.style.background = c;
+    b.style.color = '#010001';
+    b.style.border = 'none';
   });
 }
 
@@ -3586,16 +3587,18 @@ function toggleDlSearch(panelId, btn) {
   });
   document.querySelectorAll('[data-search-btn]').forEach(function(b) {
     var c = b.getAttribute('data-color');
-    b.style.background = 'transparent';
-    b.style.color = c;
+    b.style.background = c;
+    b.style.color = '#010001';
+    b.style.border = 'none';
   });
   // Open this one if it was closed
   if (!wasOpen) {
     panel.style.display = 'block';
     if (btn) {
       var color = btn.getAttribute('data-color');
-      btn.style.background = color;
-      btn.style.color = '#010001';
+      btn.style.background = 'transparent';
+      btn.style.color = color;
+      btn.style.border = '1px solid ' + color;
     }
   }
 }
@@ -3868,9 +3871,18 @@ function buildDynamicUI(registry) {
   _tcgRegistry = registry;
   // Quick Switch buttons
   var qsEl = document.getElementById('quick-switch-btns');
-  qsEl.innerHTML = Object.entries(registry).map(function(e) {
-    return '<button class="btn btn-secondary btn-block" onclick="switchTCG(\\'' + e[0] + '\\', this)">' + e[1].name + '</button>';
-  }).join('');
+  qsEl.innerHTML = '';
+  Object.entries(registry).forEach(function(e) {
+    var color = e[1].color || '#36A5CA';
+    var b = document.createElement('button');
+    b.className = 'btn btn-block';
+    b.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';';
+    b.textContent = e[1].name;
+    b.addEventListener('mouseover', function() { b.style.background = color; b.style.color = '#010001'; });
+    b.addEventListener('mouseout', function() { b.style.background = 'transparent'; b.style.color = color; });
+    b.addEventListener('click', function() { switchTCG(e[0], b); });
+    qsEl.appendChild(b);
+  });
   // Settings TCG dropdown
   var sel = document.getElementById('cfg-tcg');
   sel.innerHTML = Object.entries(registry).map(function(e) {
@@ -3880,15 +3892,35 @@ function buildDynamicUI(registry) {
   var searchPanels = {mtg: 'dl-mtg-search', pokemon: 'dl-pokemon-search', manga: 'dl-manga-search', comics: 'dl-comics-search'};
   var searchLabels = {mtg: 'Search Sets', pokemon: 'Search Cards', manga: 'Search Series', comics: 'Search Series'};
   var dlEl = document.getElementById('dl-buttons');
-  dlEl.innerHTML = Object.entries(registry).filter(function(e) { return e[1].download_script; }).map(function(e) {
+  dlEl.innerHTML = '';
+  Object.entries(registry).filter(function(e) { return e[1].download_script; }).forEach(function(e) {
     var color = e[1].color || '#36A5CA';
     var panelId = searchPanels[e[0]];
     var label = searchLabels[e[0]];
-    var searchBtn = panelId ? '<button class="btn" data-search-btn="1" data-color="' + color + '" style="background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;padding:8px 12px;" onclick="toggleDlSearch(\\'' + panelId + '\\', this)">' + label + '</button>' : '';
-    return '<div style="display:flex;gap:6px;margin-bottom:6px;">'
-      + '<button class="btn btn-block" style="background:' + color + ';color:#010001;border:none;flex:1;" onclick="startDownload(\\'' + e[0] + '\\')">Download All ' + e[1].name + '</button>'
-      + searchBtn + '</div>';
-  }).join('');
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
+    // Download All button (outline + hover solid)
+    var dlBtn = document.createElement('button');
+    dlBtn.className = 'btn btn-block';
+    dlBtn.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';flex:1;';
+    dlBtn.textContent = 'Download All ' + e[1].name;
+    dlBtn.addEventListener('mouseover', function() { dlBtn.style.background = color; dlBtn.style.color = '#010001'; });
+    dlBtn.addEventListener('mouseout', function() { dlBtn.style.background = 'transparent'; dlBtn.style.color = color; });
+    dlBtn.addEventListener('click', function() { startDownload(e[0]); });
+    row.appendChild(dlBtn);
+    // Search button (solid, toggles to outline when open)
+    if (panelId) {
+      var sBtn = document.createElement('button');
+      sBtn.className = 'btn';
+      sBtn.setAttribute('data-search-btn', '1');
+      sBtn.setAttribute('data-color', color);
+      sBtn.style.cssText = 'background:' + color + ';color:#010001;border:none;white-space:nowrap;padding:8px 12px;';
+      sBtn.textContent = label;
+      sBtn.addEventListener('click', function() { toggleDlSearch(panelId, sBtn); });
+      row.appendChild(sBtn);
+    }
+    dlEl.appendChild(row);
+  });
   // Delete buttons
   var delEl = document.getElementById('delete-buttons');
   delEl.innerHTML = Object.entries(registry).map(function(e) {
