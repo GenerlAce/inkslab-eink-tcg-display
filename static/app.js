@@ -391,31 +391,32 @@ function loadAutoUpdateStatus() {
   fetch(API + '/api/auto_update/status').then(r => r.json()).then(function(data) {
     var el = document.getElementById('auto-update-list');
     if (!el) return;
-    var html = '<div style="font-size:12px;color:#888;margin-bottom:10px;">Checked sources run automatically every week.</div>';
+    el.innerHTML = '';
     Object.entries(data).forEach(function(entry) {
       var tcg = entry[0], info = entry[1];
       var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1F333F;">';
-      html += '<div>';
-      var descriptions = {
-        'pokemon': 'Full card list from PokeAPI',
-        'mtg': 'Full card list from Scryfall',
-        'lorcana': 'Full card list from Lorcast',
-        'manga': 'Top 500 popular titles from MangaDex',
-        'comics': 'Weekly new releases from Metron'
-      };
-      var desc = descriptions[tcg] || '';
-      html += '<div style="display:flex;align-items:center;gap:8px;">';
-      html += '<input type="checkbox" id="au-' + tcg + '" ' + (info.enabled ? 'checked' : '') + '>';
-      html += '<label for="au-' + tcg + '" style="color:#D8E6E4;font-size:13px;">' + esc(info.name) + '</label>';
-      html += '</div>';
-      html += '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;margin-left:24px;">' + desc + '</div>';
-      html += '<div style="font-size:11px;color:#888;margin-top:1px;margin-left:24px;">Last updated: ' + lastStr + '</div>';
-      html += '</div>';
-      html += '<button class="btn btn-secondary btn-sm" data-tcg="' + tcg + '" style="font-size:11px;" onclick="runUpdateNow(this.dataset.tcg, this)">Run Now</button>';
-      html += '</div>';
+      var row = document.createElement('div');
+      row.className = 'form-row';
+      var left = document.createElement('div');
+      left.style.flex = '1';
+      left.innerHTML = '<span class="row-label">' + esc(info.name) + '</span>'
+        + '<div style="font-size:11px;color:#6BCCBD;margin-top:2px;">Last: ' + lastStr + '</div>';
+      var sw = document.createElement('label');
+      sw.className = 'switch';
+      var inp = document.createElement('input');
+      inp.type = 'checkbox';
+      inp.id = 'au-' + tcg;
+      inp.checked = !!info.enabled;
+      inp.addEventListener('change', saveAutoUpdate);
+      var slider = document.createElement('span');
+      slider.className = 'switch-slider';
+      sw.appendChild(inp);
+      sw.appendChild(slider);
+      row.appendChild(left);
+      row.appendChild(sw);
+      el.appendChild(row);
     });
-    el.innerHTML = html || '<div style="color:#6BCCBD;font-size:12px;">No sources available</div>';
+    if (!el.children.length) el.innerHTML = '<div style="color:#6BCCBD;font-size:12px;">No sources available</div>';
   }).catch(function() {
     var el = document.getElementById('auto-update-list');
     if (el) el.innerHTML = '<div style="color:#ff6b6b;font-size:12px;">Failed to load</div>';
@@ -771,7 +772,7 @@ function renderRarityChips() {
   if (!_rarityData.length) { el.innerHTML = '<span style="color:#6BCCBD;font-size:12px">No cards downloaded yet</span>'; return; }
   el.innerHTML = _rarityData.map(function(r) {
     var sel = r.owned > 0;
-    var safeR = r.name.replace(/'/g, "\\\'");
+    var safeR = r.name.replace(/'/g, "\'");
     return '<span class="rarity-toggle' + (sel ? ' selected' : '') + '" onclick="toggleRarityChip(this,\'' + safeR + '\',' + (sel ? 'false' : 'true') + ')">'
       + '<span class="rt-check">' + (sel ? '&#10003;' : '') + '</span>'
       + r.name
@@ -827,7 +828,7 @@ function toggleSetRarityChip(chipEl, setId, rarity, owned) {
         chipEl.style.opacity = '1';
         var cs = chipEl.querySelector('.chip-count');
         if (cs) cs.textContent = '(' + newOwned + '/' + total + ')';
-        var safeR = rarity.replace(/'/g, "\\\'");
+        var safeR = rarity.replace(/'/g, "\'");
         chipEl.setAttribute('onclick', "toggleSetRarityChip(this,\'" + setId + "\',\'" + safeR + "\'," + (!owned) + ")");
       }
     }).catch(function() { chipEl.style.opacity = '1'; });
@@ -862,7 +863,7 @@ function loadFavorites() {
     if (!favs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
      el.style.display = 'none';
     el.innerHTML = favs.map(function(name) {
-      var safeN = name.replace(/'/g, "\\\'");
+      var safeN = name.replace(/'/g, "\'");
       return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\'' + safeN + '\', event)">&times;</span></span>';
     }).join('');
   });
@@ -1306,9 +1307,14 @@ function editCustomCard(folderId, cardId, name, number, rarity) {
 // --- Dynamic TCG UI ---
 var _tcgRegistry = {};
 
+var _delConfirmTcg = null;
+var _delConfirmTimer = null;
+
 function buildDynamicUI(registry) {
   _tcgRegistry = registry;
-  // Quick Switch buttons
+  window._tcgRegistry = registry;
+  // Quick Switch buttons — use short names so 2 fit per row
+  var shortNames = {lorcana: 'Lorcana', mtg: 'Magic', pokemon: 'Pokemon', manga: 'Manga', comics: 'Comics', custom: 'Custom'};
   var qsEl = document.getElementById('quick-switch-btns');
   qsEl.innerHTML = '';
   Object.entries(registry).forEach(function(e) {
@@ -1316,7 +1322,7 @@ function buildDynamicUI(registry) {
     var b = document.createElement('button');
     b.className = 'btn';
     b.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;';
-    b.textContent = e[1].name;
+    b.textContent = shortNames[e[0]] || e[1].name;
     b.addEventListener('mouseover', function() { b.style.background = color; b.style.color = '#010001'; });
     b.addEventListener('mouseout', function() { b.style.background = 'transparent'; b.style.color = color; });
     b.addEventListener('click', function() { switchTCG(e[0], b); });
@@ -1360,20 +1366,62 @@ function buildDynamicUI(registry) {
     }
     dlEl.appendChild(row);
   });
-  // Delete buttons — 2-column grid, outline red, solid on hover
+  // Delete Entire Library buttons — 2-col grid, two-step confirm
   var delEl = document.getElementById('delete-buttons');
-  delEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
-  delEl.innerHTML = '';
-  Object.entries(registry).forEach(function(e) {
-    var b = document.createElement('button');
-    b.className = 'btn btn-sm btn-block';
-    b.style.cssText = 'background:transparent;color:#EF4444;border:1px solid #EF4444;';
-    b.textContent = 'Delete ' + e[1].name;
-    b.addEventListener('mouseover', function() { b.style.background = '#EF4444'; b.style.color = '#010001'; });
-    b.addEventListener('mouseout', function() { if (b._confirm !== true) { b.style.background = 'transparent'; b.style.color = '#EF4444'; } });
-    b.addEventListener('click', function() { deleteData(e[0], b); });
-    delEl.appendChild(b);
-  });
+  if (delEl) {
+    delEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
+    delEl.innerHTML = '';
+    Object.entries(registry).forEach(function(e) {
+      var tcg = e[0];
+      var b = document.createElement('button');
+      b.id = 'delLib-' + tcg;
+      b.className = 'btn btn-sm btn-block';
+      b.style.cssText = 'background:transparent;color:#EF4444;border:1px solid #EF4444;';
+      b.textContent = 'Delete ' + e[1].name;
+      b.addEventListener('mouseover', function() {
+        if (_delConfirmTcg !== tcg) { b.style.background = '#EF4444'; b.style.color = '#010001'; }
+      });
+      b.addEventListener('mouseout', function() {
+        if (_delConfirmTcg !== tcg) { b.style.background = 'transparent'; b.style.color = '#EF4444'; }
+      });
+      b.addEventListener('click', function() {
+        if (_delConfirmTimer) clearTimeout(_delConfirmTimer);
+        if (_delConfirmTcg && _delConfirmTcg !== tcg) {
+          var old = document.getElementById('delLib-' + _delConfirmTcg);
+          if (old) { old.textContent = 'Delete ' + registry[_delConfirmTcg].name; old.style.background = 'transparent'; old.style.color = '#EF4444'; }
+          _delConfirmTcg = null;
+        }
+        if (_delConfirmTcg === tcg) {
+          _delConfirmTcg = null;
+          b.textContent = 'Deleting...';
+          b.disabled = true;
+          fetch(API + '/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg})})
+            .then(function(r) { return r.json(); }).then(function(d) {
+              b.disabled = false;
+              b.textContent = 'Delete ' + e[1].name;
+              b.style.background = 'transparent'; b.style.color = '#EF4444';
+              if (d.ok) { showToast(e[1].name + ' library deleted'); loadStorage(); }
+              else showToast(d.error || 'Delete failed');
+            }).catch(function() {
+              b.disabled = false;
+              b.textContent = 'Delete ' + e[1].name;
+              b.style.background = 'transparent'; b.style.color = '#EF4444';
+              showToast('Delete failed');
+            });
+        } else {
+          _delConfirmTcg = tcg;
+          b.style.background = '#EF4444'; b.style.color = '#010001';
+          b.textContent = 'Confirm Delete?';
+          _delConfirmTimer = setTimeout(function() {
+            b.textContent = 'Delete ' + e[1].name;
+            b.style.background = 'transparent'; b.style.color = '#EF4444';
+            _delConfirmTcg = null;
+          }, 4000);
+        }
+      });
+      delEl.appendChild(b);
+    });
+  }
 }
 
 // --- Init ---

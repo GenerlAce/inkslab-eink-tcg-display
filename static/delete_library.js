@@ -59,13 +59,14 @@
   function upgradeBtns() {
     var el = document.getElementById('delete-buttons');
     if (!el || !window._tcgRegistry) return;
+    el.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
     el.innerHTML = '';
     Object.entries(window._tcgRegistry).forEach(function(e) {
       var tcg = e[0], info = e[1];
       var b = document.createElement('button');
       b.id = 'delLib-' + tcg;
-      b.className = 'btn btn-sm';
-      b.style.cssText = 'flex:1;background:transparent;color:#EF4444;border:1px solid #EF4444;';
+      b.className = 'btn btn-sm btn-block';
+      b.style.cssText = 'background:transparent;color:#EF4444;border:1px solid #EF4444;';
       b.textContent = 'Delete ' + info.name;
       b.addEventListener('mouseover', function() { if (_confirmTcg !== tcg) { b.style.background = '#EF4444'; b.style.color = '#010001'; } });
       b.addEventListener('mouseout', function() { if (_confirmTcg !== tcg) { b.style.background = 'transparent'; b.style.color = '#EF4444'; } });

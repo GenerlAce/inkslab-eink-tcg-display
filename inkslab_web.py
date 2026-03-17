@@ -1193,11 +1193,13 @@ def api_download_status():
         if _download_proc and _download_proc.poll() is None:
             running = True
         elif _download_proc:
-            # Process finished — close log file handle and clean up
+            # Process finished — close log file handle, clean up, refresh storage
             _close_download_log()
             _download_proc = None
             _download_tcg = None
             tcg = None
+            _cache_invalidate('storage')
+            _trigger_storage_recompute()
         else:
             tcg = None
 
@@ -1219,6 +1221,24 @@ def api_download_status():
 
 _storage_computing = False
 _storage_lock = threading.Lock()
+
+
+def _trigger_storage_recompute():
+    """Start a background storage recompute if one isn't already running."""
+    global _storage_computing
+    with _storage_lock:
+        if _storage_computing:
+            return
+        _storage_computing = True
+    def _run():
+        global _storage_computing
+        try:
+            result = _compute_storage()
+            _cache_set('storage', result)
+        finally:
+            with _storage_lock:
+                _storage_computing = False
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def _compute_storage():
@@ -1273,29 +1293,11 @@ def _compute_storage():
 
 @app.route('/api/storage')
 def api_storage():
-    global _storage_computing
-    cached = _cache_get('storage', ttl=120)
+    cached = _cache_get('storage', ttl=300)
     if cached:
         return jsonify(cached)
-
-    # Return stale cache while recomputing in background
     stale = _cache_get('storage', ttl=float('inf'))
-
-    with _storage_lock:
-        if not _storage_computing:
-            _storage_computing = True
-
-            def compute():
-                global _storage_computing
-                try:
-                    result = _compute_storage()
-                    _cache_set('storage', result)
-                finally:
-                    with _storage_lock:
-                        _storage_computing = False
-
-            threading.Thread(target=compute, daemon=True).start()
-
+    _trigger_storage_recompute()
     if stale:
         return jsonify(stale)
     return jsonify({"_computing": True})
@@ -2222,55 +2224,57 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="tab-settings" class="panel">
   <div class="card">
     <h3>Display Settings</h3>
-    <div class="form-group">
-      <label>Active TCG</label>
+    <div class="form-row">
+      <span class="row-label">Active TCG</span>
       <select id="cfg-tcg"></select>
     </div>
-    <div class="form-group">
-      <label>Slab Header</label>
+    <div class="form-row">
+      <span class="row-label">Slab Header</span>
       <select id="cfg-header-mode">
-        <option value="normal">Normal (white bg, black text)</option>
-        <option value="inverted">Inverted (black bg, white text)</option>
-        <option value="off">Off (full-screen card art)</option>
+        <option value="normal">Normal</option>
+        <option value="inverted">Inverted</option>
+        <option value="off">Off</option>
       </select>
     </div>
-    <div class="form-group">
-      <label>Rotation Angle</label>
-      <select id="cfg-rotation"><option value="0">0</option><option value="90">90</option><option value="180">180</option><option value="270">270</option></select>
+    <div class="form-row">
+      <span class="row-label">Rotation</span>
+      <select id="cfg-rotation"><option value="0">0&deg;</option><option value="90">90&deg;</option><option value="180">180&deg;</option><option value="270">270&deg;</option></select>
     </div>
-    <div class="form-group">
-      <label>Day Interval (minutes)</label>
+    <div class="form-row">
+      <span class="row-label">Day Interval (min)</span>
       <input type="number" id="cfg-day-interval" min="1" max="120" value="10">
     </div>
-    <div class="form-group">
-      <label>Night Interval (minutes)</label>
+    <div class="form-row">
+      <span class="row-label">Night Interval (min)</span>
       <input type="number" id="cfg-night-interval" min="1" max="480" value="60">
     </div>
-    <div class="form-group">
-      <label>Day Start (hour, 24h)</label>
+    <div class="form-row">
+      <span class="row-label">Day Start (24h)</span>
       <input type="number" id="cfg-day-start" min="0" max="23" value="7">
     </div>
-    <div class="form-group">
-      <label>Day End (hour, 24h)</label>
+    <div class="form-row">
+      <span class="row-label">Day End (24h)</span>
       <input type="number" id="cfg-day-end" min="0" max="23" value="23">
     </div>
-    <div class="form-group">
-      <label>Color Saturation</label>
+    <div class="form-row">
+      <span class="row-label">Color Saturation</span>
       <input type="number" id="cfg-saturation" min="0.5" max="5.0" step="0.1" value="2.5">
     </div>
-    <div class="form-group">
-      <div class="toggle">
+    <div class="form-row">
+      <span class="row-label">Collection Mode</span>
+      <label class="switch">
         <input type="checkbox" id="cfg-collection">
-        <label for="cfg-collection">Show only owned cards (collection mode)</label>
-      </div>
+        <span class="switch-slider"></span>
+      </label>
     </div>
-    <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
+    <div style="margin-top:14px">
+      <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
+    </div>
   </div>
   <div class="card">
     <h3>Auto-Update Sources</h3>
-    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Automatically check for new cards weekly. Check the sources you want to keep updated.</p>
-    <div id="auto-update-list" style="margin-bottom:12px;"></div>
-    <button class="btn btn-primary btn-block" onclick="saveAutoUpdate()">Save Auto-Update Settings</button>
+    <p style="color:#6BCCBD;font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
+    <div id="auto-update-list"></div>
   </div>
   <div class="card">
     <h3>Metron Comics Account</h3>
@@ -2407,7 +2411,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
       </div>
     </div>
-    <pre id="dl-log" style="display:none;background:#0a1a22;color:#6BCCBD;font-size:11px;padding:10px;border-radius:6px;height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+    <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
   </div>
   <div class="card">
     <h3>Delete Entire Library</h3>
@@ -2587,6 +2591,9 @@ if __name__ == '__main__':
     import threading as _threading
     _auto_update_thread = _threading.Thread(target=_run_auto_updates, daemon=True)
     _auto_update_thread.start()
+
+    # Pre-warm storage cache so Downloads tab loads instantly on first visit
+    _trigger_storage_recompute()
 
     # Enter setup mode if WiFi is not connected AND no saved profile exists.
     # If a profile exists but WiFi is temporarily down (router reboot etc),
