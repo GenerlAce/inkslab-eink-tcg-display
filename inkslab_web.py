@@ -925,10 +925,10 @@ def api_download_start():
             return jsonify({"ok": False, "error": "Unknown TCG or no download script"})
 
         cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
-        if tcg == mtg and since:
-            cmd.extend([--since, str(since)])
-        if tcg == mtg and data.get(mtg_set):
-            cmd.extend([--set, data.get(mtg_set)])
+        if tcg == "mtg" and since:
+            cmd.extend(["--since", str(since)])
+        if tcg == "mtg" and data.get("mtg_set"):
+            cmd.extend(["--set", data.get("mtg_set")])
 
         if tcg == "pokemon" and data.get("pokemon_name"):
             cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_pokemon_bulk.py"),
@@ -2631,18 +2631,24 @@ function mangaSearch() {
 function mangaDownloadSeries(btn) {
   var id = btn.getAttribute('data-id');
   var title = btn.getAttribute('data-title');
+  if (!id) return;
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
   fetch(API + '/api/download/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({tcg: 'manga', manga_id: id, manga_title: title})
   }).then(r => r.json()).then(function(d) {
     if (d.ok) {
-      showToast('Downloading covers for ' + title + '!', 3000);
+      showToast('Downloading covers for ' + title + '!');
       document.getElementById('manga-search-results').style.display = 'none';
       document.getElementById('manga-search-input').value = '';
+      setDownloadUI(true, 'manga');
       pollDownload();
     } else {
-      showToast('Error: ' + (d.error || 'Unknown error'), 4000);
+      showToast(d.error || 'Failed to start download');
+      btn.disabled = false;
+      btn.textContent = 'Download All';
     }
   });
 }
@@ -2680,18 +2686,24 @@ function comicSearch() {
 function comicDownloadSeries(btn) {
   var id = btn.getAttribute('data-id');
   var title = btn.getAttribute('data-title');
+  if (!id) return;
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
   fetch(API + '/api/download/start', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({tcg: 'comics', comic_id: id, comic_title: title})
   }).then(r => r.json()).then(function(d) {
     if (d.ok) {
-      showToast('Downloading covers for ' + title + '!', 3000);
+      showToast('Downloading covers for ' + title + '!');
       document.getElementById('comics-search-results').style.display = 'none';
       document.getElementById('comics-search-input').value = '';
+      setDownloadUI(true, 'comics');
       pollDownload();
     } else {
-      showToast('Error: ' + (d.error || 'Unknown error'), 4000);
+      showToast(d.error || 'Failed to start download');
+      btn.disabled = false;
+      btn.textContent = 'Download All';
     }
   });
 }

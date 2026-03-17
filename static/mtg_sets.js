@@ -20,7 +20,7 @@ function mtgSetSearch() {
           + '<div style="color:#888;font-size:12px;">' + esc(s.code.toUpperCase()) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.card_count + ' cards</div>'
           + '</div>'
           + '<button onclick="mtgSetDownload(this)" data-set-code="' + esc(s.code) + '" data-set-name="' + esc(s.name) + '"'
-          + ' style="padding:6px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download</button>'
+          + ' style="padding:6px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;
