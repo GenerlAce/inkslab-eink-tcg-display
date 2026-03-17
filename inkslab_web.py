@@ -10,6 +10,7 @@ By Costa Mesa Tech Solutions (a brand of Pine Heights Ventures LLC)
 """
 
 import os
+import re
 import json
 import shutil
 import signal
@@ -153,6 +154,34 @@ def _close_download_log():
         except Exception:
             pass
         _download_log_fh = None
+
+
+# --- INPUT VALIDATION ---
+# All subprocess calls use list form (not shell=True) so shell injection is
+# already blocked at the OS level. These validators prevent argument injection
+# (e.g. "--flag" passed as a set code becoming an extra CLI flag).
+
+_RE_SET_CODE   = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\-]{0,31}$')
+_RE_YEAR       = re.compile(r'^(19|20)\d{2}$')
+_RE_SLUG       = re.compile(r'^[a-zA-Z0-9\-]{1,64}$')  # MangaDex UUIDs, Metron IDs
+
+def _valid_set_code(s):
+    return bool(s and isinstance(s, str) and _RE_SET_CODE.match(s))
+
+def _valid_year(s):
+    return bool(s and _RE_YEAR.match(str(s)))
+
+def _valid_slug(s):
+    return bool(s and isinstance(s, str) and _RE_SLUG.match(s))
+
+def _clean_title(s, maxlen=200):
+    """Strip non-printable chars and cap length. Safe for use as a subprocess arg."""
+    if not s or not isinstance(s, str):
+        return ''
+    return re.sub(r'[^\x20-\x7E]', '', s)[:maxlen].strip()
+
+def _valid_pokemon_name(s):
+    return bool(s and isinstance(s, str) and re.match(r"^[a-zA-Z0-9 '\-]{1,100}$", s))
 
 
 # --- HELPERS ---
@@ -955,28 +984,43 @@ def api_download_start():
 
         cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
         if tcg == "mtg" and since:
-            cmd.extend(["--since", str(since)])
+            if not _valid_year(since):
+                return jsonify({"ok": False, "error": "Invalid year"})
+            cmd.extend(["--since", str(int(since))])
         if tcg == "mtg" and data.get("mtg_set"):
-            cmd.extend(["--set", data.get("mtg_set")])
+            mtg_set = data.get("mtg_set")
+            if not _valid_set_code(mtg_set):
+                return jsonify({"ok": False, "error": "Invalid set code"})
+            cmd.extend(["--set", mtg_set])
         if tcg == "lorcana" and data.get("set_code"):
-            cmd.extend(["--set", data.get("set_code")])
+            set_code = data.get("set_code")
+            if not _valid_set_code(set_code):
+                return jsonify({"ok": False, "error": "Invalid set code"})
+            cmd.extend(["--set", set_code])
 
         if tcg == "pokemon" and data.get("pokemon_name"):
+            pname = data.get("pokemon_name")
+            if not _valid_pokemon_name(pname):
+                return jsonify({"ok": False, "error": "Invalid Pokemon name"})
             cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_pokemon_bulk.py"),
-                   "--name", data.get("pokemon_name")]
+                   "--name", pname]
         if tcg == "manga":
             manga_id = data.get("manga_id")
-            manga_title = data.get("manga_title")
+            manga_title = _clean_title(data.get("manga_title", ""))
             if manga_id and manga_title:
+                if not _valid_slug(manga_id):
+                    return jsonify({"ok": False, "error": "Invalid manga ID"})
                 cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_manga_series.py"),
                        "--id", manga_id, "--title", manga_title]
 
         if tcg == "comics":
             comic_id = data.get("comic_id")
-            comic_title = data.get("comic_title")
+            comic_title = _clean_title(data.get("comic_title", ""))
             if comic_id and comic_title:
+                if not re.match(r'^\d{1,10}$', str(comic_id)):
+                    return jsonify({"ok": False, "error": "Invalid comic ID"})
                 cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", "download_comic_series.py"),
-                       "--id", str(comic_id), "--title", comic_title]
+                       "--id", str(int(comic_id)), "--title", comic_title]
 
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
         env = os.environ.copy()
@@ -1776,7 +1820,7 @@ def api_custom_create_folder():
 def api_custom_rename_folder():
     """Rename a custom set's display name."""
     data = request.get_json(force=True)
-    folder_id = data.get("id", "")
+    folder_id = os.path.basename(data.get("id", ""))
     new_name = data.get("name", "").strip()
     if not folder_id or not new_name:
         return jsonify({"error": "id and name required"}), 400
