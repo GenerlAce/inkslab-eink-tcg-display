@@ -1532,6 +1532,31 @@ def api_metron_clear():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 
+@app.route('/api/metron/test', methods=['POST'])
+@protected
+def api_metron_test():
+    """Test Metron credentials by making a lightweight API call."""
+    data = request.get_json(force=True) if request.data else {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    # Fall back to stored creds if none provided
+    if not username or not password:
+        username, password = _read_metron_creds()
+    if not username or not password:
+        return jsonify({'ok': False, 'error': 'No credentials to test'})
+    try:
+        import requests as req
+        headers = {'User-Agent': 'InkSlab/1.0', 'Accept': 'application/json'}
+        r = req.get('https://metron.cloud/api/', timeout=10, headers=headers, auth=(username, password))
+        if r.status_code == 200:
+            return jsonify({'ok': True})
+        elif r.status_code == 401:
+            return jsonify({'ok': False, 'error': 'Invalid username or password'})
+        else:
+            return jsonify({'ok': False, 'error': f'Metron returned {r.status_code}'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
 @app.route('/api/mtg/sets')
 def api_mtg_sets():
     """Fetch available MTG sets from Scryfall for the set-search UI."""
@@ -1981,6 +2006,52 @@ def api_wifi_connect():
     t = threading.Thread(target=_perform_wifi_connection, args=(ssid, password), daemon=True)
     t.start()
     return jsonify({"ok": True, "message": "Connecting..."})
+
+
+@app.route('/api/wifi/retry', methods=['POST'])
+def api_wifi_retry():
+    """Attempt to reconnect to the last known WiFi network (no auth required — needed during setup)."""
+    global _wifi_connect_result
+    with _wifi_connect_lock:
+        if _wifi_connect_result.get('status') == 'connecting':
+            return jsonify({'ok': False, 'error': 'Connection already in progress'}), 409
+        _wifi_connect_result = {'status': 'connecting', 'ssid': None, 'error': None}
+
+    def _do_retry():
+        global _wifi_setup_mode, _wifi_connect_result
+        try:
+            wifi_manager.stop_hotspot()
+            time.sleep(3)
+            r1 = subprocess.run(
+                ['nmcli', '-t', '-e', 'yes', '-f', 'TYPE,NAME', 'con', 'show'],
+                capture_output=True, text=True, timeout=10
+            )
+            profiles = [line.split(':')[1] for line in r1.stdout.strip().splitlines()
+                        if line.startswith('802-11-wireless:') and 'Hotspot' not in line and 'InkSlab' not in line]
+            if not profiles:
+                raise Exception('No saved WiFi profiles found')
+            profile = profiles[0]
+            r2 = subprocess.run(['nmcli', 'con', 'up', 'id', profile],
+                                 capture_output=True, text=True, timeout=30)
+            if r2.returncode == 0:
+                ip = wifi_manager.get_local_ip() or ''
+                with _wifi_connect_lock:
+                    _wifi_connect_result = {'status': 'success', 'ssid': profile, 'ip': ip, 'error': None}
+                _wifi_setup_mode = False
+            else:
+                raise Exception(r2.stderr.strip() or 'Connection failed')
+        except Exception as e:
+            with _wifi_connect_lock:
+                _wifi_connect_result = {'status': 'failed', 'ssid': None, 'error': str(e)}
+            try:
+                wifi_manager.start_hotspot()
+                _wifi_setup_mode = True
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_do_retry, daemon=True)
+    t.start()
+    return jsonify({'ok': True, 'message': 'Retrying...'})
 
 
 @app.route('/api/wifi/disconnect', methods=['POST'])
@@ -2823,7 +2894,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <label>Metron Password</label>
         <input type="password" id="metron-password" placeholder="your password" autocomplete="off">
       </div>
-      <button class="btn btn-primary btn-block" onclick="saveMetronCreds()">Save Credentials</button>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="btn btn-secondary" style="flex:1" onclick="testMetronCreds()">Test Connection</button>
+        <button class="btn btn-primary" style="flex:1" onclick="saveMetronCreds()">Save Credentials</button>
+      </div>
+      <div id="metron-test-result" style="margin-top:8px;font-size:13px;display:none;"></div>
     </div>
   </div>
   <div class="card">

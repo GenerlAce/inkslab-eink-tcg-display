@@ -196,16 +196,20 @@ function showTab(name) {
 }
 
 // --- Toast ---
+var _toastTimer = null;
 function showToast(msg, duration) {
   duration = duration || 2000;
   var el = document.getElementById('toast');
+  if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
   el.textContent = msg;
+  el.style.transition = 'none';
+  el.style.opacity = '1';
   el.style.display = 'block';
   el.offsetHeight; // force reflow
-  el.style.opacity = '1';
-  setTimeout(function() {
+  el.style.transition = '';
+  _toastTimer = setTimeout(function() {
     el.style.opacity = '0';
-    setTimeout(function() { el.style.display = 'none'; }, 300);
+    setTimeout(function() { el.style.display = 'none'; _toastTimer = null; }, 300);
   }, duration);
 }
 
@@ -866,7 +870,7 @@ function loadMetronStatus() {
     var formEl = document.getElementById('metron-form');
     if (!statusEl || !formEl) return;
     if (d.configured) {
-      statusEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;">&#10003; Connected as <strong>' + esc(d.username) + '</strong> &nbsp;<button class="btn btn-secondary btn-sm" onclick="clearMetronCreds()" style="font-size:11px;">Disconnect</button></div>';
+      statusEl.innerHTML = '<div style="color:var(--text-dim);font-size:13px;">&#10003; Connected as <strong>' + esc(d.username) + '</strong> &nbsp;<button class="btn btn-secondary btn-sm" onclick="testMetronCreds()" style="font-size:11px;">Test</button> <button class="btn btn-secondary btn-sm" onclick="clearMetronCreds()" style="font-size:11px;">Disconnect</button></div><div id="metron-test-result" style="margin-top:6px;font-size:13px;display:none;"></div>';
       formEl.style.display = 'none';
     } else {
       statusEl.innerHTML = '<div style="color:#888;font-size:13px;">Not connected</div>';
@@ -899,6 +903,29 @@ function clearMetronCreds() {
   if (!confirm('Disconnect Metron account? Comic downloads will stop working.')) return;
   fetch(API + '/api/metron/clear', {method: 'POST'}).then(r => r.json()).then(function(d) {
     if (d.ok) { showToast('Metron account disconnected', 2000); loadMetronStatus(); }
+  });
+}
+
+function testMetronCreds() {
+  var username = (document.getElementById('metron-username').value || '').trim();
+  var password = (document.getElementById('metron-password').value || '').trim();
+  var resultEl = document.getElementById('metron-test-result');
+  if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-dim)'; resultEl.textContent = 'Testing...'; }
+  fetch(API + '/api/metron/test', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: username, password: password})
+  }).then(r => r.json()).then(function(d) {
+    if (!resultEl) return;
+    if (d.ok) {
+      resultEl.style.color = 'var(--accent2)';
+      resultEl.textContent = 'Connected successfully!';
+    } else {
+      resultEl.style.color = 'var(--danger)';
+      resultEl.textContent = d.error || 'Connection failed';
+    }
+  }).catch(function() {
+    if (resultEl) { resultEl.style.color = 'var(--danger)'; resultEl.textContent = 'Connection error'; }
   });
 }
 
@@ -1042,9 +1069,33 @@ function loadWifiInfo() {
     } else if (d.hotspot_active) {
       el.textContent = 'Setup mode — broadcasting ' + (d.hotspot_ssid || 'InkSlab-Setup');
     } else {
-      el.textContent = 'Not connected';
+      el.innerHTML = 'Not connected &mdash; <button class="btn btn-secondary btn-sm" onclick="retryWifi(this)" style="margin-left:4px">Retry</button>';
     }
   }).catch(function() { el.textContent = 'Could not check WiFi status'; });
+}
+
+function retryWifi(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Retrying...'; }
+  fetch(API + '/api/wifi/retry', {method: 'POST'}).then(function() {
+    var el = document.getElementById('wifi-info');
+    el.textContent = 'Connecting...';
+    var tries = 0;
+    var poll = setInterval(function() {
+      tries++;
+      fetch(API + '/api/wifi/status').then(r => r.json()).then(function(d) {
+        if (d.connected && d.ssid) {
+          clearInterval(poll);
+          loadWifiInfo();
+          showToast('Connected to ' + d.ssid, 3000);
+        } else if (tries >= 15) {
+          clearInterval(poll);
+          loadWifiInfo();
+        }
+      }).catch(function() {
+        if (tries >= 15) { clearInterval(poll); loadWifiInfo(); }
+      });
+    }, 2000);
+  }).catch(function() { showToast('Retry failed'); if (btn) { btn.disabled = false; btn.textContent = 'Retry'; } });
 }
 
 function factoryReset(btn) {
@@ -1212,21 +1263,34 @@ function toggleSet(setId) {
 
 function toggleCard(cardId, el) {
   var owned = el ? el.checked : null;
-  // Update badge immediately
-  if (el) {
-    var setItem = el.closest('.set-item');
-    if (setItem) {
-      var badge = setItem.querySelector('.badge');
-      if (owned) {
-        if (badge) { badge.textContent = parseInt(badge.textContent) + 1; }
-        else { var sn = setItem.querySelector('.set-name'); if (sn) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '1'; sn.after(badge); } }
-      } else if (badge) {
-        var n = parseInt(badge.textContent) - 1;
-        if (n <= 0) badge.remove(); else badge.textContent = n;
-      }
+  var setItem = el ? el.closest('.set-item') : null;
+  var badge = setItem ? setItem.querySelector('.badge') : null;
+  var prevBadgeText = badge ? badge.textContent : null;
+  // Update badge immediately (optimistic)
+  if (setItem) {
+    if (owned) {
+      if (badge) { badge.textContent = parseInt(badge.textContent) + 1; }
+      else { var sn = setItem.querySelector('.set-name'); if (sn) { badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = '1'; sn.after(badge); } }
+    } else if (badge) {
+      var n = parseInt(badge.textContent) - 1;
+      if (n <= 0) badge.remove(); else badge.textContent = n;
     }
   }
-  fetch(API + '/api/collection/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_id: cardId, owned: owned, tcg: getEffectiveBrowseTcg()})});
+  fetch(API + '/api/collection/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_id: cardId, owned: owned, tcg: getEffectiveBrowseTcg()})})
+    .catch(function() {
+      // Revert optimistic updates on failure
+      if (el) el.checked = !owned;
+      if (setItem) {
+        var curBadge = setItem.querySelector('.badge');
+        if (owned) {
+          if (curBadge) { var m = parseInt(curBadge.textContent) - 1; if (m <= 0) curBadge.remove(); else curBadge.textContent = m; }
+        } else {
+          if (curBadge) { curBadge.textContent = parseInt(curBadge.textContent) + 1; }
+          else if (prevBadgeText) { var sn2 = setItem.querySelector('.set-name'); if (sn2) { var b2 = document.createElement('span'); b2.className = 'badge'; b2.textContent = prevBadgeText; sn2.after(b2); } }
+        }
+      }
+      showToast('Failed to update collection');
+    });
 }
 
 function toggleSetAll(setId, owned) {
@@ -1412,7 +1476,7 @@ function loadFavorites() {
   fetch(API + '/api/collection/favorites').then(function(r) { return r.json(); }).then(function(favs) {
     var el = document.getElementById('search-filters');
     if (!favs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-     el.style.display = 'none';
+    el.style.display = '';
     el.innerHTML = favs.map(function(name) {
       var safeN = name.replace(/'/g, "\'");
       return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\'' + safeN + '\', event)">&times;</span></span>';
