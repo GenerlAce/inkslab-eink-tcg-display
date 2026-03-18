@@ -20,19 +20,20 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* === BASE === */
+html { height: 100dvh; overflow: hidden; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 /* === STATUS PILL (top) === */
 .status-pill {
-  position: fixed;
-  top: 0; left: 0; right: 0;
+  flex-shrink: 0;
   height: var(--pill-h);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
@@ -74,8 +75,6 @@ body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  margin-top: var(--pill-h);
-  margin-bottom: var(--nav-h);
 }
 
 /* === PANELS === */
@@ -84,8 +83,7 @@ body {
 
 /* === BOTTOM NAV === */
 .bottom-nav {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
+  flex-shrink: 0;
   height: var(--nav-h);
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
@@ -121,9 +119,9 @@ body {
   bottom: -12px;
   left: -14px;
   right: -14px;
-  background: var(--bg-panel);
+  background: var(--bg-card);
   border-radius: 50px 50px 0 0;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-hi);
   z-index: -1;
 }
 .nav-icon {
@@ -131,7 +129,7 @@ body {
   line-height: 1;
 }
 .nav-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.3px;
 }
@@ -208,7 +206,7 @@ body {
   padding: 8px 10px;
 }
 .stat-cell .stat-label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -313,8 +311,8 @@ body {
 .settings-divider { border: none; border-top: 1px solid var(--border-hi); margin: 8px 0; }
 .settings-display-grid .settings-divider { grid-column: 1 / -1; }
 
-.q-num { font-size: 10px; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-rarity { font-size: 9px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-num { font-size: 11px; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-rarity { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Queue row: stacked on mobile, side-by-side on desktop */
 .queue-row { display: block; }
@@ -351,7 +349,7 @@ body {
 .btn-secondary:hover { background: var(--bg-card); }
 .btn-danger { background: var(--danger); color: var(--text-hi); }
 .btn-danger:hover { filter: brightness(0.85); }
-.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-sm { padding: 8px 14px; font-size: 12px; min-height: 36px; }
 .btn-block { display: block; width: 100%; text-align: center; }
 .btn:active { transform: scale(0.95); }
 .btn-primary:active { filter: brightness(0.9); }
@@ -392,11 +390,11 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .card-rarity { color: var(--text-dim); font-size: 11px; }
 .card-preview-btn { cursor: default; color: var(--accent); font-size: 11px; margin-left: 6px; }
 .rarity-chips { display: none; }
-.rarity-chip { padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border-hi); transition: all 0.15s; }
+.rarity-chip { padding: 7px 12px; border-radius: 12px; font-size: 11px; cursor: pointer; background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border-hi); transition: all 0.15s; min-height: 36px; display: inline-flex; align-items: center; }
 .rarity-chip:hover { background: var(--bg-card); }
 .rarity-chip:active { background: var(--accent); color: var(--text-hi); transform: scale(0.95); }
 .rarity-chip.active { background: var(--accent); color: var(--text-hi); border-color: var(--accent); }
-.chip-count { font-size: 9px; opacity: 0.7; margin-left: 2px; }
+.chip-count { font-size: 10px; opacity: 0.7; margin-left: 2px; }
 .rarity-filter-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .rarity-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 16px; font-size: 12px; cursor: pointer; border: 1px solid var(--border-hi); background: var(--bg-input); color: var(--text); transition: all 0.15s; user-select: none; -webkit-user-select: none; }
 .rarity-toggle:active { transform: scale(0.95); }
@@ -421,7 +419,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 
 /* === MISC === */
 .log-box { background: var(--bg); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; line-height: 1.7; color: var(--text-hi); border: 1px solid var(--border); }
-.badge { display: inline-block; background: var(--accent2); color: var(--bg); border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
+.badge { display: inline-block; background: var(--accent2); color: var(--bg); border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 4px; font-weight: 700; }
 .flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .flex-row > * { flex: 1 1 calc(50% - 4px); min-width: 0; box-sizing: border-box; }
 
@@ -487,7 +485,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-results { max-height: 400px; overflow-y: auto; }
 #custom-folders { max-height: 200px; overflow-y: auto; }
 .tcg-browse-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.tcg-browse-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid; transition: background 0.15s, color 0.15s; white-space: nowrap; text-align: center; }
+.tcg-browse-pill { padding: 9px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid; transition: background 0.15s, color 0.15s; white-space: nowrap; text-align: center; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 599px) {
   .tcg-browse-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 }
