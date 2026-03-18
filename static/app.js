@@ -492,6 +492,22 @@ function pillTcgTap() {
 function refreshStatus() {
   fetch(API + '/api/status').then(r => r.json()).then(d => {
     document.getElementById('st-tcg').textContent = (d.tcg || '\u2014').toUpperCase();
+    var cardLbl = document.getElementById('st-card-label');
+    var rarityLbl = document.getElementById('st-rarity-label');
+    var totalLbl = document.getElementById('st-total-label');
+    if (d.tcg === 'manga') {
+      if (cardLbl) cardLbl.textContent = 'Volume #';
+      if (rarityLbl) rarityLbl.textContent = 'Year';
+      if (totalLbl) totalLbl.textContent = 'Volumes in Series';
+    } else if (d.tcg === 'comics') {
+      if (cardLbl) cardLbl.textContent = 'Issue #';
+      if (rarityLbl) rarityLbl.textContent = 'Year';
+      if (totalLbl) totalLbl.textContent = 'Issues in Series';
+    } else {
+      if (cardLbl) cardLbl.textContent = 'Card #';
+      if (rarityLbl) rarityLbl.textContent = 'Rarity';
+      if (totalLbl) totalLbl.textContent = 'Cards in Deck';
+    }
     updatePillTcg(d.tcg);
     updateQuickSwitchActive(d.tcg || '');
     if (!_browseTcg) updateBrowsePills(d.tcg);
@@ -517,9 +533,18 @@ function refreshStatus() {
       errRow.style.display = 'none';
     }
     if (!d.pending) {
-      document.getElementById('st-card').textContent = d.card_num || '\\u2014';
-      document.getElementById('st-set').textContent = d.set_info || '\\u2014';
-      document.getElementById('st-rarity').textContent = d.rarity || '\\u2014';
+      var isMangaComics = (d.tcg === 'manga' || d.tcg === 'comics');
+      var cardNum = isMangaComics
+        ? (d.number && d.number !== '?' ? d.number : '\u2014')
+        : ((d.card_num || '').replace(/^#/, '') || '\u2014');
+      document.getElementById('st-card').textContent = cardNum;
+      document.getElementById('st-set').textContent = d.set_info || '\u2014';
+      var rarityVal = d.rarity || '\u2014';
+      if (isMangaComics && d.set_info) {
+        var yrMatch = d.set_info.match(/^(\d{4})/);
+        rarityVal = yrMatch ? yrMatch[1] : '\u2014';
+      }
+      document.getElementById('st-rarity').textContent = rarityVal;
       document.getElementById('st-total').textContent = d.total_cards || '\\u2014';
       var img = document.getElementById('st-preview');
       if (d.card_path) {
@@ -577,6 +602,10 @@ function setOptimisticLoading(msg) {
   var errEl = document.getElementById('st-error');
   errEl.textContent = msg;
   errEl.style.color = 'var(--accent)';
+}
+
+function showCardInfoModal() {
+  document.getElementById('card-info-modal').classList.add('open');
 }
 
 function nextCard() {

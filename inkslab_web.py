@@ -2267,12 +2267,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <!-- DISPLAY TAB -->
 <div id="tab-display" class="panel active">
   <div class="hero-wrap">
-    <div id="st-preview-wrap">
+    <div id="st-preview-wrap" onclick="showCardInfoModal()" style="cursor:pointer" title="Tap for card info">
       <img id="st-preview" class="preview-img" src="/api/card_image" onerror="this.style.display='none'" onload="this.style.display='block'">
       <div id="st-preview-loading">
         <div style="font-size:28px;margin-bottom:6px" class="preview-spin">&#8635;</div>
         <div id="st-preview-loading-text">Loading...</div>
       </div>
+      <div class="preview-info-hint">&#9432;</div>
     </div>
     <div class="countdown" id="countdown"></div>
     <div class="player-controls">
@@ -2281,31 +2282,36 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <button class="player-btn" id="btn-next" onclick="nextCard()" title="Next Card">&#9654;</button>
     </div>
   </div>
-  <div class="card" style="margin-top:12px">
-    <div class="stats-grid">
-      <div class="stat-cell">
-        <div class="stat-label">Card</div>
-        <div class="stat-value" id="st-card">&mdash;</div>
+  <div id="st-error-row" style="display:none;margin:8px 0;padding:8px;background:#ff6b6b22;border-radius:6px;">
+    <span style="color:#ff6b6b;font-size:12px" id="st-error"></span>
+  </div>
+
+  <!-- Card info modal -->
+  <div class="modal-overlay" id="card-info-modal" onclick="this.classList.remove('open')">
+    <div class="modal-content card-info-modal-content" onclick="event.stopPropagation()">
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-label" id="st-card-label">Card #</div>
+          <div class="stat-value" id="st-card">&mdash;</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label" id="st-total-label">Cards in Deck</div>
+          <div class="stat-value" id="st-total">&mdash;</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label" id="st-rarity-label">Rarity</div>
+          <div class="stat-value" id="st-rarity">&mdash;</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Collection</div>
+          <div class="stat-value" id="st-tcg">&mdash;</div>
+        </div>
+        <div class="stat-cell full-width">
+          <div class="stat-label">Set</div>
+          <div class="stat-value" id="st-set">&mdash;</div>
+        </div>
       </div>
-      <div class="stat-cell">
-        <div class="stat-label">Set</div>
-        <div class="stat-value" id="st-set">&mdash;</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-label">Rarity</div>
-        <div class="stat-value" id="st-rarity">&mdash;</div>
-      </div>
-      <div class="stat-cell">
-        <div class="stat-label">TCG</div>
-        <div class="stat-value" id="st-tcg">&mdash;</div>
-      </div>
-      <div class="stat-cell full-width">
-        <div class="stat-label">Cards in Deck</div>
-        <div class="stat-value" id="st-total">&mdash;</div>
-      </div>
-    </div>
-    <div id="st-error-row" style="display:none;margin-top:8px;padding:8px;background:#ff6b6b22;border-radius:6px;">
-      <span style="color:#ff6b6b;font-size:12px" id="st-error"></span>
+      <button class="btn btn-secondary btn-sm modal-close" onclick="document.getElementById('card-info-modal').classList.remove('open')">Close</button>
     </div>
   </div>
   <div class="queue-row">

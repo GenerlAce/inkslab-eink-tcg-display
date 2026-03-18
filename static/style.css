@@ -208,6 +208,8 @@ body {
 }
 .stat-cell.full-width {
   grid-column: 1 / -1;
+  word-break: break-word;
+  white-space: normal;
 }
 
 /* Player controls */
@@ -492,6 +494,22 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .modal-content img { max-width: 260px; border-radius: 8px; border: 2px solid var(--accent); }
 .modal-content p { margin-top: 8px; color: var(--text-hi); font-size: 13px; }
 .modal-close { margin-top: 12px; }
+.card-info-modal-content { max-width: 340px; width: 90%; }
+.card-info-modal-content .stats-grid { margin-bottom: 12px; }
+.card-info-modal-content .stat-cell .stat-label,
+.card-info-modal-content .stat-cell .stat-value { text-align: center; }
+.card-info-modal-content .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
+
+/* Info hint badge on preview */
+#st-preview-wrap { position: relative; }
+.preview-info-hint {
+  position: absolute; bottom: 8px; right: 8px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(1,0,1,0.55); color: var(--text-hi);
+  font-size: 14px; line-height: 22px; text-align: center;
+  pointer-events: none;
+  opacity: 0.7;
+}
 
 /* === ANIMATIONS === */
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

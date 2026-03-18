@@ -478,7 +478,7 @@ def show_unbox_screen(epd, config):
 
 def get_card_metadata(img_path, master_index):
     """Extract set name, card number, and rarity from card image path."""
-    info = {"set_info": "", "stats": "", "set_name": "", "card_num": "", "rarity": ""}
+    info = {"set_info": "", "stats": "", "set_name": "", "card_num": "", "rarity": "", "number": ""}
     try:
         folder_path = os.path.dirname(img_path)
         filename = os.path.basename(img_path)
@@ -525,6 +525,7 @@ def get_card_metadata(img_path, master_index):
                 num = parts[-1]
 
         info["card_num"] = f"#{num}"
+        info["number"] = num
         info["rarity"] = extra
 
         # Format: "#201  •  HOLO" or just "#201"
@@ -1112,6 +1113,7 @@ def main():
                     "set_name": card_info.get("set_name", ""),
                     "set_info": card_info.get("set_info", ""),
                     "card_num": card_info.get("card_num", ""),
+                    "number": card_info.get("number", ""),
                     "rarity": card_info.get("rarity", ""),
                     "timestamp": int(time.time()),
                     "tcg": active_tcg,
@@ -1218,6 +1220,7 @@ def main():
                             "set_name": card_info.get("set_name", ""),
                             "set_info": card_info.get("set_info", ""),
                             "card_num": card_info.get("card_num", ""),
+                            "number": card_info.get("number", ""),
                             "rarity": card_info.get("rarity", ""),
                             "timestamp": int(time.time()),
                             "tcg": active_tcg,
