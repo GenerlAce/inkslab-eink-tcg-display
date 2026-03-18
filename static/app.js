@@ -1,5 +1,90 @@
 const API = '';
 
+// --- CSRF: inject token into all POST fetches automatically ---
+(function() {
+  var _orig = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    if (opts.method && opts.method.toUpperCase() === 'POST') {
+      opts.headers = opts.headers || {};
+      if (!opts.headers['X-CSRF-Token']) {
+        opts.headers['X-CSRF-Token'] = window.CSRF_TOKEN || '';
+      }
+    }
+    return _orig.call(this, url, opts);
+  };
+})();
+
+// --- Auth UI ---
+function showAuthOverlay(setupMode) {
+  var el = document.getElementById('auth-overlay');
+  if (!el) return;
+  document.getElementById('auth-setup-section').style.display = setupMode ? 'block' : 'none';
+  document.getElementById('auth-login-section').style.display = setupMode ? 'none' : 'block';
+  el.style.display = 'flex';
+  setTimeout(function() {
+    var inp = document.getElementById(setupMode ? 'setup-pin-input' : 'login-pin-input');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+function hideAuthOverlay() {
+  var el = document.getElementById('auth-overlay');
+  if (el) el.style.display = 'none';
+  document.body.classList.remove('auth-pending');
+}
+
+function submitLogin() {
+  var pin = document.getElementById('login-pin-input').value.trim();
+  var errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  fetch(API + '/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: pin})})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        window.CSRF_TOKEN = d.csrf_token || window.CSRF_TOKEN;
+        hideAuthOverlay();
+        initApp();
+      } else {
+        errEl.textContent = d.error || 'Incorrect PIN';
+        document.getElementById('login-pin-input').value = '';
+        document.getElementById('login-pin-input').focus();
+      }
+    }).catch(function() { errEl.textContent = 'Connection error'; });
+}
+
+function submitSetup(skip) {
+  var pin = skip ? '' : document.getElementById('setup-pin-input').value.trim();
+  var errEl = document.getElementById('setup-error');
+  errEl.textContent = '';
+  if (!skip && !pin) { errEl.textContent = 'Enter a PIN or click Skip'; return; }
+  fetch(API + '/api/auth/setup', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: pin})})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        if (d.csrf_token) window.CSRF_TOKEN = d.csrf_token;
+        hideAuthOverlay();
+        initApp();
+      } else {
+        errEl.textContent = d.error || 'Setup failed';
+      }
+    }).catch(function() { errEl.textContent = 'Connection error'; });
+}
+
+function checkAuth(callback) {
+  fetch(API + '/api/auth/status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.setup_done) {
+        showAuthOverlay(true);  // first boot: prompt to set or skip PIN
+      } else if (d.authenticated) {
+        callback();
+      } else {
+        showAuthOverlay(false);  // PIN set, not logged in
+      }
+    }).catch(function() { callback(); });
+}
+
 // --- UI Themes ---
 var THEMES = {
   'default': {
@@ -105,7 +190,7 @@ function showTab(name) {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
 }
@@ -362,11 +447,14 @@ function startCountdown() {
 var _lastQueueKey = '';
 var _lastPrevKey = '';
 function _qCardHtml(tcg, c) {
-  var url = '/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id);
   var thumbUrl = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id);
-  return '<div class="q-card" data-src="' + url + '">'
+  var isMangaComics = (tcg === 'manga' || tcg === 'comics');
+  var qNum = isMangaComics
+    ? (c.set_info ? (c.set_info.match(/^(\d{4})/) || [])[1] || '\u2014' : '\u2014')
+    : esc(c.card_num);
+  return '<div class="q-card" data-thumb="' + thumbUrl + '">'
     + '<img class="q-thumb" src="' + thumbUrl + '" onerror="this.style.display=\'none\'">'
-    + '<div class="q-num">' + esc(c.card_num) + '</div>'
+    + '<div class="q-num">' + qNum + '</div>'
     + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
 }
 function _attachQCardClicks(listEl) {
@@ -378,7 +466,7 @@ function _attachQCardClicks(listEl) {
       if (previewModal && previewImg) {
         previewImg.style.opacity = '0';
         previewImg.onload = function() { this.style.opacity = '1'; };
-        previewImg.src = card.dataset.src;
+        previewImg.src = card.dataset.thumb;
         var previewName = document.getElementById('preview-name');
         if (previewName) previewName.textContent = '';
         previewModal.classList.add('open');
@@ -559,7 +647,11 @@ function refreshStatus() {
           || (_lastStatus.pending && !d.pending));
         if (needsReload) {
           img.style.display = '';
-          img.src = '/api/card_image?t=' + Date.now();
+          if (d.tcg && d.set_id && d.card_id) {
+            img.src = '/api/card_thumbnail/' + encodeURIComponent(d.tcg) + '/' + encodeURIComponent(d.set_id) + '/' + encodeURIComponent(d.card_id);
+          } else {
+            img.src = '/api/card_image?t=' + Date.now();
+          }
         }
       } else {
         img.style.display = 'none';
@@ -899,6 +991,48 @@ function adminTap() {
 }
 
 // --- WiFi ---
+function loadPinStatus() {
+  fetch(API + '/api/auth/status').then(r => r.json()).then(function(d) {
+    var statusEl = document.getElementById('pin-status');
+    var btn = document.getElementById('pin-set-btn');
+    if (!statusEl || !btn) return;
+    if (d.pin_configured) {
+      statusEl.innerHTML = '<span style="color:var(--accent)">&#10003; PIN is set</span> &mdash; your dashboard is protected.';
+      btn.textContent = 'Change / Remove PIN';
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--text-dim)">No PIN set</span> &mdash; anyone on your network can access InkSlab.';
+      btn.textContent = 'Set a PIN';
+    }
+    btn.style.display = 'block';
+    document.getElementById('pin-current-label').style.display = d.pin_configured ? 'block' : 'none';
+    document.getElementById('pin-current').closest('.form-group').style.display = d.pin_configured ? 'block' : 'none';
+  }).catch(function() {});
+}
+
+function showPinForm() {
+  document.getElementById('pin-form').style.display = 'block';
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('pin-current').value = '';
+  document.getElementById('pin-new').value = '';
+}
+
+function savePinChange() {
+  var current = document.getElementById('pin-current').value.trim();
+  var newPin = document.getElementById('pin-new').value.trim();
+  var errEl = document.getElementById('pin-error');
+  errEl.textContent = '';
+  fetch(API + '/api/auth/change_pin', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({current_pin: current, new_pin: newPin})})
+    .then(r => r.json()).then(function(d) {
+      if (d.ok) {
+        document.getElementById('pin-form').style.display = 'none';
+        loadPinStatus();
+        showToast(newPin ? 'PIN updated' : 'PIN removed');
+      } else {
+        errEl.textContent = d.error || 'Failed';
+      }
+    }).catch(function() { errEl.textContent = 'Connection error'; });
+}
+
 function loadWifiInfo() {
   var el = document.getElementById('wifi-info');
   fetch(API + '/api/wifi/status').then(r => r.json()).then(function(d) {
@@ -1893,7 +2027,7 @@ function buildDynamicUI(registry) {
 }
 
 // --- Init ---
-(function() {
+function initApp() {
   // Fetch registry and status in parallel so _lastStatus is ready before showing collection tab
   Promise.all([
     fetch(API + '/api/tcg_list').then(r => r.json()),
@@ -1906,6 +2040,7 @@ function buildDynamicUI(registry) {
     if (saved && document.getElementById('tab-' + saved)) {
       showTab(saved);
     }
+    document.body.classList.remove('auth-pending');
     refreshStatus();
     startMainPoll();
     startCountdown();
@@ -1931,9 +2066,13 @@ function buildDynamicUI(registry) {
       else el.textContent = 'Click below to check for updates.';
     }).catch(() => { document.getElementById('update-info').textContent = 'Click below to check for updates.'; });
   }).catch(function() {
-    // Fallback if either fetch fails
+    document.body.classList.remove('auth-pending');
     refreshStatus();
     startMainPoll();
     startCountdown();
   });
+}
+
+(function() {
+  checkAuth(initApp);
 })();

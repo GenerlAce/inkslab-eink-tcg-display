@@ -311,8 +311,8 @@ body {
 .settings-divider { border: none; border-top: 1px solid var(--border-hi); margin: 8px 0; }
 .settings-display-grid .settings-divider { grid-column: 1 / -1; }
 
-.q-num { font-size: 11px; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-rarity { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-num { font-size: 11px; font-weight: 600; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-rarity { font-size: 10px; font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Queue row: stacked on mobile, side-by-side on desktop */
 .queue-row { display: block; }
@@ -546,3 +546,8 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   .collection-only-card h3 { font-size: inherit; }
   .collection-only-card p { display: block; }
 }
+
+/* Hide main UI until auth resolves — prevents flash before PIN prompt */
+body.auth-pending .status-pill,
+body.auth-pending .content,
+body.auth-pending .bottom-nav { visibility: hidden; }

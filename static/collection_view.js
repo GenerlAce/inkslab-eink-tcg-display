@@ -151,7 +151,7 @@
           if (relY < rect.height / 2) {
             window.toggleCardThumb(cardId); // top half: add/remove from collection
           } else {
-            openPreviewModal(src, rarity); // bottom half: open centered preview modal
+            openPreviewModal(thumbSrc, rarity); // bottom half: use thumbnail (already cached, fast on mobile)
           }
         }, {passive: false});
         var check = document.createElement('div');

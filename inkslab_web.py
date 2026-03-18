@@ -18,7 +18,11 @@ import subprocess
 import tempfile
 import time
 import threading
-from flask import Flask, request, jsonify, send_file, redirect
+import hashlib
+import secrets
+import datetime
+from functools import wraps
+from flask import Flask, request, jsonify, send_file, redirect, session
 import wifi_manager
 try:
     from PIL import Image as _PIL_Image
@@ -31,6 +35,32 @@ THUMB_SIZE = (300, 450)  # max width x height (2:3 aspect)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB upload limit
+
+# --- SESSION & SECRET KEY ---
+_SECRET_KEY_FILE = '/home/pi/.inkslab_secret_key'
+
+def _load_or_create_secret_key():
+    if os.path.exists(_SECRET_KEY_FILE):
+        try:
+            with open(_SECRET_KEY_FILE, 'rb') as f:
+                key = f.read()
+            if len(key) >= 24:
+                return key
+        except Exception:
+            pass
+    key = os.urandom(32)
+    try:
+        with open(_SECRET_KEY_FILE, 'wb') as f:
+            f.write(key)
+        os.chmod(_SECRET_KEY_FILE, 0o600)
+    except Exception:
+        pass
+    return key
+
+app.secret_key = _load_or_create_secret_key()
+app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=30)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 VERSION = "1.0.0"
 
@@ -127,6 +157,37 @@ def _has_disk_space(path="/home/pi"):
     """Return True if there's enough free space to safely write."""
     return _check_disk_space(path) >= MIN_FREE_SPACE_MB
 
+# --- AUTH HELPERS ---
+
+def _hash_pin(pin, salt=None):
+    if salt is None:
+        salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac('sha256', pin.encode('utf-8'), salt.encode('utf-8'), 260000)
+    return dk.hex(), salt
+
+def _verify_pin(pin, stored_hash, salt):
+    dk = hashlib.pbkdf2_hmac('sha256', pin.encode('utf-8'), salt.encode('utf-8'), 260000)
+    return secrets.compare_digest(dk.hex(), stored_hash)
+
+def _get_csrf_token():
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+def protected(f):
+    """Require valid auth session + CSRF token for state-changing endpoints."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        cfg = load_config()
+        if cfg.get('pin_hash') and not session.get('authenticated'):
+            return jsonify({'error': 'Authentication required'}), 401
+        tok = request.headers.get('X-CSRF-Token', '')
+        if not tok or not secrets.compare_digest(tok, session.get('csrf_token', '')):
+            return jsonify({'error': 'Invalid CSRF token'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
 # --- TTL CACHE (avoids re-walking 15,000+ files on every request) ---
 _cache = {}
 _cache_lock = threading.Lock()
@@ -191,6 +252,72 @@ def _clean_title(s, maxlen=200):
 
 def _valid_pokemon_name(s):
     return bool(s and isinstance(s, str) and re.match(r"^[a-zA-Z0-9 '\-]{1,100}$", s))
+
+
+# --- METRON CREDENTIAL ENCRYPTION ---
+# Uses device serial number as key material so credentials are tied to this Pi.
+# Requires python3-cryptography (usually pre-installed on Pi OS).
+# Falls back to plaintext with chmod 600 if cryptography is unavailable.
+
+def _get_device_key():
+    """Derive a 32-byte key from the Pi serial number."""
+    serial = ''
+    try:
+        with open('/proc/cpuinfo') as f:
+            for line in f:
+                if line.startswith('Serial'):
+                    serial = line.split(':', 1)[1].strip()
+                    break
+    except Exception:
+        pass
+    if not serial:
+        serial = 'inkslab-device'
+    return hashlib.pbkdf2_hmac('sha256', serial.encode(), b'inkslab-metron-v1', 100000)
+
+def _encrypt_creds(username, password):
+    """Encrypt credentials. Returns 'enc:<token>' or None if unavailable."""
+    try:
+        from cryptography.fernet import Fernet
+        import base64
+        key = base64.urlsafe_b64encode(_get_device_key())
+        f = Fernet(key)
+        plaintext = json.dumps({'u': username, 'p': password}).encode()
+        return 'enc:' + f.encrypt(plaintext).decode()
+    except ImportError:
+        return None
+
+def _decrypt_creds(data):
+    """Decrypt credentials. Returns (username, password) or (None, None)."""
+    if not data or not data.startswith('enc:'):
+        return None, None
+    try:
+        from cryptography.fernet import Fernet
+        import base64
+        key = base64.urlsafe_b64encode(_get_device_key())
+        f = Fernet(key)
+        plaintext = f.decrypt(data[4:].encode())
+        obj = json.loads(plaintext)
+        return obj['u'], obj['p']
+    except Exception:
+        return None, None
+
+def _read_metron_creds():
+    """Read Metron credentials from file. Returns (username, password) or (None, None)."""
+    creds_file = '/home/pi/.metron_credentials'
+    if not os.path.exists(creds_file):
+        return None, None
+    try:
+        creds = {}
+        with open(creds_file) as f:
+            for line in f:
+                if '=' in line:
+                    k, v = line.strip().split('=', 1)
+                    creds[k.strip()] = v.strip()
+        if creds.get('METRON_ENC'):
+            return _decrypt_creds(creds['METRON_ENC'])
+        return creds.get('METRON_USERNAME'), creds.get('METRON_PASSWORD')
+    except Exception:
+        return None, None
 
 
 # --- HELPERS ---
@@ -263,6 +390,98 @@ def get_local_ip():
         return None
 
 
+# --- AUTH ROUTES ---
+
+@app.route('/api/auth/status')
+def api_auth_status():
+    cfg = load_config()
+    pin_configured = bool(cfg.get('pin_hash'))
+    setup_done = bool(cfg.get('pin_setup_done'))
+    authenticated = bool(session.get('authenticated'))
+    return jsonify({
+        'pin_configured': pin_configured,
+        'setup_done': setup_done,
+        'authenticated': authenticated or not pin_configured,
+    })
+
+
+@app.route('/api/auth/setup', methods=['POST'])
+def api_auth_setup():
+    """First-time PIN setup or skip. No auth/CSRF required (bootstrap)."""
+    cfg = load_config()
+    if cfg.get('pin_hash'):
+        return jsonify({'ok': False, 'error': 'PIN already configured'}), 400
+    data = request.get_json(force=True) or {}
+    pin = data.get('pin', '').strip()
+    if pin:
+        if not re.match(r'^\d{4,8}$', pin):
+            return jsonify({'ok': False, 'error': 'PIN must be 4-8 digits'})
+        h, salt = _hash_pin(pin)
+        cfg['pin_hash'] = h
+        cfg['pin_salt'] = salt
+        save_config(cfg)
+    cfg['pin_setup_done'] = True
+    save_config(cfg)
+    session['authenticated'] = True
+    session.permanent = True
+    tok = _get_csrf_token()
+    return jsonify({'ok': True, 'skipped': not pin, 'csrf_token': tok})
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    """PIN login. No CSRF required (creates the session)."""
+    data = request.get_json(force=True) or {}
+    pin = data.get('pin', '').strip()
+    cfg = load_config()
+    if not cfg.get('pin_hash'):
+        session['authenticated'] = True
+        session.permanent = True
+        tok = _get_csrf_token()
+        return jsonify({'ok': True, 'csrf_token': tok})
+    if not _verify_pin(pin, cfg['pin_hash'], cfg['pin_salt']):
+        return jsonify({'ok': False, 'error': 'Incorrect PIN'})
+    session['authenticated'] = True
+    session.permanent = True
+    tok = _get_csrf_token()
+    return jsonify({'ok': True, 'csrf_token': tok})
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_auth_logout():
+    session.clear()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/auth/change_pin', methods=['POST'])
+def api_auth_change_pin():
+    """Change or remove PIN. Requires auth + CSRF."""
+    cfg = load_config()
+    if cfg.get('pin_hash') and not session.get('authenticated'):
+        return jsonify({'ok': False, 'error': 'Not authenticated'}), 401
+    tok = request.headers.get('X-CSRF-Token', '')
+    if not tok or not secrets.compare_digest(tok, session.get('csrf_token', '')):
+        return jsonify({'error': 'Invalid CSRF token'}), 403
+    data = request.get_json(force=True) or {}
+    current_pin = data.get('current_pin', '').strip()
+    new_pin = data.get('new_pin', '').strip()
+    cfg = load_config()
+    if cfg.get('pin_hash'):
+        if not _verify_pin(current_pin, cfg['pin_hash'], cfg['pin_salt']):
+            return jsonify({'ok': False, 'error': 'Current PIN incorrect'})
+    if not new_pin:
+        cfg.pop('pin_hash', None)
+        cfg.pop('pin_salt', None)
+    else:
+        if not re.match(r'^\d{4,8}$', new_pin):
+            return jsonify({'ok': False, 'error': 'PIN must be 4-8 digits'})
+        h, salt = _hash_pin(new_pin)
+        cfg['pin_hash'] = h
+        cfg['pin_salt'] = salt
+    save_config(cfg)
+    return jsonify({'ok': True})
+
+
 # --- API ROUTES ---
 
 @app.route('/api/status')
@@ -289,6 +508,7 @@ def api_get_config():
 
 
 @app.route('/api/config', methods=['POST'])
+@protected
 def api_set_config():
     updates = request.get_json(force=True)
     with _config_lock:
@@ -340,6 +560,7 @@ def api_set_config():
 
 
 @app.route('/api/next', methods=['POST'])
+@protected
 def api_next():
     try:
         with open(NEXT_TRIGGER, 'w') as f:
@@ -367,6 +588,7 @@ PAUSE_FILE = "/tmp/inkslab_pause"
 
 
 @app.route('/api/prev', methods=['POST'])
+@protected
 def api_prev():
     try:
         with open(PREV_TRIGGER, 'w') as f:
@@ -389,6 +611,7 @@ def api_prev():
 
 
 @app.route('/api/pause', methods=['POST'])
+@protected
 def api_pause():
     """Toggle pause state. Returns new paused state."""
     if os.path.exists(PAUSE_FILE):
@@ -494,8 +717,8 @@ def api_card_thumbnail(tcg, set_id, card_id):
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
 
-    # No cached thumbnail — generate if toggle is on and PIL is available
-    if _PIL_OK and load_config().get('thumbnail_cache', False):
+    # No cached thumbnail — generate on demand (toggle only controls background pre-cache)
+    if _PIL_OK:
         try:
             os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
             img = _PIL_Image.open(card_path).convert('RGB')
@@ -693,6 +916,7 @@ def api_set_cards(set_id):
 
 
 @app.route('/api/collection/toggle', methods=['POST'])
+@protected
 def api_collection_toggle():
     data = request.get_json(force=True)
     card_id = data.get("card_id")
@@ -725,6 +949,7 @@ def api_collection_toggle():
 
 
 @app.route('/api/collection/toggle_set', methods=['POST'])
+@protected
 def api_collection_toggle_set():
     data = request.get_json(force=True)
     set_id = data.get("set_id")
@@ -769,6 +994,7 @@ def api_collection_toggle_set():
 
 
 @app.route('/api/collection/clear', methods=['POST'])
+@protected
 def api_collection_clear():
     data = request.get_json(force=True) if request.data else {}
     config = load_config()
@@ -822,6 +1048,7 @@ def api_rarities():
 
 
 @app.route('/api/collection/toggle_all', methods=['POST'])
+@protected
 def api_collection_toggle_all():
     """Select or deselect ALL cards for the active TCG in one request."""
     body = request.get_json(force=True)
@@ -861,6 +1088,7 @@ def api_collection_toggle_all():
 
 
 @app.route('/api/collection/toggle_batch', methods=['POST'])
+@protected
 def api_collection_toggle_batch():
     """Add or remove a specific list of card_ids in one request."""
     body = request.get_json(force=True)
@@ -893,6 +1121,7 @@ def api_collection_toggle_batch():
 
 
 @app.route('/api/collection/toggle_rarity', methods=['POST'])
+@protected
 def api_collection_toggle_rarity():
     """Select or deselect all cards of a given rarity. Optionally scoped to a single set."""
     body = request.get_json(force=True)
@@ -1019,6 +1248,7 @@ def api_favorites_get():
 
 
 @app.route('/api/collection/favorites', methods=['POST'])
+@protected
 def api_favorites_set():
     """Add or remove a favorite name. Also batch-adds/removes all matching card IDs."""
     body = request.get_json(force=True)
@@ -1083,6 +1313,7 @@ def api_favorites_set():
 
 
 @app.route('/api/download/start', methods=['POST'])
+@protected
 def api_download_start():
     global _download_proc, _download_tcg, _download_log_fh
 
@@ -1161,6 +1392,7 @@ def api_download_start():
 
 
 @app.route('/api/download/stop', methods=['POST'])
+@protected
 def api_download_stop():
     global _download_proc, _download_tcg
 
@@ -1181,6 +1413,7 @@ def api_download_stop():
     return jsonify({"ok": False, "error": "No download running"})
 
 @app.route('/api/delete_series', methods=['POST'])
+@protected
 def api_delete_series():
     """Delete a specific series folder from the active TCG library."""
     data = request.get_json(force=True) if request.data else {}
@@ -1260,20 +1493,12 @@ def api_manga_search():
 @app.route('/api/metron/status')
 def api_metron_status():
     """Check if Metron credentials are configured."""
-    creds_file = '/home/pi/.metron_credentials'
-    if not os.path.exists(creds_file):
-        return jsonify({'configured': False})
-    creds = {}
-    with open(creds_file) as f:
-        for line in f:
-            if '=' in line:
-                k, v = line.strip().split('=', 1)
-                creds[k.strip()] = v.strip()
-    username = creds.get('METRON_USERNAME', '')
-    configured = bool(username and creds.get('METRON_PASSWORD'))
+    username, password = _read_metron_creds()
+    configured = bool(username and password)
     return jsonify({'configured': configured, 'username': username if configured else ''})
 
 @app.route('/api/metron/save', methods=['POST'])
+@protected
 def api_metron_save():
     """Save Metron credentials to file. Never stored in config or logs."""
     data = request.get_json(force=True) if request.data else {}
@@ -1283,15 +1508,20 @@ def api_metron_save():
         return jsonify({'ok': False, 'error': 'Username and password required'})
     try:
         creds_file = '/home/pi/.metron_credentials'
+        encrypted = _encrypt_creds(username, password)
         with open(creds_file, 'w') as f:
-            f.write(f'METRON_USERNAME={username}\n')
-            f.write(f'METRON_PASSWORD={password}\n')
+            if encrypted:
+                f.write(f'METRON_ENC={encrypted}\n')
+            else:
+                f.write(f'METRON_USERNAME={username}\n')
+                f.write(f'METRON_PASSWORD={password}\n')
         os.chmod(creds_file, 0o600)
         return jsonify({'ok': True, 'username': username})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 
 @app.route('/api/metron/clear', methods=['POST'])
+@protected
 def api_metron_clear():
     """Remove Metron credentials."""
     creds_file = '/home/pi/.metron_credentials'
@@ -1370,16 +1600,7 @@ def api_comics_search():
         return jsonify({"results": []})
     try:
         import requests as req
-        creds = {}
-        creds_file = '/home/pi/.metron_credentials'
-        if os.path.exists(creds_file):
-            with open(creds_file) as f:
-                for line in f:
-                    if '=' in line:
-                        k, v = line.strip().split('=', 1)
-                        creds[k.strip()] = v.strip()
-        username = creds.get('METRON_USERNAME')
-        password = creds.get('METRON_PASSWORD')
+        username, password = _read_metron_creds()
         if not username or not password:
             return jsonify({"results": [], "error": "Metron credentials not configured"})
         auth = (username, password)
@@ -1545,6 +1766,7 @@ def api_storage():
 
 
 @app.route('/api/delete', methods=['POST'])
+@protected
 def api_delete():
     data = request.get_json(force=True)
     tcg = data.get("tcg")
@@ -1605,6 +1827,7 @@ def api_version():
 
 
 @app.route('/api/update/check', methods=['POST'])
+@protected
 def api_update_check():
     """Check if updates are available by comparing local vs remote HEAD."""
     try:
@@ -1632,6 +1855,7 @@ def api_update_check():
 
 
 @app.route('/api/update/start', methods=['POST'])
+@protected
 def api_update_start():
     """Launch OTA update script detached from this process."""
     lock_file = "/tmp/inkslab_update.lock"
@@ -1760,6 +1984,7 @@ def api_wifi_connect():
 
 
 @app.route('/api/wifi/disconnect', methods=['POST'])
+@protected
 def api_wifi_disconnect():
     """Disconnect WiFi, forget the saved profile, and re-enter setup mode."""
     global _wifi_setup_mode, _wifi_connect_result
@@ -1788,6 +2013,7 @@ def api_wifi_disconnect():
 
 
 @app.route('/api/factory_reset', methods=['POST'])
+@protected
 def api_factory_reset():
     """Prepare unit for shipping: forget WiFi, delete card data, reset config."""
     global _wifi_setup_mode, _wifi_connect_result
@@ -1932,6 +2158,7 @@ def api_custom_folders():
 
 
 @app.route('/api/custom/create_folder', methods=['POST'])
+@protected
 def api_custom_create_folder():
     """Create a new custom image folder."""
     data = request.get_json(force=True)
@@ -1962,6 +2189,7 @@ def api_custom_create_folder():
 
 
 @app.route('/api/custom/rename_folder', methods=['POST'])
+@protected
 def api_custom_rename_folder():
     """Rename a custom set's display name."""
     data = request.get_json(force=True)
@@ -2036,6 +2264,7 @@ def api_custom_delete_card(folder, card_id):
 
 
 @app.route('/api/custom/upload', methods=['POST'])
+@protected
 def api_custom_upload():
     """Upload an image to a custom folder."""
     folder_id = request.form.get("folder", "")
@@ -2099,6 +2328,7 @@ def api_custom_upload():
 
 
 @app.route('/api/custom/card_metadata', methods=['POST'])
+@protected
 def api_custom_card_metadata():
     """Edit a card's metadata (name, number, rarity)."""
     data = request.get_json(force=True)
@@ -2132,6 +2362,7 @@ def api_custom_card_metadata():
 
 
 @app.route('/api/custom/set_metadata', methods=['POST'])
+@protected
 def api_custom_set_metadata():
     """Edit a set's display name and year."""
     data = request.get_json(force=True)
@@ -2389,9 +2620,42 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
 <link rel="stylesheet" href="/static/style.css">
+<script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
-<body>
+<body class="auth-pending">
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;display:none;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="width:100%;max-width:320px;padding:32px 24px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:22px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:6px;">InkSlab</div>
+    </div>
+
+    <!-- SETUP SECTION (first boot) -->
+    <div id="auth-setup-section" style="display:none;">
+      <h3 style="margin:0 0 8px;color:var(--text-hi);font-size:16px;">Set a PIN</h3>
+      <p style="color:var(--text-dim);font-size:12px;margin:0 0 16px;">Optional: protect your dashboard with a 4-8 digit PIN. You can change or remove it in Settings later.</p>
+      <input id="setup-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="4-8 digits (optional)" maxlength="8"
+        style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:12px;border-radius:8px;border:1px solid var(--border-hi);background:var(--bg-input);color:var(--text-hi);font-size:16px;text-align:center;letter-spacing:4px;"
+        onkeydown="if(event.key==='Enter')submitSetup(false)">
+      <div id="setup-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;text-align:center;"></div>
+      <button class="btn btn-primary btn-block" style="margin-bottom:10px;" onclick="submitSetup(false)">Set PIN &amp; Continue</button>
+      <button class="btn btn-block" style="background:transparent;color:var(--text-dim);border:1px solid var(--border);" onclick="submitSetup(true)">Skip (no PIN)</button>
+    </div>
+
+    <!-- LOGIN SECTION -->
+    <div id="auth-login-section" style="display:none;">
+      <h3 style="margin:0 0 8px;color:var(--text-hi);font-size:16px;">Enter PIN</h3>
+      <p style="color:var(--text-dim);font-size:12px;margin:0 0 16px;">Enter your InkSlab PIN to continue.</p>
+      <input id="login-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="PIN" maxlength="8"
+        style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:12px;border-radius:8px;border:1px solid var(--border-hi);background:var(--bg-input);color:var(--text-hi);font-size:16px;text-align:center;letter-spacing:4px;"
+        onkeydown="if(event.key==='Enter')submitLogin()">
+      <div id="login-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;text-align:center;"></div>
+      <button class="btn btn-primary btn-block" onclick="submitLogin()">Unlock</button>
+    </div>
+  </div>
+</div>
 
 <div class="status-pill">
   <span class="pill-logo">InkSlab</span>
@@ -2573,6 +2837,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div style="background:var(--bg-input);border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:var(--accent);width:0%;transition:width 0.5s"></div></div>
       <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
     </div>
+  </div>
+  <div class="card">
+    <h3>Dashboard PIN</h3>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
+    <div id="pin-status" style="font-size:13px;margin-bottom:10px;"></div>
+    <div id="pin-form" style="display:none;">
+      <div class="form-group">
+        <label id="pin-current-label">Current PIN</label>
+        <input type="password" id="pin-current" inputmode="numeric" pattern="[0-9]*" placeholder="current PIN" maxlength="8" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>New PIN <span style="color:var(--text-dim);font-size:11px;">(leave blank to remove PIN)</span></label>
+        <input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" placeholder="4-8 digits, or blank to remove" maxlength="8" autocomplete="new-password">
+      </div>
+      <div id="pin-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" style="flex:1;" onclick="savePinChange()">Save</button>
+        <button class="btn" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);" onclick="document.getElementById('pin-form').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
   </div>
   <div class="card">
     <h3>WiFi Network</h3>
@@ -2771,11 +3056,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 def dashboard():
     if _wifi_setup_mode:
         return WIFI_SETUP_HTML
-    return DASHBOARD_HTML
+    token = _get_csrf_token()
+    return DASHBOARD_HTML.replace('__CSRF_TOKEN__', token)
 
 
 # --- Auto-update background thread ---
-import datetime
 
 def _run_auto_updates():
     """Background thread: check weekly and run enabled downloaders."""
@@ -2854,6 +3139,7 @@ def api_auto_update_status():
     return jsonify(result)
 
 @app.route('/api/auto_update/save', methods=['POST'])
+@protected
 def api_auto_update_save():
     """Save auto-update source selection."""
     data = request.get_json(force=True) if request.data else {}
@@ -2864,6 +3150,7 @@ def api_auto_update_save():
     return jsonify({'ok': True})
 
 @app.route('/api/auto_update/run_now', methods=['POST'])
+@protected
 def api_auto_update_run_now():
     """Manually trigger update for a specific TCG."""
     global _download_proc, _download_tcg, _download_log_fh

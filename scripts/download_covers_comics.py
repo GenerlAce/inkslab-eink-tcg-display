@@ -39,19 +39,39 @@ HEADERS = {
 
 
 def load_credentials():
-    creds = {}
     if not os.path.exists(CREDENTIALS_FILE):
         print(f"ERROR: Credentials file not found: {CREDENTIALS_FILE}")
         print("Create it with:")
         print("  METRON_USERNAME=yourusername")
         print("  METRON_PASSWORD=yourpassword")
         return None, None
+    creds = {}
     with open(CREDENTIALS_FILE) as f:
         for line in f:
             line = line.strip()
             if '=' in line and not line.startswith('#'):
                 key, val = line.split('=', 1)
                 creds[key.strip()] = val.strip()
+    # Handle encrypted format written by the web UI
+    if creds.get('METRON_ENC'):
+        try:
+            import hashlib, json, base64
+            from cryptography.fernet import Fernet
+            serial = ''
+            try:
+                with open('/proc/cpuinfo') as f:
+                    for line in f:
+                        if line.startswith('Serial'):
+                            serial = line.split(':', 1)[1].strip()
+                            break
+            except Exception:
+                pass
+            key = base64.urlsafe_b64encode(hashlib.pbkdf2_hmac('sha256', (serial or 'inkslab-device').encode(), b'inkslab-metron-v1', 100000))
+            obj = json.loads(Fernet(key).decrypt(creds['METRON_ENC'][4:].encode()))
+            return obj['u'], obj['p']
+        except Exception as e:
+            print(f"ERROR: Failed to decrypt credentials: {e}")
+            return None, None
     username = creds.get('METRON_USERNAME')
     password = creds.get('METRON_PASSWORD')
     if not username or not password:
