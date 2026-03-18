@@ -100,6 +100,8 @@ function showTab(name) {
   document.querySelector('.nav-item[data-tab="' + name + '"]').classList.add('active');
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
+  var content = document.querySelector('.content');
+  if (content) content.scrollTop = 0;
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
   if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
