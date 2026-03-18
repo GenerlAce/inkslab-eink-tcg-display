@@ -280,6 +280,13 @@ body {
   user-select: none;
 }
 .q-card:hover .q-thumb { border-color: var(--accent); } /* desktop hover hint */
+.q-thumb-placeholder {
+  width: 100%; aspect-ratio: 2 / 3;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
+  opacity: 0.25;
+}
 
 /* Collection card grid (4 col mobile, 6 col desktop via @media above) */
 .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px 0; width: 100%; }

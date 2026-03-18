@@ -61,7 +61,11 @@
     if (!el || !window._tcgRegistry) return;
     el.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
     el.innerHTML = '';
-    Object.entries(window._tcgRegistry).forEach(function(e) {
+    Object.entries(window._tcgRegistry).sort(function(a, b) {
+    if (a[0] === 'custom') return -1;
+    if (b[0] === 'custom') return 1;
+    return a[1].name.localeCompare(b[1].name);
+  }).forEach(function(e) {
       var tcg = e[0], info = e[1];
       var b = document.createElement('button');
       b.id = 'delLib-' + tcg;

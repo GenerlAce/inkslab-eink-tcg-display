@@ -44,7 +44,7 @@ TCG_REGISTRY = {
     "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
     "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#F472B6", "download_script": "download_covers_manga.py"},
     "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
-    "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
+    "custom":  {"name": "Custom", "path": "/home/pi/custom_images", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 
@@ -2544,6 +2544,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
     </div>
     <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
+  </div>
+  <div class="card">
+    <h3>Custom Images</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Upload your own images to display. Create folders to organize them.</p>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input id="custom-folder-name" type="text" placeholder="New folder name..."
+        style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:14px;">
+      <button onclick="createCustomFolder()" class="btn"
+        style="background:var(--accent2);color:#010001;border:none;white-space:nowrap;">+ Create</button>
+    </div>
+    <div id="custom-folders"></div>
   </div>
   <div class="card">
     <h3>Delete Entire Library</h3>

@@ -43,7 +43,7 @@ TCG_REGISTRY = {
     "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
     "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
     "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
-    "custom":  {"name": "Custom", "path": "/home/pi/custom_cards", "color": "#F59E0B", "download_script": None},
+    "custom":  {"name": "Custom", "path": "/home/pi/custom_images", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 

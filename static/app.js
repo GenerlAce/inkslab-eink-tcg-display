@@ -371,8 +371,7 @@ function renderQueue(d) {
     } else {
       queueCard.style.display = 'block';
       var listEl = document.getElementById('q-next-list');
-      var qCols = Math.min(next.length, isDesktop ? 5 : 4);
-      listEl.style.gridTemplateColumns = 'repeat(' + qCols + ', 1fr)';
+      listEl.style.gridTemplateColumns = 'repeat(' + (isDesktop ? 5 : 4) + ', 1fr)';
       listEl.innerHTML = next.map(function(c) { return _qCardHtml(tcg, c); }).join('');
       _attachQCardClicks(listEl);
     }
@@ -385,14 +384,14 @@ function renderQueue(d) {
     if (prevKey !== _lastPrevKey) {
       _lastPrevKey = prevKey;
       var prevCard = document.getElementById('prev-card');
-      if (!prev.length) {
-        prevCard.style.display = 'none';
-      } else {
-        prevCard.style.display = 'block';
-        var prevListEl = document.getElementById('q-prev-list');
-        prevListEl.innerHTML = prev.map(function(c) { return _qCardHtml(tcg, c); }).join('');
-        _attachQCardClicks(prevListEl);
+      prevCard.style.display = 'block';
+      var prevListEl = document.getElementById('q-prev-list');
+      var html = prev.map(function(c) { return _qCardHtml(tcg, c); }).join('');
+      for (var i = prev.length; i < 3; i++) {
+        html += '<div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>';
       }
+      prevListEl.innerHTML = html;
+      _attachQCardClicks(prevListEl);
     }
   }
 }
@@ -641,7 +640,11 @@ function renderAutoUpdate(data) {
   var el = document.getElementById('auto-update-list');
   if (!el) return;
   el.innerHTML = '';
-  Object.entries(data).forEach(function(entry) {
+  Object.entries(data).sort(function(a, b) {
+    if (a[0] === 'custom') return -1;
+    if (b[0] === 'custom') return 1;
+    return a[1].name.localeCompare(b[1].name);
+  }).forEach(function(entry) {
     var tcg = entry[0], info = entry[1];
     var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
     var row = document.createElement('div');
@@ -1259,7 +1262,13 @@ function loadStorage() {
     var totalGb = info._disk.total_gb || 1;
     var freeGb = info._disk.free_gb || 0;
     // Dynamic: sum up all TCG sizes
-    var tcgEntries = Object.entries(info).filter(function(e) { return !e[0].startsWith('_'); });
+    var tcgEntries = Object.entries(info).filter(function(e) { return !e[0].startsWith('_'); }).sort(function(a, b) {
+      if (a[0] === 'custom') return -1;
+      if (b[0] === 'custom') return 1;
+      var na = _tcgRegistry[a[0]] ? _tcgRegistry[a[0]].name : a[0];
+      var nb = _tcgRegistry[b[0]] ? _tcgRegistry[b[0]].name : b[0];
+      return na.localeCompare(nb);
+    });
     var tcgTotalGb = 0;
     tcgEntries.forEach(function(e) { tcgTotalGb += (e[1].size_gb || 0); });
     var usedGb = Math.round((totalGb - freeGb) * 100) / 100;
@@ -1622,11 +1631,16 @@ var _delConfirmTimer = null;
 function buildDynamicUI(registry) {
   _tcgRegistry = registry;
   window._tcgRegistry = registry;
+  var sorted = Object.entries(registry).sort(function(a, b) {
+    if (a[0] === 'custom') return -1;
+    if (b[0] === 'custom') return 1;
+    return a[1].name.localeCompare(b[1].name);
+  });
   // Quick Switch buttons — use short names so 2 fit per row
   var shortNames = {lorcana: 'Lorcana', mtg: 'Magic', pokemon: 'Pokemon', manga: 'Manga', comics: 'Comics', custom: 'Custom'};
   var qsEl = document.getElementById('quick-switch-btns');
   qsEl.innerHTML = '';
-  Object.entries(registry).forEach(function(e) {
+  sorted.forEach(function(e) {
     var color = e[1].color || '#36A5CA';
     var b = document.createElement('button');
     b.className = 'btn';
@@ -1642,7 +1656,7 @@ function buildDynamicUI(registry) {
   updateQuickSwitchActive(_lastStatus.tcg || '');
   // Settings TCG dropdown
   var sel = document.getElementById('cfg-tcg');
-  sel.innerHTML = Object.entries(registry).map(function(e) {
+  sel.innerHTML = sorted.map(function(e) {
     return '<option value="' + e[0] + '">' + e[1].name + '</option>';
   }).join('');
   // Download buttons with inline Search toggle (only for TCGs with download scripts)
@@ -1650,7 +1664,7 @@ function buildDynamicUI(registry) {
   var searchLabels = {lorcana: 'Search Sets', mtg: 'Search Sets', pokemon: 'Search Sets', manga: 'Search Series', comics: 'Search Series'};
   var dlEl = document.getElementById('dl-buttons');
   dlEl.innerHTML = '';
-  Object.entries(registry).filter(function(e) { return e[1].download_script; }).forEach(function(e) {
+  sorted.filter(function(e) { return e[1].download_script; }).forEach(function(e) {
     var color = e[1].color || '#36A5CA';
     var panelId = searchPanels[e[0]];
     var label = searchLabels[e[0]];
@@ -1683,7 +1697,7 @@ function buildDynamicUI(registry) {
   if (delEl) {
     delEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
     delEl.innerHTML = '';
-    Object.entries(registry).forEach(function(e) {
+    sorted.forEach(function(e) {
       var tcg = e[0];
       var b = document.createElement('button');
       b.id = 'delLib-' + tcg;
