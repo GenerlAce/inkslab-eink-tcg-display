@@ -164,6 +164,7 @@ body {
   /* Settings: 2-col grid for Display Settings on desktop */
   .settings-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
   .settings-display-grid .form-row:nth-last-child(-n+2) { border-bottom: none; }
+  .settings-display-grid hr.settings-divider { margin: 4px 0; }
 }
 #st-preview-loading {
   display: none;
@@ -333,14 +334,14 @@ body {
 .btn-primary:hover { filter: brightness(1.15); }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border-hi); }
 .btn-secondary:hover { background: var(--bg-card); }
-.btn-danger { background: var(--danger); color: #fff; }
-.btn-danger:hover { background: #DC2626; }
+.btn-danger { background: var(--danger); color: var(--text-hi); }
+.btn-danger:hover { filter: brightness(0.85); }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn-block { display: block; width: 100%; text-align: center; }
 .btn:active { transform: scale(0.95); }
 .btn-primary:active { filter: brightness(0.9); }
 .btn-secondary:active { background: var(--accent); color: var(--text-hi); }
-.btn-danger:active { background: #6b1515; }
+.btn-danger:active { filter: brightness(0.7); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* === INPUTS === */
@@ -404,7 +405,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .storage-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 
 /* === MISC === */
-.log-box { background: #050505; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; line-height: 1.7; color: #FCFDF0; border: 1px solid var(--border); }
+.log-box { background: var(--bg); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; line-height: 1.7; color: var(--text-hi); border: 1px solid var(--border); }
 .badge { display: inline-block; background: var(--accent2); color: var(--bg); border-radius: 10px; padding: 1px 7px; font-size: 10px; margin-left: 4px; font-weight: 700; }
 .flex-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .flex-row > * { flex: 1 1 calc(50% - 4px); min-width: 0; box-sizing: border-box; }
@@ -460,7 +461,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   transition: 0.25s;
 }
 .switch input:checked + .switch-slider { background: var(--accent); border-color: var(--accent); }
-.switch input:checked + .switch-slider:before { transform: translateX(20px); background: #fff; }
+.switch input:checked + .switch-slider:before { transform: translateX(20px); background: var(--text-hi); }
 
 /* === SEARCH === */
 .search-wrap { position: relative; margin-bottom: 12px; }
@@ -485,13 +486,13 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-filter-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--border-hi); border: 1px solid var(--accent); color: var(--text); border-radius: 16px; padding: 4px 8px 4px 10px; font-size: 12px; }
 .search-filter-chip .sfc-count { color: var(--text-dim); font-size: 11px; }
 .search-filter-chip .sfc-x { cursor: pointer; color: var(--text-dim); font-size: 14px; line-height: 1; margin-left: 2px; padding: 0 2px; border-radius: 50%; }
-.search-filter-chip .sfc-x:hover { color: #ff6b6b; background: #ff6b6b22; }
+.search-filter-chip .sfc-x:hover { color: var(--danger); background: transparent; }
 
 /* === MODAL === */
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(1,0,1,0.88); z-index: 200; justify-content: center; align-items: center; }
 .modal-overlay.open { display: flex; }
 .modal-content { text-align: center; padding: 16px; max-width: 300px; }
-.modal-content img { max-width: 260px; border-radius: 8px; border: 2px solid var(--accent); }
+.modal-content img { max-width: 260px; border-radius: 8px; border: 2px solid var(--accent); transition: opacity 0.15s; }
 .modal-content p { margin-top: 8px; color: var(--text-hi); font-size: 13px; }
 .modal-close { margin-top: 12px; }
 .card-info-modal-content { max-width: 340px; width: 90%; }

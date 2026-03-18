@@ -102,6 +102,8 @@ function showTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   var content = document.querySelector('.content');
   if (content) content.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
   if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
@@ -138,7 +140,8 @@ function updateBrowsePills(activeTcg) {
 function setBrowseTcg(tcg) {
   _browseTcg = tcg;
   updateBrowsePills(tcg || (_lastStatus && _lastStatus.tcg) || '');
-  _cache.sets = {}; _cache.rarities = {};
+  var t = tcg || (_lastStatus && _lastStatus.tcg) || '';
+  delete _cache.sets[t]; delete _cache.rarities[t];
   loadSets(); loadRarities();
   document.getElementById('search-results').innerHTML = '';
   var inp = document.getElementById('search-input');
@@ -360,8 +363,9 @@ var _lastQueueKey = '';
 var _lastPrevKey = '';
 function _qCardHtml(tcg, c) {
   var url = '/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id);
+  var thumbUrl = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(c.set_id) + '/' + encodeURIComponent(c.card_id);
   return '<div class="q-card" data-src="' + url + '">'
-    + '<img class="q-thumb" src="' + url + '" onerror="this.style.display=\'none\'">'
+    + '<img class="q-thumb" src="' + thumbUrl + '" onerror="this.style.display=\'none\'">'
     + '<div class="q-num">' + esc(c.card_num) + '</div>'
     + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
 }
@@ -372,6 +376,8 @@ function _attachQCardClicks(listEl) {
       var previewImg = document.getElementById('preview-img');
       var previewModal = document.getElementById('preview-modal');
       if (previewModal && previewImg) {
+        previewImg.style.opacity = '0';
+        previewImg.onload = function() { this.style.opacity = '1'; };
         previewImg.src = card.dataset.src;
         var previewName = document.getElementById('preview-name');
         if (previewName) previewName.textContent = '';
@@ -459,7 +465,7 @@ function updatePillStyle(collectionOnly) {
   var color = pill.dataset.color || 'var(--accent)';
   if (collectionOnly) {
     pill.style.background = color;
-    pill.style.color = '#010001';
+    pill.style.color = 'var(--bg)';
   } else {
     pill.style.background = '';
     pill.style.color = color;
@@ -468,10 +474,10 @@ function updatePillStyle(collectionOnly) {
 
 function updateQuickSwitchActive(tcg) {
   document.querySelectorAll('#quick-switch-btns .btn').forEach(function(b) {
-    var color = b.dataset.color || '#36A5CA';
+    var color = b.dataset.color || 'var(--accent)';
     if (b.dataset.tcg === tcg) {
       b.style.background = color;
-      b.style.color = '#010001';
+      b.style.color = 'var(--bg)';
     } else {
       b.style.background = 'transparent';
       b.style.color = color;
@@ -528,7 +534,7 @@ function refreshStatus() {
     } else if (d.error) {
       errEl.textContent = d.error;
       errRow.style.display = 'block';
-      errEl.style.color = '#ff6b6b';
+      errEl.style.color = 'var(--danger)';
     } else {
       errRow.style.display = 'none';
     }
@@ -817,7 +823,31 @@ function loadSettings() {
     document.getElementById('cfg-collection').checked = c.collection_only;
     var themeEl = document.getElementById('cfg-theme');
     if (themeEl) themeEl.value = localStorage.getItem('inkslab_theme') || 'default';
+    var thumbEl = document.getElementById('cfg-thumbnails');
+    if (thumbEl) thumbEl.checked = c.thumbnail_cache !== false;
   });
+}
+
+function startPrecache() {
+  fetch(API + '/api/thumbnails/prebuild', {method: 'POST'}).then(r => r.json()).then(function(d) {
+    if (!d.ok) { showToast(d.error || 'Already running', 2000); return; }
+    showToast('Pre-caching started...', 2000);
+    var statusEl = document.getElementById('precache-status');
+    var btn = document.getElementById('btn-precache');
+    if (statusEl) statusEl.style.display = 'block';
+    if (btn) btn.disabled = true;
+    var poll = setInterval(function() {
+      fetch(API + '/api/thumbnails/progress').then(r => r.json()).then(function(p) {
+        if (statusEl) statusEl.textContent = p.done + ' / ' + p.total + ' thumbnails generated';
+        if (!p.running) {
+          clearInterval(poll);
+          if (btn) btn.disabled = false;
+          if (statusEl) statusEl.textContent = 'Done — ' + p.done + ' thumbnails cached';
+          showToast('Thumbnail pre-cache complete!', 3000);
+        }
+      });
+    }, 3000);
+  }).catch(function() { showToast('Failed to start pre-cache'); });
 }
 
 function saveSettings() {
@@ -830,6 +860,7 @@ function saveSettings() {
     day_start: parseInt(document.getElementById('cfg-day-start').value) || 7,
     day_end: parseInt(document.getElementById('cfg-day-end').value) || 23,
     color_saturation: parseFloat(document.getElementById('cfg-saturation').value) || 2.5,
+    thumbnail_cache: document.getElementById('cfg-thumbnails') ? document.getElementById('cfg-thumbnails').checked : true,
   };
   fetch(API + '/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)})
     .then(function() { _cache.autoUpdate = null; showToast('Settings saved!'); startRapidPoll(); })
@@ -936,8 +967,8 @@ function deleteSeriesStep(setId, name, tcg) {
       if (prev) { prev.style.background = 'var(--bg-input)'; prev.style.color = 'var(--text-dim)'; prev.textContent = 'Delete'; }
     }
     _deleteConfirmId = setId;
-    btn.style.background = '#ff6b6b';
-    btn.style.color = '#fff';
+    btn.style.background = 'var(--danger)';
+    btn.style.color = 'var(--text-hi)';
     btn.textContent = 'Confirm?';
     // Auto-reset after 4 seconds
     setTimeout(function() {
@@ -958,10 +989,17 @@ function loadSets() {
   if (_cache.sets[tcg]) {
     renderSets(el, _cache.sets[tcg], tcg);
   } else {
-    el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+    try {
+      var stored = localStorage.getItem('inkslab_sets_' + tcg);
+      if (stored) renderSets(el, JSON.parse(stored), tcg);
+      else el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+    } catch(e) {
+      el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+    }
   }
   fetch(API + '/api/sets?tcg=' + encodeURIComponent(tcg)).then(r => r.json()).then(sets => {
     _cache.sets[tcg] = sets;
+    try { localStorage.setItem('inkslab_sets_' + tcg, JSON.stringify(sets)); } catch(e) {}
     renderSets(el, sets, tcg);
   }).catch(function() {
     if (!_cache.sets[tcg]) el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Failed to load sets</div>';
@@ -992,14 +1030,18 @@ function toggleSet(setId) {
   if (el.dataset.loaded) return;
   el.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + setId + '/cards?tcg=' + encodeURIComponent(getEffectiveBrowseTcg())).then(r => r.json()).then(cards => {
-    el.dataset.loaded = '1';
+    // Re-query live element in case renderSets rebuilt the DOM during the fetch
+    var liveEl = document.getElementById('set-' + setId) || el;
+    if (!liveEl.classList.contains('open')) return; // was closed while loading
+    liveEl.dataset.loaded = '1';
     // Extract unique rarities for chips
     var rarities = [];
     var seen = {};
     cards.forEach(function(c) { if (c.rarity && !seen[c.rarity]) { seen[c.rarity] = 1; rarities.push(c.rarity); } });
+    var _jsId = setId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     let html = '<div style="padding:4px 0 6px;display:flex;gap:4px;flex-wrap:wrap">';
-    html += `<button class="btn btn-secondary btn-sm" onclick="toggleSetAll('${setId}',true)">Select All</button>`;
-    html += `<button class="btn btn-secondary btn-sm" onclick="toggleSetAll('${setId}',false)">Deselect All</button>`;
+    html += '<button class="btn btn-secondary btn-sm" onclick="toggleSetAll(\'' + _jsId + '\',true)">Select All</button>';
+    html += '<button class="btn btn-secondary btn-sm" onclick="toggleSetAll(\'' + _jsId + '\',false)">Deselect All</button>';
     html += '</div>';
     // Per-set rarity chips with counts and toggle state
     if (rarities.length > 1) {
@@ -1008,7 +1050,8 @@ function toggleSet(setId) {
         var total = 0, ownedCt = 0;
         cards.forEach(function(c) { if (c.rarity === r) { total++; if (c.owned) ownedCt++; } });
         var isActive = ownedCt > 0;
-        html += '<span class="rarity-chip' + (isActive ? ' active' : '') + '" data-rarity="' + esc(r) + '" onclick="toggleSetRarityChip(this,\'' + esc(setId) + '\',\'' + esc(r) + '\',' + (isActive ? 'false' : 'true') + ')">'
+        var _jsR = r.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        html += '<span class="rarity-chip' + (isActive ? ' active' : '') + '" data-rarity="' + esc(r) + '" onclick="toggleSetRarityChip(this,\'' + _jsId + '\',\'' + _jsR + '\',' + (isActive ? 'false' : 'true') + ')">'
           + esc(r) + '<span class="chip-count">(' + ownedCt + '/' + total + ')</span></span>';
       });
       html += '</div>';
@@ -1022,7 +1065,7 @@ function toggleSet(setId) {
         <span class="card-rarity">${esc(c.rarity)}</span>
       </div>
     `).join('');
-    el.innerHTML = html;
+    liveEl.innerHTML = html;
   });
 }
 
@@ -1049,6 +1092,7 @@ function toggleSetAll(setId, owned) {
   fetch(API + '/api/collection/toggle_set', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({set_id: setId, owned: owned, tcg: getEffectiveBrowseTcg()})})
     .then(() => {
       const el = document.getElementById('set-' + setId);
+      if (!el) return;
       // Update list view checkboxes
       el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = owned);
       // Update grid view thumbnails
@@ -1073,7 +1117,7 @@ function toggleSetAll(setId, owned) {
           badge.remove();
         }
       }
-    });
+    }).catch(function() { showToast('Failed to update collection'); });
 }
 
 function clearCollection() {
@@ -1163,10 +1207,12 @@ function toggleSetRarityChip(chipEl, setId, rarity, owned) {
       if (d.count !== undefined) {
         showToast((owned ? 'Selected ' : 'Deselected ') + d.count + ' ' + rarity + ' cards');
         var el = document.getElementById('set-' + setId);
+        if (!el) { chipEl.style.opacity = '1'; return; }
         var total = 0, newOwned = 0;
         el.querySelectorAll('.card-row').forEach(function(row) {
           if (row.dataset.rarity === rarity) {
-            row.querySelector('input[type=checkbox]').checked = owned;
+            var cb = row.querySelector('input[type=checkbox]');
+            if (cb) { cb.checked = owned; }
             total++;
             if (owned) newOwned++;
           }
@@ -1175,8 +1221,9 @@ function toggleSetRarityChip(chipEl, setId, rarity, owned) {
         chipEl.style.opacity = '1';
         var cs = chipEl.querySelector('.chip-count');
         if (cs) cs.textContent = '(' + newOwned + '/' + total + ')';
-        var safeR = rarity.replace(/'/g, "\'");
-        chipEl.setAttribute('onclick', "toggleSetRarityChip(this,\'" + setId + "\',\'" + safeR + "\'," + (!owned) + ")");
+        var safeR = rarity.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        var safeSetId = setId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        chipEl.setAttribute('onclick', "toggleSetRarityChip(this,'" + safeSetId + "','" + safeR + "'," + (!owned) + ")");
       }
     }).catch(function() { chipEl.style.opacity = '1'; });
 }
@@ -1185,7 +1232,10 @@ function toggleSetRarityChip(chipEl, setId, rarity, owned) {
 function showPreview(setId, cardId, label, tcg) {
   if (_touchMoved) return;
   var t = tcg || (_lastStatus && _lastStatus.tcg) || 'pokemon';
-  document.getElementById('preview-img').src = '/api/card_image/' + t + '/' + setId + '/' + cardId;
+  var _pi = document.getElementById('preview-img');
+  _pi.style.opacity = '0';
+  _pi.onload = function() { this.style.opacity = '1'; };
+  _pi.src = '/api/card_image/' + t + '/' + setId + '/' + cardId;
   document.getElementById('preview-name').textContent = label;
   document.getElementById('preview-modal').classList.add('open');
 }
@@ -1362,6 +1412,12 @@ function loadStorage() {
       var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
       html += '<div class="stat"><span class="stat-label">' + name + '</span><span class="stat-value">' + d.card_count + ' cards &middot; ' + d.set_count + ' sets &middot; ' + fmtSize(d.size_gb || 0, d.size_mb || 0) + '</span></div>';
     });
+    if (info._thumbcache) {
+      var tc = info._thumbcache;
+      var cacheVal = tc.cached + ' / ' + tc.total + ' cached';
+      if (tc.size_mb > 0) cacheVal += ' &middot; ' + tc.size_mb + ' MB';
+      html += '<div class="stat"><span class="stat-label">Image Cache</span><span class="stat-value">' + cacheVal + '</span></div>';
+    }
     el.innerHTML = html;
   });
 }
@@ -1374,7 +1430,7 @@ function closeAllDlSearch() {
   document.querySelectorAll('[data-search-btn]').forEach(function(b) {
     var c = b.getAttribute('data-color');
     b.style.background = c;
-    b.style.color = '#010001';
+    b.style.color = 'var(--bg)';
     b.style.border = 'none';
   });
 }
@@ -1391,7 +1447,7 @@ function toggleDlSearch(panelId, btn) {
   document.querySelectorAll('[data-search-btn]').forEach(function(b) {
     var c = b.getAttribute('data-color');
     b.style.background = c;
-    b.style.color = '#010001';
+    b.style.color = 'var(--bg)';
     b.style.border = 'none';
   });
   // Open this one if it was closed
@@ -1547,7 +1603,7 @@ function checkUpdateStatus() {
     } else if (d.error) {
       clearInterval(_updatePoll); _updatePoll = null;
       stage.textContent = d.message || 'Update failed';
-      bar.style.background = '#ff6b6b';
+      bar.style.background = 'var(--danger)';
     }
   }).catch(function() {
     document.getElementById('update-stage').textContent = 'Reconnecting...';
@@ -1706,7 +1762,7 @@ function buildDynamicUI(registry) {
     b.dataset.color = color;
     b.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;';
     b.textContent = shortNames[e[0]] || e[1].name;
-    b.addEventListener('mouseover', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = color; b.style.color = '#010001'; } });
+    b.addEventListener('mouseover', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = color; b.style.color = 'var(--bg)'; } });
     b.addEventListener('mouseout', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = 'transparent'; b.style.color = color; } });
     b.addEventListener('click', function() { switchTCG(e[0], b); });
     qsEl.appendChild(b);
@@ -1778,13 +1834,13 @@ function buildDynamicUI(registry) {
       var b = document.createElement('button');
       b.id = 'delLib-' + tcg;
       b.className = 'btn btn-sm btn-block';
-      b.style.cssText = 'background:transparent;color:#EF4444;border:1px solid #EF4444;';
+      b.style.cssText = 'background:transparent;color:var(--danger);border:1px solid var(--danger);';
       b.textContent = 'Delete ' + e[1].name;
       b.addEventListener('mouseover', function() {
-        if (_delConfirmTcg !== tcg) { b.style.background = '#EF4444'; b.style.color = '#010001'; }
+        if (_delConfirmTcg !== tcg) { b.style.background = 'var(--danger)'; b.style.color = 'var(--bg)'; }
       });
       b.addEventListener('mouseout', function() {
-        if (_delConfirmTcg !== tcg) { b.style.background = 'transparent'; b.style.color = '#EF4444'; }
+        if (_delConfirmTcg !== tcg) { b.style.background = 'transparent'; b.style.color = 'var(--danger)'; }
       });
       b.addEventListener('click', function() {
         if (_delConfirmTimer) clearTimeout(_delConfirmTimer);
@@ -1801,22 +1857,22 @@ function buildDynamicUI(registry) {
             .then(function(r) { return r.json(); }).then(function(d) {
               b.disabled = false;
               b.textContent = 'Delete ' + e[1].name;
-              b.style.background = 'transparent'; b.style.color = '#EF4444';
+              b.style.background = 'transparent'; b.style.color = 'var(--danger)';
               if (d.ok) { showToast(e[1].name + ' library deleted'); loadStorage(); }
               else showToast(d.error || 'Delete failed');
             }).catch(function() {
               b.disabled = false;
               b.textContent = 'Delete ' + e[1].name;
-              b.style.background = 'transparent'; b.style.color = '#EF4444';
+              b.style.background = 'transparent'; b.style.color = 'var(--danger)';
               showToast('Delete failed');
             });
         } else {
           _delConfirmTcg = tcg;
-          b.style.background = '#EF4444'; b.style.color = '#010001';
+          b.style.background = 'var(--danger)'; b.style.color = 'var(--bg)';
           b.textContent = 'Confirm Delete?';
           _delConfirmTimer = setTimeout(function() {
             b.textContent = 'Delete ' + e[1].name;
-            b.style.background = 'transparent'; b.style.color = '#EF4444';
+            b.style.background = 'transparent'; b.style.color = 'var(--danger)';
             _delConfirmTcg = null;
           }, 4000);
         }

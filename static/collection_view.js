@@ -4,7 +4,7 @@
     '.grid-thumb-wrap{position:relative;width:100%;cursor:pointer;text-align:center;min-width:0;}',
     '.grid-thumb{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:6px;border:2px solid var(--border);display:block;transition:border-color 0.15s;}',
     '.grid-thumb.owned{border-color:var(--accent2);}',
-    '.grid-check{display:none;position:absolute;top:3px;right:3px;background:var(--accent2);color:#010001;border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-size:11px;font-weight:bold;}',
+    '.grid-check{display:none;position:absolute;top:3px;right:3px;background:var(--accent2);color:var(--bg);border-radius:50%;width:18px;height:18px;align-items:center;justify-content:center;font-size:11px;font-weight:bold;}',
     '.grid-check.show{display:flex;}',
     '.grid-label{font-size:9px;color:var(--text-dim);text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:100%;}',
   ].join('');
@@ -75,6 +75,8 @@
     var previewImg = document.getElementById('preview-img');
     var previewModal = document.getElementById('preview-modal');
     if (!previewModal || !previewImg) return;
+    previewImg.style.opacity = '0';
+    previewImg.onload = function() { this.style.opacity = '1'; };
     previewImg.src = src;
     var previewName = document.getElementById('preview-name');
     if (previewName) previewName.textContent = label || '';
@@ -98,6 +100,7 @@
         var cardId = match[1];
         var isOwned = cb.checked;
         var src = '/api/card_image/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(cardId);
+        var thumbSrc = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(cardId);
         var rarityEl = row.querySelector('.card-rarity');
         var rarity = rarityEl ? rarityEl.textContent : '';
         var wrap = document.createElement('div');
@@ -106,7 +109,8 @@
         var img = document.createElement('img');
         img.className = 'grid-thumb' + (isOwned ? ' owned' : '');
         img.id = 'gthumb-' + cardId;
-        img.src = src;
+        img.loading = 'lazy';
+        img.src = thumbSrc;
         img.dataset.src = src;
         img.onerror = function() { this.style.opacity = '0.2'; };
         // _wasScrollTouch tracks if the last touch was a scroll so we can suppress the browser's

@@ -20,6 +20,14 @@ import time
 import threading
 from flask import Flask, request, jsonify, send_file, redirect
 import wifi_manager
+try:
+    from PIL import Image as _PIL_Image
+    _PIL_OK = True
+except ImportError:
+    _PIL_OK = False
+
+THUMB_CACHE_DIR = '/home/pi/inkslab_thumbcache'
+THUMB_SIZE = (300, 450)  # max width x height (2:3 aspect)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB upload limit
@@ -62,6 +70,7 @@ DEFAULTS = {
     "auto_update_sources": [],
     "auto_update_day": 0,
     "slab_header_mode": "normal",
+    "thumbnail_cache": False,
 }
 
 # Track running download process
@@ -451,6 +460,106 @@ def api_card_image(tcg, set_id, card_id):
             resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
             return resp
     return '', 404
+
+
+@app.route('/api/card_thumbnail/<tcg>/<set_id>/<card_id>')
+def api_card_thumbnail(tcg, set_id, card_id):
+    """Serve a small cached JPEG thumbnail for grid views."""
+    library = TCG_LIBRARIES.get(tcg)
+    if not library:
+        return '', 404
+    safe_set = os.path.basename(set_id)
+    safe_card = os.path.basename(card_id)
+    card_path = None
+    for ext in IMAGE_EXTENSIONS:
+        p = os.path.join(library, safe_set, safe_card + ext)
+        if os.path.exists(p):
+            card_path = p
+            break
+    if not card_path:
+        return '', 404
+
+    thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, safe_set, safe_card + '.jpg')
+
+    # Always serve existing thumbnail if on disk (regardless of toggle)
+    if os.path.exists(thumb_path):
+        resp = send_file(thumb_path, mimetype='image/jpeg')
+        resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        return resp
+
+    # No cached thumbnail — generate if toggle is on and PIL is available
+    if _PIL_OK and load_config().get('thumbnail_cache', False):
+        try:
+            os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
+            img = _PIL_Image.open(card_path).convert('RGB')
+            img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
+            img.save(thumb_path, 'JPEG', quality=72, optimize=True)
+            resp = send_file(thumb_path, mimetype='image/jpeg')
+            resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return resp
+        except Exception:
+            pass
+
+    # Fallback: full image — no-cache so browser retries next time
+    mime = 'image/png' if card_path.lower().endswith('.png') else 'image/jpeg'
+    resp = send_file(card_path, mimetype=mime)
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return resp
+
+
+_precache_state = {'running': False, 'done': 0, 'total': 0}
+_precache_lock = threading.Lock()
+
+
+@app.route('/api/thumbnails/prebuild', methods=['POST'])
+def api_thumbnails_prebuild():
+    with _precache_lock:
+        if _precache_state['running']:
+            return jsonify({'ok': False, 'error': 'Already running'})
+        _precache_state.update({'running': True, 'done': 0, 'total': 0})
+
+    def _run():
+        try:
+            jobs = []
+            for tcg, lib in TCG_LIBRARIES.items():
+                if not os.path.exists(lib):
+                    continue
+                for set_id in os.listdir(lib):
+                    set_path = os.path.join(lib, set_id)
+                    if not os.path.isdir(set_path):
+                        continue
+                    for fname in os.listdir(set_path):
+                        if _is_card_image(fname):
+                            card_id = os.path.splitext(fname)[0]
+                            jobs.append((tcg, set_id, card_id, os.path.join(set_path, fname)))
+            with _precache_lock:
+                _precache_state['total'] = len(jobs)
+            for i, (tcg, set_id, card_id, card_path) in enumerate(jobs):
+                thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, set_id, card_id + '.jpg')
+                if not os.path.exists(thumb_path) and _PIL_OK:
+                    try:
+                        os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
+                        img = _PIL_Image.open(card_path).convert('RGB')
+                        img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
+                        img.save(thumb_path, 'JPEG', quality=72, optimize=True)
+                    except Exception:
+                        pass
+                with _precache_lock:
+                    _precache_state['done'] = i + 1
+                time.sleep(0.15)  # throttle to stay cool
+        finally:
+            with _precache_lock:
+                _precache_state['running'] = False
+            _cache_invalidate('storage')
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/thumbnails/progress')
+def api_thumbnails_progress():
+    with _precache_lock:
+        return jsonify(dict(_precache_state))
 
 
 @app.route('/api/tcg_list')
@@ -1377,6 +1486,29 @@ def _compute_storage():
         else:
             info[tcg] = {"path": path, "size_mb": 0, "size_gb": 0.0,
                          "card_count": 0, "set_count": 0}
+    # Image thumbnail cache size + count
+    thumb_size = 0
+    thumb_count = 0
+    if os.path.exists(THUMB_CACHE_DIR):
+        try:
+            result = subprocess.run(['du', '-sb', THUMB_CACHE_DIR],
+                                    capture_output=True, text=True, timeout=30)
+            if result.returncode == 0 and result.stdout.strip():
+                thumb_size = int(result.stdout.split()[0])
+        except Exception:
+            pass
+        try:
+            for root, dirs, files in os.walk(THUMB_CACHE_DIR):
+                thumb_count += sum(1 for f in files if f.endswith('.jpg'))
+        except Exception:
+            pass
+    total_cards = sum(v.get('card_count', 0) for v in info.values())
+    info['_thumbcache'] = {
+        'size_mb': round(thumb_size / (1024 * 1024), 1),
+        'cached': thumb_count,
+        'total': total_cards,
+    }
+
     try:
         usage = shutil.disk_usage('/home/pi')
         info['_disk'] = {
@@ -2336,7 +2468,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <h3>Display Settings</h3>
     <div class="settings-display-grid">
     <div class="form-row">
-      <span class="row-label">Active TCG</span>
+      <span class="row-label">Active Collection</span>
       <select id="cfg-tcg"></select>
     </div>
     <div class="form-row">
@@ -2371,8 +2503,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <span class="row-label">Color Saturation</span>
       <input type="number" id="cfg-saturation" min="0.5" max="5.0" step="0.1" value="2.5">
     </div>
-    </div><!-- end settings-display-grid -->
-    <hr class="settings-divider" style="margin:12px 0">
     <div class="form-row">
       <span class="row-label">UI Theme</span>
       <select id="cfg-theme" onchange="saveTheme(this.value)">
@@ -2386,7 +2516,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <option value="custom">Custom (Amber)</option>
       </select>
     </div>
-    <div style="margin-top:14px">
+    <div class="form-row">
+      <span class="row-label">Collection Image Caching</span>
+      <label class="switch">
+        <input type="checkbox" id="cfg-thumbnails">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+    </div><!-- end settings-display-grid -->
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:var(--text-dim);">Pre-generate collection image cache in background (throttled to stay cool)</span>
+        <button class="btn btn-secondary btn-sm" id="btn-precache" onclick="startPrecache()">Pre-cache</button>
+      </div>
+      <div id="precache-status" style="font-size:11px;color:var(--text-dim);margin-top:6px;display:none;"></div>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
     </div>
   </div>
@@ -2428,17 +2573,17 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
   </div>
-  <div class="card" id="admin-panel" style="display:none;border:1px solid #ff6b6b33">
-    <h3 style="color:#ff6b6b">Prepare for New Owner</h3>
+  <div class="card" id="admin-panel" style="display:none;border:1px solid var(--danger)">
+    <h3 style="color:var(--danger)">Prepare for New Owner</h3>
     <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
-    <div style="margin-bottom:12px;font-size:12px;color:#D8E6E4;">Keep these card libraries:<br>
+    <div style="margin-bottom:12px;font-size:12px;color:var(--text);">Keep these card libraries:<br>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-pokemon" checked> Pokemon</label>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-mtg" checked> Magic: The Gathering</label>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-lorcana" checked> Disney Lorcana</label>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-manga" checked> Manga</label>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-comics" checked> Comics</label>
     </div>
-    <button class="btn btn-block" style="background:#ff6b6b;color:#010001;font-weight:600" onclick="factoryReset(this)">Prepare for New Owner</button>
+    <button class="btn btn-block" style="background:var(--danger);color:var(--bg);font-weight:600" onclick="factoryReset(this)">Prepare for New Owner</button>
   </div>
 </div>
 
@@ -2495,50 +2640,50 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="card">
     <h3>Downloads</h3>
     <div id="dl-buttons"></div>
-    <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
+    <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
         <button onclick="lorcanaSearch()"
-          style="padding:8px 14px;background:#C084FC;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#C084FC;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="lorcana-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
+      <div id="lorcana-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
+    <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
         <button onclick="mtgSetSearch()"
-          style="padding:8px 14px;background:#6BCCBD;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#6BCCBD;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="mtg-set-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
+      <div id="mtg-set-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
+    <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
         <button onclick="pokemonSearch()"
-          style="padding:8px 14px;background:#36A5CA;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#36A5CA;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="pokemon-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
+      <div id="pokemon-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
+    <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
         <button onclick="mangaSearch()"
-          style="padding:8px 14px;background:#F472B6;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#F472B6;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="manga-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
+      <div id="manga-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
     </div>
-    <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid #1F333F;">
+    <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid #333;background:#1a2a35;color:#fff;font-size:14px;">
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
         <button onclick="comicSearch()"
-          style="padding:8px 14px;background:#F97316;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+          style="padding:8px 14px;background:#F97316;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
       </div>
-      <div id="comics-search-results" style="display:none;border:1px solid #333;border-radius:6px;margin-bottom:8px;"></div>
+      <div id="comics-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
     </div>
   </div>
 
@@ -2547,7 +2692,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:#EF4444;color:#010001;border:none;">Stop</button>
+        <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:var(--danger);color:var(--bg);border:none;">Stop</button>
         <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
       </div>
     </div>
