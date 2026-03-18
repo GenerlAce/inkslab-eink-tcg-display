@@ -1007,7 +1007,7 @@ function loadSets() {
   fetch(API + '/api/sets?tcg=' + encodeURIComponent(tcg)).then(r => r.json()).then(sets => {
     _cache.sets[tcg] = sets;
     try { localStorage.setItem('inkslab_sets_' + tcg, JSON.stringify(sets)); } catch(e) {}
-    renderSets(el, sets, tcg);
+    if (tcg === getEffectiveBrowseTcg()) renderSets(el, sets, tcg);
   }).catch(function() {
     if (!_cache.sets[tcg]) el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Failed to load sets</div>';
   });
@@ -1387,7 +1387,8 @@ function loadStorage() {
     var tcgTotalGb = 0;
     tcgEntries.forEach(function(e) { tcgTotalGb += (e[1].size_gb || 0); });
     var usedGb = Math.round((totalGb - freeGb) * 100) / 100;
-    var otherGb = Math.max(0, Math.round((usedGb - tcgTotalGb) * 100) / 100);
+    var thumbGb = (info._thumbcache && info._thumbcache.size_mb > 0) ? Math.round(info._thumbcache.size_mb / 1024 * 1000) / 1000 : 0;
+    var otherGb = Math.max(0, Math.round((usedGb - tcgTotalGb - thumbGb) * 100) / 100);
     var otherPct = (otherGb / totalGb * 100);
     var freePct = (freeGb / totalGb * 100);
     var html = '<div class="storage-bar-wrap">';
@@ -1401,6 +1402,7 @@ function loadStorage() {
       var color = (_tcgRegistry[tcg] && _tcgRegistry[tcg].color) || '#888';
       html += '<div class="storage-seg" style="width:' + pct.toFixed(1) + '%;background:' + color + '">' + (pct > 8 ? fmtSizeShort(gb, d.size_mb || 0) : '') + '</div>';
     });
+    if (thumbGb > 0) { var thumbPct = Math.max(thumbGb / totalGb * 100, 1.5); html += '<div class="storage-seg" style="width:' + thumbPct.toFixed(1) + '%;background:#8B5CF6">' + (thumbPct > 8 ? (info._thumbcache.size_mb + 'M') : '') + '</div>'; }
     if (otherPct > 0.5) html += '<div class="storage-seg seg-other" style="width:' + otherPct.toFixed(1) + '%">' + (otherPct > 8 ? otherGb.toFixed(1) + 'G' : '') + '</div>';
     html += '<div class="storage-seg seg-free" style="width:' + Math.max(freePct, 1).toFixed(1) + '%">' + (freePct > 12 ? freeGb.toFixed(1) + 'G' : '') + '</div>';
     html += '</div>';
@@ -1411,6 +1413,7 @@ function loadStorage() {
       var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
       html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:' + color + '"></span>' + name + '</div>';
     });
+    if (thumbGb > 0) html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#8B5CF6"></span>Image Cache</div>';
     html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:#E8786B"></span>System</div>';
     html += '<div class="storage-legend-item"><span class="storage-legend-dot" style="background:var(--bg-input);border:1px solid var(--border-hi)"></span>Free</div>';
     html += '</div></div>';
