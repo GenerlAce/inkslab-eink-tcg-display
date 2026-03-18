@@ -328,6 +328,13 @@ def api_set_config():
                 f.write('1')
         except OSError:
             pass
+    # Start or stop background thumbnail caching when the toggle changes
+    if 'thumbnail_cache' in changed:
+        if config.get('thumbnail_cache'):
+            _start_precache_thread()
+        else:
+            with _precache_lock:
+                _precache_state['stop'] = True
     # collection_only and interval/timing changes take effect on next natural card advance
     return jsonify(config)
 
@@ -507,16 +514,16 @@ def api_card_thumbnail(tcg, set_id, card_id):
     return resp
 
 
-_precache_state = {'running': False, 'done': 0, 'total': 0}
+_precache_state = {'running': False, 'done': 0, 'total': 0, 'stop': False}
 _precache_lock = threading.Lock()
 
 
-@app.route('/api/thumbnails/prebuild', methods=['POST'])
-def api_thumbnails_prebuild():
+def _start_precache_thread():
+    """Start background thumbnail generation if not already running."""
     with _precache_lock:
         if _precache_state['running']:
-            return jsonify({'ok': False, 'error': 'Already running'})
-        _precache_state.update({'running': True, 'done': 0, 'total': 0})
+            return
+        _precache_state.update({'running': True, 'done': 0, 'total': 0, 'stop': False})
 
     def _run():
         try:
@@ -535,25 +542,30 @@ def api_thumbnails_prebuild():
             with _precache_lock:
                 _precache_state['total'] = len(jobs)
             for i, (tcg, set_id, card_id, card_path) in enumerate(jobs):
+                with _precache_lock:
+                    if _precache_state.get('stop'):
+                        break
                 thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, set_id, card_id + '.jpg')
+                generated = False
                 if not os.path.exists(thumb_path) and _PIL_OK:
                     try:
                         os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
                         img = _PIL_Image.open(card_path).convert('RGB')
                         img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
                         img.save(thumb_path, 'JPEG', quality=72, optimize=True)
+                        generated = True
                     except Exception:
                         pass
                 with _precache_lock:
                     _precache_state['done'] = i + 1
-                time.sleep(0.15)  # throttle to stay cool
+                if generated:
+                    time.sleep(3.0)  # slow & safe — fine to run while display is cycling
         finally:
             with _precache_lock:
                 _precache_state['running'] = False
             _cache_invalidate('storage')
 
     threading.Thread(target=_run, daemon=True).start()
-    return jsonify({'ok': True})
 
 
 @app.route('/api/thumbnails/progress')
@@ -2523,14 +2535,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <span class="switch-slider"></span>
       </label>
     </div>
+    <div id="precache-status" style="font-size:11px;color:var(--text-dim);margin-top:2px;display:none;padding-left:2px;"></div>
     </div><!-- end settings-display-grid -->
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <span style="font-size:12px;color:var(--text-dim);">Pre-generate collection image cache in background (throttled to stay cool)</span>
-        <button class="btn btn-secondary btn-sm" id="btn-precache" onclick="startPrecache()">Pre-cache</button>
-      </div>
-      <div id="precache-status" style="font-size:11px;color:var(--text-dim);margin-top:6px;display:none;"></div>
-    </div>
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
     </div>
@@ -2891,6 +2897,10 @@ if __name__ == '__main__':
     import threading as _threading
     _auto_update_thread = _threading.Thread(target=_run_auto_updates, daemon=True)
     _auto_update_thread.start()
+
+    # Auto-start thumbnail background caching if toggle was on before restart
+    if load_config().get('thumbnail_cache'):
+        _start_precache_thread()
 
     # Pre-warm storage cache so Downloads tab loads instantly on first visit
     _trigger_storage_recompute()

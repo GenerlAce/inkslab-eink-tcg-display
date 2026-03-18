@@ -105,7 +105,7 @@ function showTab(name) {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
 }
@@ -828,26 +828,33 @@ function loadSettings() {
   });
 }
 
-function startPrecache() {
-  fetch(API + '/api/thumbnails/prebuild', {method: 'POST'}).then(r => r.json()).then(function(d) {
-    if (!d.ok) { showToast(d.error || 'Already running', 2000); return; }
-    showToast('Pre-caching started...', 2000);
-    var statusEl = document.getElementById('precache-status');
-    var btn = document.getElementById('btn-precache');
-    if (statusEl) statusEl.style.display = 'block';
-    if (btn) btn.disabled = true;
-    var poll = setInterval(function() {
-      fetch(API + '/api/thumbnails/progress').then(r => r.json()).then(function(p) {
-        if (statusEl) statusEl.textContent = p.done + ' / ' + p.total + ' thumbnails generated';
-        if (!p.running) {
-          clearInterval(poll);
-          if (btn) btn.disabled = false;
-          if (statusEl) statusEl.textContent = 'Done — ' + p.done + ' thumbnails cached';
-          showToast('Thumbnail pre-cache complete!', 3000);
-        }
-      });
-    }, 3000);
-  }).catch(function() { showToast('Failed to start pre-cache'); });
+var _precachePoll = null;
+function _updatePrecacheStatus(p) {
+  var statusEl = document.getElementById('precache-status');
+  if (!statusEl) return;
+  if (p.running) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = p.done + ' / ' + p.total + ' thumbnails cached';
+  } else if (p.done > 0) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = p.done + ' thumbnails cached';
+  } else {
+    statusEl.style.display = 'none';
+  }
+}
+
+function initPrecacheStatus() {
+  fetch(API + '/api/thumbnails/progress').then(r => r.json()).then(function(p) {
+    _updatePrecacheStatus(p);
+    if (p.running && !_precachePoll) {
+      _precachePoll = setInterval(function() {
+        fetch(API + '/api/thumbnails/progress').then(r => r.json()).then(function(p) {
+          _updatePrecacheStatus(p);
+          if (!p.running) { clearInterval(_precachePoll); _precachePoll = null; }
+        }).catch(function() {});
+      }, 5000);
+    }
+  }).catch(function() {});
 }
 
 function saveSettings() {
