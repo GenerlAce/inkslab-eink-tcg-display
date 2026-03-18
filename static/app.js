@@ -962,7 +962,7 @@ function toggleSet(setId) {
   el.classList.add('open');
   if (el.dataset.loaded) return;
   el.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:12px">Loading...</div>';
-  fetch(API + '/api/sets/' + setId + '/cards').then(r => r.json()).then(cards => {
+  fetch(API + '/api/sets/' + setId + '/cards?tcg=' + encodeURIComponent(getEffectiveBrowseTcg())).then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
     // Extract unique rarities for chips
     var rarities = [];
@@ -1526,17 +1526,18 @@ function checkUpdateStatus() {
 }
 
 // --- Custom Images ---
-function loadCustomFolders() {
+function loadCustomFolders(cb) {
   fetch(API + '/api/custom/folders').then(r => r.json()).then(folders => {
     var el = document.getElementById('custom-folders');
     if (!el) return;
-    if (!folders.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:12px">No custom folders yet. Create one above.</div>'; return; }
+    if (!folders.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:12px">No custom folders yet. Create one above.</div>'; if (cb) cb(); return; }
     el.innerHTML = folders.map(f => {
       return '<div class="set-item"><div class="set-header" onclick="toggleCustomFolder(\'' + esc(f.id) + '\')">'
         + '<span><span class="set-name">' + esc(f.name) + '</span></span>'
         + '<span class="set-meta">' + f.card_count + ' cards</span>'
         + '</div><div class="set-cards" id="cf-' + esc(f.id) + '"></div></div>';
     }).join('');
+    if (cb) cb();
   }).catch(function() { showToast('Failed to load custom folders'); });
 }
 
@@ -1605,8 +1606,7 @@ function uploadCustomCards(folderId, files) {
       done++;
       if (done >= files.length) {
         showToast('Uploaded ' + done + ' file(s)');
-        refreshCustomFolder(folderId);
-        loadCustomFolders();
+        loadCustomFolders(function() { refreshCustomFolder(folderId); });
       }
     }).catch(function() { showToast('Upload failed'); });
   });
@@ -1799,10 +1799,14 @@ function buildDynamicUI(registry) {
 
 // --- Init ---
 (function() {
-  // Load TCG registry first, then build UI
-  fetch(API + '/api/tcg_list').then(r => r.json()).then(function(registry) {
+  // Fetch registry and status in parallel so _lastStatus is ready before showing collection tab
+  Promise.all([
+    fetch(API + '/api/tcg_list').then(r => r.json()),
+    fetch(API + '/api/status').then(r => r.json()),
+  ]).then(function(results) {
+    var registry = results[0], status = results[1];
+    _lastStatus = status;
     buildDynamicUI(registry);
-    // Now do everything else
     const saved = localStorage.getItem('inkslab_tab');
     if (saved && document.getElementById('tab-' + saved)) {
       showTab(saved);
@@ -1832,7 +1836,7 @@ function buildDynamicUI(registry) {
       else el.textContent = 'Click below to check for updates.';
     }).catch(() => { document.getElementById('update-info').textContent = 'Click below to check for updates.'; });
   }).catch(function() {
-    // Fallback if tcg_list fails
+    // Fallback if either fetch fails
     refreshStatus();
     startMainPoll();
     startCountdown();
