@@ -48,14 +48,14 @@ body {
 .status-pill .pill-logo {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text-hi);
+  color: var(--accent);
   letter-spacing: 1px;
 }
 .status-pill .pill-info {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-hi);
+  color: var(--accent);
   font-weight: 700;
 }
 .status-dot { display: none; }
@@ -92,6 +92,7 @@ body {
   display: flex;
   z-index: 50;
   padding-bottom: env(safe-area-inset-bottom);
+  overflow: visible;
 }
 .nav-item {
   flex: 1;
@@ -103,13 +104,27 @@ body {
   cursor: pointer;
   color: var(--text-dim);
   opacity: 0.55;
-  transition: all 0.2s;
+  transition: all 0.25s;
   -webkit-tap-highlight-color: transparent;
   padding-bottom: 2px;
+  position: relative;
 }
 .nav-item.active {
   color: var(--accent);
   opacity: 1;
+  transform: translateY(-10px);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  bottom: -12px;
+  left: -14px;
+  right: -14px;
+  background: var(--bg-panel);
+  border-radius: 50px 50px 0 0;
+  border-top: 1px solid var(--border);
+  z-index: -1;
 }
 .nav-icon {
   font-size: 20px;
@@ -472,7 +487,10 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-results { max-height: 400px; overflow-y: auto; }
 #custom-folders { max-height: 200px; overflow-y: auto; }
 .tcg-browse-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.tcg-browse-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid; transition: background 0.15s, color 0.15s; white-space: nowrap; }
+.tcg-browse-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid; transition: background 0.15s, color 0.15s; white-space: nowrap; text-align: center; }
+@media (max-width: 599px) {
+  .tcg-browse-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+}
 /* Download search result panels — cap height so list doesn't fill the screen */
 #lorcana-search-results, #mtg-set-search-results, #pokemon-search-results,
 #manga-search-results, #comics-search-results {

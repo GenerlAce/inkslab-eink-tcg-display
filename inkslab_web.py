@@ -2591,9 +2591,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="tab-collection" class="panel">
   <div class="two-col-cards">
     <div class="card">
-      <h3>My Collection</h3>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Mark cards as owned to build your collection. Enable <strong>Collection Only Mode</strong> to display only your owned cards.</p>
-      <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div>
+          <h3 style="margin-bottom:4px">My Collection</h3>
+          <p style="color:var(--text-dim);font-size:12px;margin:0">Mark cards as owned to build your collection. Enable <strong>Collection Only Mode</strong> to display only your owned cards.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="clearCollection()" style="flex-shrink:0">Clear All</button>
+      </div>
     </div>
     <div class="card collection-only-card">
       <h3>Collection Only Mode</h3>
