@@ -32,10 +32,15 @@
         if (n <= 0) badge.remove(); else badge.textContent = n;
       }
     }
-    fetch('/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: cardId, owned: nowOwned})});
+    var tcg = window.getEffectiveBrowseTcg ? window.getEffectiveBrowseTcg() : ((window._lastStatus && window._lastStatus.tcg) || 'pokemon');
+    fetch('/api/collection/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_id: cardId, owned: nowOwned, tcg: tcg})});
   };
 
   function getTcg(callback) {
+    if (window.getEffectiveBrowseTcg) {
+      callback(window.getEffectiveBrowseTcg());
+      return;
+    }
     if (window._lastStatus && window._lastStatus.tcg) {
       callback(window._lastStatus.tcg);
       return;

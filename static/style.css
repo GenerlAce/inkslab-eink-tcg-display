@@ -328,7 +328,7 @@ body {
 /* === BUTTONS === */
 .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
 .btn-primary { background: var(--accent); color: var(--text-hi); }
-.btn-primary:hover { background: #2b8aaa; }
+.btn-primary:hover { filter: brightness(1.15); }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border-hi); }
 .btn-secondary:hover { background: var(--bg-card); }
 .btn-danger { background: var(--danger); color: #fff; }
@@ -336,7 +336,7 @@ body {
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 .btn-block { display: block; width: 100%; text-align: center; }
 .btn:active { transform: scale(0.95); }
-.btn-primary:active { background: #1e7a99; }
+.btn-primary:active { filter: brightness(0.9); }
 .btn-secondary:active { background: var(--accent); color: var(--text-hi); }
 .btn-danger:active { background: #6b1515; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -467,6 +467,9 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-wrap input:focus { outline: none; border-color: var(--accent); }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none; }
 .search-results { max-height: 400px; overflow-y: auto; }
+#custom-folders { max-height: 200px; overflow-y: auto; }
+.tcg-browse-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tcg-browse-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid; transition: background 0.15s, color 0.15s; white-space: nowrap; }
 /* Download search result panels — cap height so list doesn't fill the screen */
 #lorcana-search-results, #mtg-set-search-results, #pokemon-search-results,
 #manga-search-results, #comics-search-results {

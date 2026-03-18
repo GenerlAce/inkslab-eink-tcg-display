@@ -649,8 +649,9 @@ def api_collection_toggle_set():
 
 @app.route('/api/collection/clear', methods=['POST'])
 def api_collection_clear():
+    data = request.get_json(force=True) if request.data else {}
     config = load_config()
-    tcg = config["active_tcg"]
+    tcg = data.get("tcg", config["active_tcg"])
     with _collection_lock:
         collection = load_collection()
         collection[tcg] = []
@@ -2455,13 +2456,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="card">
     <h3>Search Cards</h3>
     <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Find a card by name and add all versions to your collection.</p>
+    <div id="tcg-browse-pills" class="tcg-browse-row"></div>
     <div id="search-filters" class="search-filters" style="display:none"></div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
       <input type="text" id="search-input" placeholder="Search by card name..." oninput="debounceSearch()">
       <button id="search-clear" class="search-clear-btn" onclick="clearSearch()" style="display:none">&#10005;</button>
     </div>
-    <div id="search-results"></div>
+    <div id="search-results" class="search-results"></div>
   </div>
   <div class="card" style="margin-bottom:16px;">
     <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Add to Collection by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:var(--text-dim);">▼ Show</span></h3>

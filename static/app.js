@@ -123,7 +123,29 @@ function showToast(msg, duration) {
 }
 
 // --- Tab data cache (instant re-render on tab switch) ---
-var _cache = {sets: null, rarities: null, autoUpdate: null};
+var _cache = {sets: {}, rarities: {}, autoUpdate: null};
+var _browseTcg = null;
+function getEffectiveBrowseTcg() {
+  return _browseTcg || (_lastStatus && _lastStatus.tcg) || 'pokemon';
+}
+function updateBrowsePills(activeTcg) {
+  document.querySelectorAll('.tcg-browse-pill').forEach(function(p) {
+    var isActive = p.dataset.tcg === activeTcg;
+    p.style.background = isActive ? p.dataset.color : 'transparent';
+    p.style.color = isActive ? '#010001' : p.dataset.color;
+  });
+}
+function setBrowseTcg(tcg) {
+  _browseTcg = tcg;
+  updateBrowsePills(tcg || (_lastStatus && _lastStatus.tcg) || '');
+  _cache.sets = {}; _cache.rarities = {};
+  loadSets(); loadRarities();
+  document.getElementById('search-results').innerHTML = '';
+  var inp = document.getElementById('search-input');
+  if (inp) inp.value = '';
+  var cb = document.getElementById('search-clear');
+  if (cb) cb.style.display = 'none';
+}
 
 // --- Display ---
 var _lastStatus = {};
@@ -472,6 +494,7 @@ function refreshStatus() {
     document.getElementById('st-tcg').textContent = (d.tcg || '\u2014').toUpperCase();
     updatePillTcg(d.tcg);
     updateQuickSwitchActive(d.tcg || '');
+    if (!_browseTcg) updateBrowsePills(d.tcg);
     var collOnly = !!d.collection_only;
     updatePillStyle(collOnly);
     var collCb = document.getElementById('cfg-collection');
@@ -860,18 +883,18 @@ function changeWifi() {
 
 // --- Collection ---
 var _deleteConfirmId = null;
-function deleteSeriesStep(setId, name) {
+function deleteSeriesStep(setId, name, tcg) {
   var btn = document.getElementById('delbtn-' + setId);
   if (!btn) return;
   if (_deleteConfirmId === setId) {
     // Second click - confirm delete
-    var tcg = _lastStatus.tcg || '';
+    var tcg = tcg || getEffectiveBrowseTcg();
     fetch(API + '/api/delete_series', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg, set_id: setId})})
       .then(r => r.json()).then(function(d) {
         if (d.ok) {
           showToast('Deleted: ' + name, 2000);
           _deleteConfirmId = null;
-          _cache.sets = null;
+          _cache.sets = {};
           loadSets();
         } else {
           showToast('Error: ' + (d.error || 'Unknown'), 3000);
@@ -902,20 +925,21 @@ function deleteSeriesStep(setId, name) {
 function loadSets() {
   var el = document.getElementById('sets-list');
   if (!el) return;
-  if (_cache.sets) {
-    renderSets(el, _cache.sets);
+  var tcg = getEffectiveBrowseTcg();
+  if (_cache.sets[tcg]) {
+    renderSets(el, _cache.sets[tcg], tcg);
   } else {
     el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
   }
-  fetch(API + '/api/sets').then(r => r.json()).then(sets => {
-    _cache.sets = sets;
-    renderSets(el, sets);
+  fetch(API + '/api/sets?tcg=' + encodeURIComponent(tcg)).then(r => r.json()).then(sets => {
+    _cache.sets[tcg] = sets;
+    renderSets(el, sets, tcg);
   }).catch(function() {
-    if (!_cache.sets) el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Failed to load sets</div>';
+    if (!_cache.sets[tcg]) el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Failed to load sets</div>';
   });
 }
 
-function renderSets(el, sets) {
+function renderSets(el, sets, tcg) {
   if (!sets.length) { el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">No cards downloaded yet.</div>'; return; }
   sets = sets.slice().sort((a, b) => a.name.localeCompare(b.name));
   el.innerHTML = sets.map(s => `
@@ -925,7 +949,7 @@ function renderSets(el, sets) {
           <span class="set-name">${esc(s.name)}</span>
           ${s.owned_count > 0 ? '<span class="badge">' + s.owned_count + '</span>' : ''}
         </span>
-        <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name)" style="padding:2px 8px;border:none;border-radius:4px;background:var(--bg-input);color:var(--text-dim);font-size:11px;cursor:pointer;">Delete</button></span>
+        <span style="display:flex;align-items:center;gap:8px;"><span class="set-meta">${esc(s.year)} &middot; ${s.card_count} cards</span><button id="delbtn-${esc(s.id)}" data-id="${esc(s.id)}" data-name="${esc(s.name)}" data-tcg="${esc(tcg||'')}" onclick="event.stopPropagation();deleteSeriesStep(this.dataset.id,this.dataset.name,this.dataset.tcg)" style="padding:2px 8px;border:none;border-radius:4px;background:var(--bg-input);color:var(--text-dim);font-size:11px;cursor:pointer;">Delete</button></span>
       </div>
       <div class="set-cards" id="set-${esc(s.id)}"></div>
     </div>
@@ -989,11 +1013,11 @@ function toggleCard(cardId, el) {
       }
     }
   }
-  fetch(API + '/api/collection/toggle', {method:'POST', body: JSON.stringify({card_id: cardId, owned: owned})});
+  fetch(API + '/api/collection/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({card_id: cardId, owned: owned, tcg: getEffectiveBrowseTcg()})});
 }
 
 function toggleSetAll(setId, owned) {
-  fetch(API + '/api/collection/toggle_set', {method:'POST', body: JSON.stringify({set_id: setId, owned: owned})})
+  fetch(API + '/api/collection/toggle_set', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({set_id: setId, owned: owned, tcg: getEffectiveBrowseTcg()})})
     .then(() => {
       const el = document.getElementById('set-' + setId);
       // Update list view checkboxes
@@ -1024,9 +1048,11 @@ function toggleSetAll(setId, owned) {
 }
 
 function clearCollection() {
-  if (!confirm('Clear your entire collection for the active TCG?')) return;
-  fetch(API + '/api/collection/clear', {method:'POST'}).then(() => {
-    _cache.sets = null; _cache.rarities = null;
+  var tcg = getEffectiveBrowseTcg();
+  var tcgName = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
+  if (!confirm('Clear your entire ' + tcgName + ' collection?')) return;
+  fetch(API + '/api/collection/clear', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg})}).then(() => {
+    _cache.sets = {}; _cache.rarities = {};
     loadSets(); loadRarities();
   }).catch(function() { showToast('Failed to clear collection'); });
 }
@@ -1050,9 +1076,10 @@ function toggleRarityFilter() {
 function loadRarities() {
   var raritySection = document.getElementById('rarity-chips') && document.getElementById('rarity-chips').closest('.card');
   if (raritySection) raritySection.style.display = '';
-  if (_cache.rarities) { _rarityData = _cache.rarities; renderRarityChips(); }
-  fetch(API + '/api/rarities').then(function(r) { return r.json(); }).then(function(rarities) {
-    _cache.rarities = rarities;
+  var tcg = getEffectiveBrowseTcg();
+  if (_cache.rarities[tcg]) { _rarityData = _cache.rarities[tcg]; renderRarityChips(); }
+  fetch(API + '/api/rarities?tcg=' + encodeURIComponent(tcg)).then(function(r) { return r.json(); }).then(function(rarities) {
+    _cache.rarities[tcg] = rarities;
     _rarityData = rarities;
     renderRarityChips();
   }).catch(function() {});
@@ -1076,7 +1103,7 @@ function toggleRarityChip(chipEl, rarity, owned) {
   var resultEl = document.getElementById('rarity-result');
   resultEl.textContent = (owned ? 'Selecting' : 'Deselecting') + ' all ' + rarity + '...';
   chipEl.style.opacity = '0.5';
-  fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rarity: rarity, owned: owned})})
+  fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rarity: rarity, owned: owned, tcg: getEffectiveBrowseTcg()})})
     .then(function(r) { return r.json(); }).then(function(d) {
       resultEl.textContent = (owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' ' + rarity + ' cards';
       showToast((owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' cards');
@@ -1090,7 +1117,7 @@ function toggleRarityChip(chipEl, rarity, owned) {
 function selectAllRarities(owned) {
   var resultEl = document.getElementById('rarity-result');
   resultEl.textContent = (owned ? 'Selecting' : 'Deselecting') + ' all...';
-  fetch(API + '/api/collection/toggle_all', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({owned: owned})})
+  fetch(API + '/api/collection/toggle_all', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({owned: owned, tcg: getEffectiveBrowseTcg()})})
     .then(function(r) { return r.json(); }).then(function(d) {
       resultEl.textContent = (owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' cards';
       showToast((owned ? 'Selected ' : 'Deselected ') + (d.count || 0) + ' cards');
@@ -1102,7 +1129,7 @@ function selectAllRarities(owned) {
 
 function toggleSetRarityChip(chipEl, setId, rarity, owned) {
   chipEl.style.opacity = '0.5';
-  fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({set_id: setId, rarity: rarity, owned: owned})})
+  fetch(API + '/api/collection/toggle_rarity', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({set_id: setId, rarity: rarity, owned: owned, tcg: getEffectiveBrowseTcg()})})
     .then(function(r) { return r.json(); }).then(function(d) {
       if (d.count !== undefined) {
         showToast((owned ? 'Selected ' : 'Deselected ') + d.count + ' ' + rarity + ' cards');
@@ -1190,7 +1217,7 @@ function doSearch() {
   var el = document.getElementById('search-results');
   if (q.length < 2) { el.innerHTML = ''; return; }
   el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px">Searching...</div>';
-  fetch(API + '/api/search?q=' + encodeURIComponent(q)).then(function(r) { return r.json(); }).then(function(data) {
+  fetch(API + '/api/search?q=' + encodeURIComponent(q) + '&tcg=' + encodeURIComponent(getEffectiveBrowseTcg())).then(function(r) { return r.json(); }).then(function(data) {
     var results = data.results;
     if (!results.length) { el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:8px">No results found (searched ' + data.sets_searched + ' sets)</div>'; return; }
     var groups = {};
@@ -1203,7 +1230,7 @@ function doSearch() {
     if (data.total > results.length) header += ' (showing ' + results.length + ')';
     header += '</div>';
     var html = header;
-    Object.values(groups).forEach(function(g) {
+    Object.values(groups).sort(function(a, b) { return b.cards.length - a.cards.length; }).forEach(function(g) {
       var allOwned = g.cards.every(function(c) { return c.owned; });
       var ownedCount = g.cards.filter(function(c) { return c.owned; }).length;
       html += '<div class="search-group" style="border-bottom:1px solid var(--border);padding:6px 0">';
@@ -1656,6 +1683,24 @@ function buildDynamicUI(registry) {
     qsEl.appendChild(b);
   });
   updateQuickSwitchActive(_lastStatus.tcg || '');
+  // Browse TCG pills in Collection tab
+  var pillsEl = document.getElementById('tcg-browse-pills');
+  if (pillsEl) {
+    pillsEl.innerHTML = '';
+    sorted.forEach(function(e) {
+      var tcg = e[0], info = e[1];
+      var color = info.color || '#36A5CA';
+      var shortN = {lorcana:'Lorcana',mtg:'Magic',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
+      var b = document.createElement('button');
+      b.className = 'tcg-browse-pill';
+      b.dataset.tcg = tcg;
+      b.dataset.color = color;
+      b.style.cssText = 'background:transparent;color:' + color + ';border-color:' + color + ';';
+      b.textContent = shortN[tcg] || info.name;
+      b.addEventListener('click', function() { setBrowseTcg(tcg); });
+      pillsEl.appendChild(b);
+    });
+  }
   // Settings TCG dropdown
   var sel = document.getElementById('cfg-tcg');
   sel.innerHTML = sorted.map(function(e) {
