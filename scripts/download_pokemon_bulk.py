@@ -7,7 +7,7 @@ import os, sys, argparse, requests, json, time, random
 import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
 from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file
 
-BASE_DIR = "/home/pi/pokemon_cards"
+BASE_DIR = "/home/pi/inkslab-collections/pokemon"
 SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
 CARDS_BASE_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/cards/en/"
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36'}

@@ -30,7 +30,7 @@ try:
 except ImportError:
     _PIL_OK = False
 
-THUMB_CACHE_DIR = '/home/pi/inkslab_thumbcache'
+THUMB_CACHE_DIR = '/home/pi/inkslab-collections/.thumbcache'
 THUMB_SIZE = (300, 450)  # max width x height (2:3 aspect)
 _thumb_lock = threading.Lock()  # one PIL generation at a time — prevents OOM on Pi
 
@@ -78,12 +78,12 @@ DOWNLOAD_LOG = "/tmp/inkslab_download.log"
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 TCG_REGISTRY = {
-    "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
-    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
-    "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
-    "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#F472B6", "download_script": "download_covers_manga.py"},
-    "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
-    "custom":  {"name": "Custom", "path": "/home/pi/custom_images", "color": "#F59E0B", "download_script": None},
+    "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/inkslab-collections/lorcana", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/inkslab-collections/mtg", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
+    "pokemon": {"name": "Pokemon", "path": "/home/pi/inkslab-collections/pokemon", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
+    "manga":   {"name": "Manga", "path": "/home/pi/inkslab-collections/manga", "color": "#F472B6", "download_script": "download_covers_manga.py"},
+    "comics":  {"name": "Comics", "path": "/home/pi/inkslab-collections/comics", "color": "#F97316", "download_script": "download_covers_comics.py"},
+    "custom":  {"name": "Custom", "path": "/home/pi/inkslab-collections/custom", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 

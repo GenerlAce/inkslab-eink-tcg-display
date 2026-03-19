@@ -38,12 +38,12 @@ DEFAULTS = {
 
 # --- DYNAMIC TCG REGISTRY ---
 TCG_REGISTRY = {
-    "pokemon": {"name": "Pokemon", "path": "/home/pi/pokemon_cards", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
-    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/mtg_cards", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
-    "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/lorcana_cards", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
-    "manga":   {"name": "Manga", "path": "/home/pi/manga_covers", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
-    "comics":  {"name": "Comics", "path": "/home/pi/comic_covers", "color": "#F97316", "download_script": "download_covers_comics.py"},
-    "custom":  {"name": "Custom", "path": "/home/pi/custom_images", "color": "#F59E0B", "download_script": None},
+    "pokemon": {"name": "Pokemon", "path": "/home/pi/inkslab-collections/pokemon", "color": "#36A5CA", "download_script": "download_cards_pokemon.py"},
+    "mtg":     {"name": "Magic: The Gathering", "path": "/home/pi/inkslab-collections/mtg", "color": "#6BCCBD", "download_script": "download_cards_mtg.py"},
+    "lorcana": {"name": "Disney Lorcana", "path": "/home/pi/inkslab-collections/lorcana", "color": "#C084FC", "download_script": "download_cards_lorcana.py"},
+    "manga":   {"name": "Manga", "path": "/home/pi/inkslab-collections/manga", "color": "#FF6B6B", "download_script": "download_covers_manga.py"},
+    "comics":  {"name": "Comics", "path": "/home/pi/inkslab-collections/comics", "color": "#F97316", "download_script": "download_covers_comics.py"},
+    "custom":  {"name": "Custom", "path": "/home/pi/inkslab-collections/custom", "color": "#F59E0B", "download_script": None},
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 

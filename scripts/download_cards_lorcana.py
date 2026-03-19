@@ -16,7 +16,7 @@ import random
 import gc
 
 # --- CONFIGURATION ---
-BASE_DIR = "/home/pi/lorcana_cards"
+BASE_DIR = "/home/pi/inkslab-collections/lorcana"
 
 # Lorcast API (free, no API key needed)
 API_BASE = "https://api.lorcast.com/v0"

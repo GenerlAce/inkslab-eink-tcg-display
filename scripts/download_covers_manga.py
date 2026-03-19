@@ -17,7 +17,7 @@ import time
 import random
 import gc
 
-BASE_DIR = "/home/pi/manga_covers"
+BASE_DIR = "/home/pi/inkslab-collections/manga"
 API_BASE = "https://api.mangadex.org"
 CDN_BASE = "https://uploads.mangadex.org"
 

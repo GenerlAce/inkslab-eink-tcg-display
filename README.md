@@ -91,7 +91,7 @@ If you received a pre-flashed InkSlab, setup takes about 30 seconds:
 ### Step 2 — SSH In and Install
 
 ```bash
-ssh pi@<your-pi-ip>
+ssh pi@inkslab.local
 sudo raspi-config nonint do_spi 0
 sudo reboot
 ```
@@ -100,35 +100,41 @@ After reboot, SSH back in and run:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-pil python3-numpy python3-spidev python3-gpiozero python3-requests python3-flask python3-qrcode git unzip
+sudo apt-get install -y python3-pip python3-pil python3-numpy python3-spidev python3-gpiozero python3-requests python3-flask python3-qrcode git
+sudo apt-get install -y gpiod libgpiod-dev
 
-cd ~
-wget http://www.airspayce.com/mikem/bcm2835/bcm2835-1.71.tar.gz
-tar zxvf bcm2835-1.71.tar.gz && cd bcm2835-1.71
-sudo ./configure && sudo make && sudo make install
-cd ~
-wget https://github.com/joan2937/lg/archive/master.zip
-unzip master.zip && cd lg-master
-make && sudo make install
-sudo apt install -y gpiod libgpiod-dev
+# Clone InkSlab
+git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git /home/pi/inkslab
 
-cd ~
-wget "https://files.waveshare.com/wiki/4inch-e-Paper-HAT%2B-(E)/4inch_e-Paper_E.zip"
-unzip 4inch_e-Paper_E.zip -d 4inch_e-Paper_E
+# Create card library directory
+mkdir -p /home/pi/inkslab-collections
 
-cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples
-git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git
-cd inkslab-eink-tcg-display
+# Install Gunicorn (production web server)
+sudo pip3 install gunicorn --break-system-packages
 ```
 
 ### Step 3 — Start the Services
 
 ```bash
-sudo cp inkslab.service /etc/systemd/system/
-sudo cp inkslab_web.service /etc/systemd/system/
+sudo cp /home/pi/inkslab/inkslab.service /etc/systemd/system/
+sudo cp /home/pi/inkslab/inkslab_web.service /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo systemctl enable inkslab inkslab_web
 sudo systemctl start inkslab inkslab_web
 ```
+
+---
+
+## Migrating from an Older Installation?
+
+If you have an existing InkSlab installation at the old path (`~/4inch_e-Paper_E/.../inkslab-eink-tcg-display/`), run the migration script to move your card libraries and config to the new layout:
+
+```bash
+git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git /home/pi/inkslab
+bash /home/pi/inkslab/scripts/migrate_paths.sh
+```
+
+The script safely moves your existing card libraries (Pokemon, MTG, etc.) to `/home/pi/inkslab-collections/`, installs the new service files, and restarts everything. Your old program directory (`~/4inch_e-Paper_E/`) is left in place — delete it manually once you've verified the new setup is working.
 
 ---
 
@@ -209,7 +215,7 @@ Enable weekly automatic updates in **Settings > Auto-Update Sources**:
 
 ### Via SSH
 ```bash
-cd ~/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
+cd /home/pi/inkslab
 git pull
 sudo systemctl restart inkslab inkslab_web
 ```
@@ -219,28 +225,68 @@ sudo systemctl restart inkslab inkslab_web
 ## Project Structure
 
 ```
-inkslab-eink-tcg-display/
-  inkslab.py                        # Display daemon
-  inkslab_web.py                    # Web dashboard (Flask)
-  wifi_manager.py                   # WiFi setup mode (nmcli wrapper)
-  inkslab.service                   # systemd service for display
-  inkslab_web.service               # systemd service for web dashboard
-  requirements.txt                  # Python dependencies
-  lib/waveshare_epd/                # e-Paper display driver (bundled)
+/home/pi/inkslab/               ← Program files
+  inkslab.py                    # Display daemon
+  inkslab_web.py                # Web dashboard (Flask + Gunicorn)
+  wifi_manager.py               # WiFi setup mode (nmcli wrapper)
+  inkslab.service               # systemd service for display
+  inkslab_web.service           # systemd service for web dashboard
+  requirements.txt              # Python dependencies
+  lib/
+    waveshare_epd/              # Bundled display driver (see note below)
   static/
-    collection_view.js              # Grid/list view toggle and thumbnails
-    delete_library.js               # Two-step library delete
+    app.js                      # Main web dashboard JS
+    style.css                   # Web dashboard styles
+    collection_view.js          # Grid/list view toggle and thumbnails
+    delete_library.js           # Two-step library delete
   scripts/
-    download_cards_pokemon.py       # Pokemon card downloader
-    download_cards_mtg.py           # MTG card downloader (Scryfall API)
-    download_cards_lorcana.py       # Lorcana card downloader (Lorcast API)
-    download_covers_manga.py        # Manga bulk downloader (MangaDex API)
-    download_manga_series.py        # Manga series downloader (MangaDex API)
-    download_covers_comics.py       # Comics weekly downloader (Metron API)
-    download_comic_series.py        # Comics series downloader (Metron API)
-    ota_update.sh                   # OTA update script
-    selfheal.sh                     # Service health monitor
+    download_cards_pokemon.py   # Pokemon card downloader
+    download_cards_mtg.py       # MTG card downloader (Scryfall API)
+    download_cards_lorcana.py   # Lorcana card downloader (Lorcast API)
+    download_covers_manga.py    # Manga bulk downloader (MangaDex API)
+    download_manga_series.py    # Manga series downloader (MangaDex API)
+    download_covers_comics.py   # Comics weekly downloader (Metron API)
+    download_comic_series.py    # Comics series downloader (Metron API)
+    ota_update.sh               # OTA update script
+    selfheal.sh                 # Service health monitor
+    migrate_paths.sh            # One-time migration from old path layout
+
+/home/pi/inkslab-collections/   ← Card library data (separate from program)
+  pokemon/
+  mtg/
+  lorcana/
+  manga/
+  comics/
+  custom/
+  .thumbcache/                  # Thumbnail cache (shared across all libraries)
+
+/home/pi/                       ← Config and credentials
+  inkslab_config.json           # All settings (managed via web dashboard)
+  inkslab_collection.json       # Your owned card collection
+  inkslab_last_update.json      # Auto-update timestamps
+  .metron_credentials           # Metron API credentials (never committed to git)
 ```
+
+---
+
+## Bundled Display Driver
+
+InkSlab ships with a **snapshot** of the Waveshare e-Paper display driver (`lib/waveshare_epd/`), version **V1.2 (2022-10-29)**. This is included for install simplicity — no separate driver download is required.
+
+**Full credit to Waveshare Electronics** for developing and maintaining this driver. The driver is licensed under the MIT License and is reproduced here with attribution as permitted.
+
+| Resource | Link |
+|----------|------|
+| Waveshare official driver repo | [waveshare/e-Paper on GitHub](https://github.com/waveshare/e-Paper) |
+| 4" e-Paper HAT+ (E) product page | [Waveshare Wiki](https://www.waveshare.com/wiki/4inch_e-Paper_HAT%2B_(E)_Manual) |
+| Driver download (latest) | [4inch_e-Paper_E.zip](https://files.waveshare.com/wiki/4inch-e-Paper-HAT%2B-(E)/4inch_e-Paper_E.zip) |
+
+**Want the latest driver?** The bundled version works with the Waveshare 4" HAT+ (E) and has been stable since 2022. If Waveshare releases a new driver and you need it, replace the contents of `lib/waveshare_epd/` with the files from:
+```
+4inch_e-Paper_E.zip → RaspberryPi_JetsonNano/python/lib/waveshare_epd/
+```
+
+InkSlab does not modify the Waveshare driver in any way — it is used as-is.
 
 ---
 
@@ -287,7 +333,7 @@ All settings are managed from the web dashboard. Stored in `/home/pi/inkslab_con
 - Lorcana card data: [Lorcast](https://lorcast.com/) (free API)
 - Manga data: [MangaDex](https://mangadex.org/) (free API, no login required)
 - Comics data: [Metron](https://metron.cloud/) (free account required)
-- Display driver: [Waveshare e-Paper](https://github.com/waveshare/e-Paper) (MIT License)
+- Display driver: [Waveshare e-Paper](https://github.com/waveshare/e-Paper) (MIT License) — bundled as a vendor snapshot, unmodified
 - Extended features developed with [Claude Sonnet 4.6](https://anthropic.com) by Anthropic
 
 ## License

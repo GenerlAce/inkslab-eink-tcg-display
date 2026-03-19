@@ -20,7 +20,7 @@ import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__
 from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file
 
 # --- CONFIGURATION ---
-BASE_DIR = "/home/pi/mtg_cards"
+BASE_DIR = "/home/pi/inkslab-collections/mtg"
 
 # Scryfall API (free, no API key needed)
 SETS_URL = "https://api.scryfall.com/sets"

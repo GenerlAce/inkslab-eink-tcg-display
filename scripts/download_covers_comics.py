@@ -23,7 +23,7 @@ import datetime
 import gc
 
 # --- CONFIGURATION ---
-BASE_DIR = "/home/pi/comic_covers"
+BASE_DIR = "/home/pi/inkslab-collections/comics"
 CREDENTIALS_FILE = "/home/pi/.metron_credentials"
 API_BASE = "https://metron.cloud/api"
 

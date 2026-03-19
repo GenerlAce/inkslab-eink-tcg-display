@@ -6,8 +6,8 @@ Wants=NetworkManager.service
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 -u /home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display/inkslab_web.py
-WorkingDirectory=/home/pi/4inch_e-Paper_E/RaspberryPi_JetsonNano/python/examples/inkslab-eink-tcg-display
+ExecStart=/usr/local/bin/gunicorn --workers 1 --threads 4 --bind 0.0.0.0:80 --timeout 120 --access-logfile - --error-logfile - inkslab_web:app
+WorkingDirectory=/home/pi/inkslab
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

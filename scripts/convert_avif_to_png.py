@@ -11,7 +11,7 @@ Usage:
 import os
 import sys
 
-BASE_DIR = "/home/pi/lorcana_cards"
+BASE_DIR = "/home/pi/inkslab-collections/lorcana"
 
 try:
     import pillow_avif  # registers AVIF support with Pillow
