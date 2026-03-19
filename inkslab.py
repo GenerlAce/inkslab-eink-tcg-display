@@ -216,8 +216,8 @@ def show_splash_screen(epd, config):
         try:
             font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
             font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
-            font_body = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14)
+            font_body  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
         except Exception:
             font_title = ImageFont.load_default()
             font_url = font_title
@@ -232,20 +232,20 @@ def show_splash_screen(epd, config):
 
         # Dashboard URL with QR code
         url_text = f"http://{ip}"
-        draw.text((cx, 130), "Scan or open in your", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 160), "web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 205), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
+        draw.text((cx, 120), "Scan or open in your", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 148), "web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 190), url_text, fill=(0, 0, 0), font=font_url, anchor="mm")
 
-        # QR code
+        # QR code — larger to fill available space
         qr_img = make_qr(url_text)
         if qr_img:
-            qr_size = min(qr_img.size[0], 130)
+            qr_size = min(qr_img.size[0], 190)
             qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
-            canvas.paste(qr_img, (cx - qr_size // 2, 240))
+            canvas.paste(qr_img, (cx - qr_size // 2, 220))
             qr_img.close()
 
         # Transition note
-        draw.text((cx, 430), "Your cards will appear shortly.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 435), "Cards will appear in ~3 minutes.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Bottom credit
         draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
@@ -303,18 +303,18 @@ def show_setup_screen(epd, config):
         draw.text((cx, 40), "InkSlab WiFi Setup", fill=(0, 0, 0), font=font_title, anchor="mm")
 
         # Step 1
-        draw.text((cx, 90), "Step 1", fill=(0, 0, 255), font=font_heading, anchor="mm")
+        draw.text((cx, 90), "Step 1", fill=(0, 0, 0), font=font_heading, anchor="mm")
         draw.text((cx, 118), "On your phone, go to Settings", fill=(0, 0, 0), font=font_body, anchor="mm")
         draw.text((cx, 141), "and connect to this WiFi:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 178), "InkSlab-Setup", fill=(255, 0, 0), font=font_url, anchor="mm")
+        draw.text((cx, 178), "InkSlab-Setup", fill=(0, 0, 0), font=font_url, anchor="mm")
         draw.text((cx, 206), "(no password needed)", fill=(0, 0, 0), font=font_small, anchor="mm")
 
         # Step 2
-        draw.text((cx, 255), "Step 2", fill=(0, 0, 255), font=font_heading, anchor="mm")
+        draw.text((cx, 255), "Step 2", fill=(0, 0, 0), font=font_heading, anchor="mm")
         draw.text((cx, 283), "A setup page should appear.", fill=(0, 0, 0), font=font_body, anchor="mm")
         draw.text((cx, 306), "If not, scan this code or", fill=(0, 0, 0), font=font_body, anchor="mm")
         draw.text((cx, 329), "type in your web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 363), "10.42.0.1", fill=(0, 0, 255), font=font_url, anchor="mm")
+        draw.text((cx, 363), "10.42.0.1", fill=(0, 0, 0), font=font_url, anchor="mm")
 
         # QR code for setup URL
         qr_img = make_qr("http://10.42.0.1", box_size=3, border=1)
@@ -380,7 +380,7 @@ def show_no_cards_screen(epd, config, ip=None):
 
         if ip:
             url_text = f"http://{ip}"
-            draw.text((cx, 235), url_text, fill=(0, 0, 255), font=font_url, anchor="mm")
+            draw.text((cx, 235), url_text, fill=(0, 0, 0), font=font_url, anchor="mm")
             # QR code
             qr_img = make_qr(url_text)
             if qr_img:
@@ -389,10 +389,10 @@ def show_no_cards_screen(epd, config, ip=None):
                 canvas.paste(qr_img, (cx - qr_size // 2, 270))
                 qr_img.close()
 
-        draw.text((cx, 430), "Then tap Downloads and pick", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 460), "a card game to download.", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 520), "Cards will appear on this", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 550), "display once ready.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 430), "Tap Downloads and pick", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 460), "a collection to download.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 520), "Images will appear here", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 550), "once ready.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         img = ImageEnhance.Contrast(canvas).enhance(CONTRAST_BOOST)
         canvas.close()
@@ -441,8 +441,8 @@ def show_unbox_screen(epd, config):
         draw.text((cx, 80), "Welcome!", fill=(0, 0, 0), font=font_title, anchor="mm")
         draw.text((cx, 140), "to InkSlab", fill=(0, 0, 0), font=font_body, anchor="mm")
 
-        draw.text((cx, 240), "Plug me in", fill=(0, 0, 255), font=font_action, anchor="mm")
-        draw.text((cx, 280), "to get started!", fill=(0, 0, 255), font=font_action, anchor="mm")
+        draw.text((cx, 240), "Plug me in", fill=(0, 0, 0), font=font_action, anchor="mm")
+        draw.text((cx, 280), "to get started!", fill=(0, 0, 0), font=font_action, anchor="mm")
 
         draw.text((cx, 370), "After plugging in, wait about", fill=(0, 0, 0), font=font_body, anchor="mm")
         draw.text((cx, 400), "90 seconds for this screen", fill=(0, 0, 0), font=font_body, anchor="mm")
@@ -899,20 +899,18 @@ def main():
         logger.warning(f"WiFi check failed, assuming connected: {e}")
         wifi_connected = True
 
-    # E-ink render time: Spectra 6 (7-color) takes ~30s to physically draw.
-    # After that, the user needs time to actually read the screen content.
-    EINK_RENDER_TIME = 30   # seconds for e-ink to finish drawing
-    EINK_READ_TIME = 45     # extra seconds for user to read the result
-    EINK_RENDER_WAIT = EINK_RENDER_TIME + EINK_READ_TIME  # total wait before next write
+    # Waveshare ACeP minimum refresh interval: 180s between full updates.
+    # IP/QR screen counts as one refresh — wait full 180s before first card.
+    EINK_MIN_INTERVAL = 180  # seconds — Waveshare ACeP recommended minimum
 
     if wifi_connected:
         if deck.total > 0:
             show_splash_screen(epd, config)
-            logger.info(f"Splash screen sent — waiting {EINK_RENDER_WAIT}s for e-ink render...")
-            time.sleep(10)
+            logger.info(f"IP/QR screen shown — waiting {EINK_MIN_INTERVAL}s before first card (Waveshare ACeP minimum)")
+            time.sleep(EINK_MIN_INTERVAL)
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
-            
+
     else:
         # Not connected — show setup instructions and wait
         # (Covers both first boot AND failed previous connection attempts)
@@ -938,7 +936,7 @@ def main():
         if deck.total > 0:
             logger.info("WiFi wait complete, showing splash screen...")
             show_splash_screen(epd, config)
-            time.sleep(EINK_RENDER_WAIT)
+            time.sleep(EINK_MIN_INTERVAL)
         else:
             logger.info("WiFi connected but no cards — skipping splash")
 

@@ -314,6 +314,8 @@ All settings are managed from the web dashboard. Stored in `/home/pi/inkslab_con
 |---------|-----|
 | Can't find the dashboard | The IP is shown on the e-ink display at boot. Run `hostname -I` on the Pi or check your router. |
 | Display not updating | Check SPI is enabled: `ls /dev/spi*`. Check logs: `journalctl -u inkslab -f` |
+| First card takes 3 minutes after boot | This is intentional — Waveshare ACeP (7-color) panels require a minimum 180 seconds between full refreshes. The IP/QR screen counts as one refresh, so the first card is deliberately delayed to protect the panel. |
+| Display flickers or shows ghost images | The ACeP panel needs 180s between refreshes. Do not lower the card interval below 3 minutes (default is 10 minutes). |
 | Washed-out colors | Increase **Color Saturation** in Settings (default 2.5, try 3.0–4.0) |
 | Web dashboard not loading | Run `journalctl -u inkslab_web -f` |
 | Collection mode shows nothing | Mark some cards as owned in the Collection tab first |

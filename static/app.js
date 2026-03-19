@@ -767,6 +767,7 @@ function switchTCG(tcg, activeBtn) {
   btns.forEach(function(b) { b.disabled = true; });
   var orig = activeBtn ? activeBtn.textContent : null;
   if (activeBtn) activeBtn.textContent = 'Switching...';
+  updatePillTcg(tcg);
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify({active_tcg: tcg}),
     headers:{'Content-Type':'application/json'}})
     .then(function() {
