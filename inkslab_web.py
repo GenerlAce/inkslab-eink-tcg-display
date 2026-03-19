@@ -730,6 +730,49 @@ def api_ip():
     return jsonify({"ip": get_local_ip()})
 
 
+@app.route('/api/system')
+def api_system():
+    info = {}
+    # CPU temp
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp') as f:
+            info['cpu_temp'] = round(int(f.read().strip()) / 1000)
+    except Exception:
+        pass
+    # RAM from /proc/meminfo
+    try:
+        meminfo = {}
+        with open('/proc/meminfo') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    meminfo[parts[0].rstrip(':')] = int(parts[1])
+        total_kb = meminfo.get('MemTotal', 0)
+        avail_kb = meminfo.get('MemAvailable', 0)
+        used_kb = total_kb - avail_kb
+        info['ram_total_mb'] = round(total_kb / 1024)
+        info['ram_used_mb'] = round(used_kb / 1024)
+        info['ram_free_mb'] = round(avail_kb / 1024)
+    except Exception:
+        pass
+    # Uptime
+    try:
+        with open('/proc/uptime') as f:
+            secs = float(f.read().split()[0])
+        days = int(secs // 86400)
+        hours = int((secs % 86400) // 3600)
+        mins = int((secs % 3600) // 60)
+        if days > 0:
+            info['uptime'] = f'{days}d {hours}h {mins}m'
+        elif hours > 0:
+            info['uptime'] = f'{hours}h {mins}m'
+        else:
+            info['uptime'] = f'{mins}m'
+    except Exception:
+        pass
+    return jsonify(info)
+
+
 @app.route('/api/card_image')
 def api_current_card_image():
     """Serve the current card image from the display status."""
@@ -3047,6 +3090,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div style="background:var(--bg-input);border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:var(--accent);width:0%;transition:width 0.5s"></div></div>
       <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
     </div>
+  </div>
+  <div class="card">
+    <h3>System Stats</h3>
+    <div id="system-stats" style="min-height:60px"></div>
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid var(--danger)">
     <h3 style="color:var(--danger)">Prepare for New Owner</h3>

@@ -190,7 +190,7 @@ function showTab(name) {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
   if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); loadSystemStats(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
 }
@@ -1027,6 +1027,25 @@ function adminTap() {
 }
 
 // --- WiFi ---
+var _sysStatsTimer = null;
+function loadSystemStats() {
+  fetch(API + '/api/system').then(r => r.json()).then(function(d) {
+    var el = document.getElementById('system-stats');
+    if (!el) return;
+    var tempColor = d.cpu_temp >= 75 ? 'var(--danger)' : d.cpu_temp >= 60 ? '#F59E0B' : 'var(--accent2)';
+    var ramPct = d.ram_total_mb ? Math.round(d.ram_used_mb / d.ram_total_mb * 100) : 0;
+    var ramColor = ramPct >= 85 ? 'var(--danger)' : ramPct >= 65 ? '#F59E0B' : 'var(--accent2)';
+    var html = '<div class="stat"><span class="stat-label">CPU Temp</span><span class="stat-value" style="color:' + tempColor + '">' + (d.cpu_temp != null ? d.cpu_temp + '°C' : '—') + '</span></div>';
+    html += '<div class="stat"><span class="stat-label">RAM</span><span class="stat-value" style="color:' + ramColor + '">' + (d.ram_used_mb != null ? d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB (' + ramPct + '%)' : '—') + '</span></div>';
+    html += '<div class="stat"><span class="stat-label">Uptime</span><span class="stat-value">' + (d.uptime || '—') + '</span></div>';
+    el.innerHTML = html;
+    if (_sysStatsTimer) clearTimeout(_sysStatsTimer);
+    _sysStatsTimer = setTimeout(function() {
+      if (document.getElementById('system-stats')) loadSystemStats();
+    }, 30000);
+  }).catch(function() {});
+}
+
 function loadPinStatus() {
   fetch(API + '/api/auth/status').then(r => r.json()).then(function(d) {
     var statusEl = document.getElementById('pin-status');
