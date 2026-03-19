@@ -32,6 +32,7 @@ except ImportError:
 
 THUMB_CACHE_DIR = '/home/pi/inkslab_thumbcache'
 THUMB_SIZE = (300, 450)  # max width x height (2:3 aspect)
+_thumb_lock = threading.Lock()  # one PIL generation at a time — prevents OOM on Pi
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB upload limit
@@ -86,7 +87,7 @@ TCG_REGISTRY = {
 }
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 
-IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp')
 
 DEFAULTS = {
     "active_tcg": "pokemon",
@@ -484,6 +485,59 @@ def api_auth_change_pin():
 
 # --- API ROUTES ---
 
+_warmed_keys = set()
+
+def _warm_one_thumb(tcg, set_id, card_id):
+    """Queue background thumbnail generation for one card. No-op if already cached or queued."""
+    key = (tcg, os.path.basename(set_id), os.path.basename(card_id))
+    if key in _warmed_keys:
+        return
+    thumb_path = os.path.join(THUMB_CACHE_DIR, key[0], key[1], key[2] + '.jpg')
+    if os.path.exists(thumb_path):
+        _warmed_keys.add(key)
+        return
+    library = TCG_LIBRARIES.get(tcg)
+    if not library or not _PIL_OK:
+        return
+    card_path = None
+    for ext in IMAGE_EXTENSIONS:
+        p = os.path.join(library, key[1], key[2] + ext)
+        if os.path.exists(p):
+            card_path = p
+            break
+    if not card_path:
+        return
+    _warmed_keys.add(key)
+    def _gen(cp=card_path, tp=thumb_path):
+        with _thumb_lock:
+            try:
+                os.makedirs(os.path.dirname(tp), exist_ok=True)
+                img = _PIL_Image.open(cp)
+                img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
+                img = img.convert('RGB')
+                img.save(tp, 'JPEG', quality=72, optimize=True)
+                img.close()
+                del img
+            except Exception as e:
+                logging.warning('Warm thumb failed for %s: %s', cp, e)
+    threading.Thread(target=_gen, daemon=True).start()
+
+
+def _warm_current_thumb(status):
+    """Warm thumbnails for the current card + all queue cards."""
+    tcg = status.get('tcg')
+    if not tcg:
+        return
+    cards = []
+    if status.get('set_id') and status.get('card_id'):
+        cards.append((status['set_id'], status['card_id']))
+    for c in status.get('next_cards', []) + status.get('prev_cards', []):
+        if c.get('set_id') and c.get('card_id'):
+            cards.append((c['set_id'], c['card_id']))
+    for set_id, card_id in cards:
+        _warm_one_thumb(tcg, set_id, card_id)
+
+
 @app.route('/api/status')
 def api_status():
     status = {}
@@ -499,6 +553,19 @@ def api_status():
     if status.get('display_updating') and time.time() - status.get('timestamp', 0) > 60:
         status.pop('display_updating', None)
     status['collection_only'] = load_config().get('collection_only', False)
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp') as f:
+            status['cpu_temp'] = round(int(f.read().strip()) / 1000)
+    except Exception:
+        pass
+    # Check if thumbnail is already cached for the current display card
+    tcg = status.get('tcg')
+    set_id = status.get('set_id')
+    card_id = status.get('card_id')
+    if tcg and set_id and card_id:
+        thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, os.path.basename(set_id), os.path.basename(card_id) + '.jpg')
+        status['thumb_ready'] = os.path.exists(thumb_path)
+    _warm_current_thumb(status)
     return jsonify(status)
 
 
@@ -707,6 +774,7 @@ def api_card_thumbnail(tcg, set_id, card_id):
             card_path = p
             break
     if not card_path:
+        logging.warning('Thumbnail 404: %s/%s/%s', tcg, safe_set, safe_card)
         return '', 404
 
     thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, safe_set, safe_card + '.jpg')
@@ -719,19 +787,29 @@ def api_card_thumbnail(tcg, set_id, card_id):
 
     # No cached thumbnail — generate on demand (toggle only controls background pre-cache)
     if _PIL_OK:
-        try:
-            os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
-            img = _PIL_Image.open(card_path).convert('RGB')
-            img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
-            img.save(thumb_path, 'JPEG', quality=72, optimize=True)
-            resp = send_file(thumb_path, mimetype='image/jpeg')
-            resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-            return resp
-        except Exception:
-            pass
+        with _thumb_lock:  # one PIL op at a time — prevents OOM on Pi Zero
+            try:
+                os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
+                img = _PIL_Image.open(card_path)
+                img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
+                img = img.convert('RGB')
+                img.save(thumb_path, 'JPEG', quality=72, optimize=True)
+                img.close()
+                del img
+                resp = send_file(thumb_path, mimetype='image/jpeg')
+                resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+                return resp
+            except Exception as e:
+                logging.warning('Thumbnail gen failed for %s: %s', card_path, e)
 
     # Fallback: full image — no-cache so browser retries next time
-    mime = 'image/png' if card_path.lower().endswith('.png') else 'image/jpeg'
+    ext_lower = card_path.lower()
+    if ext_lower.endswith('.png'):
+        mime = 'image/png'
+    elif ext_lower.endswith('.webp'):
+        mime = 'image/webp'
+    else:
+        mime = 'image/jpeg'
     resp = send_file(card_path, mimetype=mime)
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
@@ -773,9 +851,12 @@ def _start_precache_thread():
                 if not os.path.exists(thumb_path) and _PIL_OK:
                     try:
                         os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
-                        img = _PIL_Image.open(card_path).convert('RGB')
+                        img = _PIL_Image.open(card_path)
                         img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
+                        img = img.convert('RGB')
                         img.save(thumb_path, 'JPEG', quality=72, optimize=True)
+                        img.close()
+                        del img
                         generated = True
                     except Exception:
                         pass
@@ -2729,7 +2810,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="status-pill">
-  <span class="pill-logo">InkSlab</span>
+  <span class="pill-logo">InkSlab<span id="pill-temp-wrap" style="display:none"> &middot; <span id="pill-temp"></span></span></span>
   <span id="pill-tcg" class="pill-tcg"></span>
   <div class="pill-info">
     <svg id="wifi-icon" width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-right:2px">
@@ -2863,14 +2944,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <option value="custom">Custom (Amber)</option>
       </select>
     </div>
-    <div class="form-row">
+    <div class="form-row" style="align-items:flex-start;">
       <span class="row-label">Collection Image Caching</span>
-      <label class="switch">
-        <input type="checkbox" id="cfg-thumbnails">
-        <span class="switch-slider"></span>
-      </label>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;">
+        <label class="switch">
+          <input type="checkbox" id="cfg-thumbnails">
+          <span class="switch-slider"></span>
+        </label>
+        <div id="precache-status" style="font-size:11px;color:var(--text-dim);margin-top:4px;display:none;text-align:right;"></div>
+      </div>
     </div>
-    <div id="precache-status" style="font-size:11px;color:var(--text-dim);margin-top:2px;display:none;padding-left:2px;"></div>
     </div><!-- end settings-display-grid -->
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>

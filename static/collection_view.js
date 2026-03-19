@@ -112,7 +112,17 @@
         img.loading = 'lazy';
         img.src = thumbSrc;
         img.dataset.src = src;
-        img.onerror = function() { this.style.opacity = '0.2'; };
+        img.onerror = (function(fullUrl) {
+          var tried = false;
+          return function() {
+            if (!tried && this.src !== fullUrl) {
+              tried = true;
+              this.src = fullUrl; // thumbnail failed — fall back to full image
+            } else {
+              this.style.opacity = '0.2'; // full image also failed
+            }
+          };
+        })(src);
         // _wasScrollTouch tracks if the last touch was a scroll so we can suppress the browser's
         // synthetic click event that fires after touchend even when the user was scrolling.
         var _wasScrollTouch = false;

@@ -652,7 +652,10 @@ function refreshStatus() {
         if (needsReload) {
           img.style.display = '';
           if (d.tcg && d.set_id && d.card_id) {
-            img.src = '/api/card_thumbnail/' + encodeURIComponent(d.tcg) + '/' + encodeURIComponent(d.set_id) + '/' + encodeURIComponent(d.card_id);
+            var base = encodeURIComponent(d.tcg) + '/' + encodeURIComponent(d.set_id) + '/' + encodeURIComponent(d.card_id);
+            img.src = d.thumb_ready
+              ? '/api/card_thumbnail/' + base
+              : '/api/card_image/' + base;
           } else {
             img.src = '/api/card_image?t=' + Date.now();
           }
@@ -681,6 +684,13 @@ function refreshStatus() {
       startMainPoll();
     }
     _lastStatus = d;
+    var tempWrap = document.getElementById('pill-temp-wrap');
+    var tempEl = document.getElementById('pill-temp');
+    if (tempEl && tempWrap && d.cpu_temp != null) {
+      tempEl.textContent = d.cpu_temp + '\u00b0C';
+      tempEl.style.color = d.cpu_temp >= 75 ? '#f87171' : d.cpu_temp >= 61 ? '#fb923c' : '';
+      tempWrap.style.display = '';
+    }
   }).catch(() => {});
 }
 

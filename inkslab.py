@@ -1246,11 +1246,9 @@ def main():
                         continue
 
                 # If TCG or collection mode changed, rebuild and advance to new card
-                # Also always rebuild in collection_only mode so newly added cards appear
                 new_tcg = config["active_tcg"]
                 needs_rebuild = (new_tcg != active_tcg
-                                 or config["collection_only"] != _deck_collection_only
-                                 or config["collection_only"])
+                                 or config["collection_only"] != _deck_collection_only)
                 if needs_rebuild:
                     rebuild_deck(preserve_history=(new_tcg == active_tcg))
                     if deck.total == 0:
