@@ -505,7 +505,8 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-result-name { color: var(--text-hi); font-weight: 600; }
 .search-result-set { color: var(--text-dim); font-size: 11px; }
 .search-result-rarity { color: var(--text-dim); font-size: 11px; }
-.search-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.search-filters { display: none; }
+.search-group-header { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 5; background: var(--bg-card); padding: 4px 0; }
 .search-filter-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--border-hi); border: 1px solid var(--accent); color: var(--text); border-radius: 16px; padding: 4px 8px 4px 10px; font-size: 12px; }
 .search-filter-chip .sfc-count { color: var(--text-dim); font-size: 11px; }
 .search-filter-chip .sfc-x { cursor: pointer; color: var(--text-dim); font-size: 14px; line-height: 1; margin-left: 2px; padding: 0 2px; border-radius: 50%; }

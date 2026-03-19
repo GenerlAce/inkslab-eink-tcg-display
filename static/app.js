@@ -189,7 +189,7 @@ function showTab(name) {
   if (content) content.scrollTop = 0;
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
-  if (name === 'collection') { loadSets(); loadRarities(); loadFavorites(); }
+  if (name === 'collection') { loadSets(); loadRarities(); }
   if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); loadSystemStats(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
@@ -1353,10 +1353,23 @@ function toggleSetAll(setId, owned) {
     }).catch(function() { showToast('Failed to update collection'); });
 }
 
+var _clearCollectionPending = false;
+var _clearCollectionTimer = null;
 function clearCollection() {
+  var btn = document.querySelector('.btn[onclick="clearCollection()"]');
+  if (!_clearCollectionPending) {
+    _clearCollectionPending = true;
+    if (btn) { btn.textContent = 'Confirm'; btn.style.background = 'var(--danger)'; btn.style.color = '#fff'; }
+    _clearCollectionTimer = setTimeout(function() {
+      _clearCollectionPending = false;
+      if (btn) { btn.textContent = 'Clear All'; btn.style.background = ''; btn.style.color = ''; }
+    }, 3000);
+    return;
+  }
+  clearTimeout(_clearCollectionTimer);
+  _clearCollectionPending = false;
+  if (btn) { btn.textContent = 'Clear All'; btn.style.background = ''; btn.style.color = ''; }
   var tcg = getEffectiveBrowseTcg();
-  var tcgName = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
-  if (!confirm('Clear your entire ' + tcgName + ' collection?')) return;
   fetch(API + '/api/collection/clear', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg})}).then(() => {
     _cache.sets = {}; _cache.rarities = {};
     loadSets(); loadRarities();
@@ -1518,7 +1531,6 @@ function removeFavorite(name, e) {
   fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: false})})
     .then(function(r) { return r.json(); }).then(function(d) {
       showToast('Removed ' + (d.count || 0) + ' ' + name + ' cards');
-      loadFavorites();
       doSearch();
       loadRarities();
     }).catch(function() { chip.style.opacity = '1'; });
@@ -1546,8 +1558,8 @@ function doSearch() {
       var allOwned = g.cards.every(function(c) { return c.owned; });
       var ownedCount = g.cards.filter(function(c) { return c.owned; }).length;
       html += '<div class="search-group" style="border-bottom:1px solid var(--border);padding:6px 0">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center">';
-      html += '<span class="search-result-name">' + esc(g.name) + ' <span style="color:var(--text-dim);font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
+      html += '<div class="search-group-header">';
+      html += '<span class="search-result-name">' + esc(g.name) + ' <span class="search-owned-count" style="color:var(--text-dim);font-size:11px;font-weight:400">' + ownedCount + '/' + g.cards.length + ' owned</span></span>';
       html += '<button class="btn btn-secondary btn-sm search-group-btn" data-name="' + esc(g.name) + '" data-owned="' + (!allOwned) + '">' + (allOwned ? 'Remove All' : 'Add All') + '</button>';
       html += '</div>';
       html += '<div style="margin-top:4px">';
@@ -1567,7 +1579,7 @@ function doSearch() {
 function toggleSearchGroup(btn, name, owned) {
   btn.disabled = true;
   btn.textContent = owned ? 'Adding...' : 'Removing...';
-  fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: owned})})
+  fetch(API + '/api/collection/favorites', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name, owned: owned, tcg: getEffectiveBrowseTcg()})})
     .then(function(r) { return r.json(); }).then(function(d) {
       showToast((owned ? 'Added ' : 'Removed ') + (d.count || 0) + ' ' + name + ' cards');
       btn.disabled = false;
@@ -1576,7 +1588,13 @@ function toggleSearchGroup(btn, name, owned) {
       var group = btn.closest('.search-group');
       if (group) {
         group.querySelectorAll('input[type=checkbox]').forEach(function(cb) { cb.checked = owned; });
+        var total = group.querySelectorAll('input[type=checkbox]').length;
+        var nowOwned = owned ? total : 0;
+        var countEl = group.querySelector('.search-owned-count');
+        if (countEl) countEl.textContent = nowOwned + '/' + total + ' owned';
       }
+      _cache.sets = {};
+      loadSets();
     }).catch(function() { btn.disabled = false; btn.textContent = owned ? 'Add All' : 'Remove All'; });
 }
 

@@ -3131,13 +3131,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <div class="card">
-    <h3>Search Cards</h3>
-    <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Find a card by name and add all versions to your collection.</p>
+    <h3>Search Collection</h3>
+    <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Find by name and add all versions to your collection.</p>
     <div id="tcg-browse-pills" class="tcg-browse-row"></div>
     <div id="search-filters" class="search-filters" style="display:none"></div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
-      <input type="text" id="search-input" placeholder="Search by card name..." oninput="debounceSearch()">
+      <input type="text" id="search-input" placeholder="Search by card name..." oninput="debounceSearch()" autocomplete="off">
       <button id="search-clear" class="search-clear-btn" onclick="clearSearch()" style="display:none">&#10005;</button>
     </div>
     <div id="search-results" class="search-results"></div>
