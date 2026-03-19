@@ -381,8 +381,8 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .toggle input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 
 /* === COLLECTION === */
-.set-item { background: var(--bg-card); border-radius: 6px; margin-bottom: 4px; overflow: hidden; border: 1px solid var(--border); }
-.set-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; cursor: pointer; }
+.set-item { background: var(--bg-card); border-radius: 6px; margin-bottom: 4px; overflow: clip; border: 1px solid var(--border); }
+.set-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; cursor: pointer; position: sticky; top: 0; z-index: 5; background: var(--bg-card); border-radius: 6px; }
 .set-header:hover { background: var(--bg-input); }
 .set-name { font-size: 13px; font-weight: 600; color: var(--text-hi); }
 .set-meta { font-size: 11px; color: var(--text-dim); }

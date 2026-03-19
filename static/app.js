@@ -1594,7 +1594,7 @@ function loadStorage() {
     var tcgTotalGb = 0;
     tcgEntries.forEach(function(e) { tcgTotalGb += (e[1].size_gb || 0); });
     var usedGb = Math.round((totalGb - freeGb) * 100) / 100;
-    var thumbGb = (info._thumbcache && info._thumbcache.size_mb > 0) ? Math.round(info._thumbcache.size_mb / 1024 * 1000) / 1000 : 0;
+    var thumbGb = (info._thumbcache && info._thumbcache.cached > 0) ? Math.max(info._thumbcache.size_mb / 1024, 0.001) : 0;
     var otherGb = Math.max(0, Math.round((usedGb - tcgTotalGb - thumbGb) * 100) / 100);
     var otherPct = (otherGb / totalGb * 100);
     var freePct = (freeGb / totalGb * 100);

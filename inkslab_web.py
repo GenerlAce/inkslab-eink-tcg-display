@@ -793,10 +793,16 @@ def api_card_thumbnail(tcg, set_id, card_id):
     thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, safe_set, safe_card + '.jpg')
 
     # Always serve existing thumbnail if on disk (regardless of toggle)
-    if os.path.exists(thumb_path):
+    if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
         resp = send_file(thumb_path, mimetype='image/jpeg')
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
+    elif os.path.exists(thumb_path):
+        # 0-byte file from a previous failed generation — delete and regenerate
+        try:
+            os.remove(thumb_path)
+        except Exception:
+            pass
 
     # No cached thumbnail — generate on demand (toggle only controls background pre-cache)
     if _PIL_OK:
@@ -809,9 +815,11 @@ def api_card_thumbnail(tcg, set_id, card_id):
                 img.save(thumb_path, 'JPEG', quality=72, optimize=True)
                 img.close()
                 del img
-                resp = send_file(thumb_path, mimetype='image/jpeg')
-                resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-                return resp
+                if os.path.getsize(thumb_path) > 0:
+                    resp = send_file(thumb_path, mimetype='image/jpeg')
+                    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+                    return resp
+                os.remove(thumb_path)
             except Exception as e:
                 logging.warning('Thumbnail gen failed for %s: %s', card_path, e)
 
@@ -1856,7 +1864,7 @@ def _compute_storage():
             pass
     total_cards = sum(v.get('card_count', 0) for v in info.values())
     info['_thumbcache'] = {
-        'size_mb': round(thumb_size / (1024 * 1024), 1),
+        'size_mb': round(thumb_size / (1024 * 1024), 2),
         'cached': thumb_count,
         'total': total_cards,
     }
@@ -3106,11 +3114,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="tab-downloads" class="panel">
   <div class="card">
     <h3>Storage</h3>
-    <div id="storage-info"></div>
+    <div id="storage-info" style="min-height:80px"></div>
   </div>
   <div class="card">
     <h3>Downloads</h3>
-    <div id="dl-buttons"></div>
+    <div id="dl-buttons" style="min-height:44px"></div>
     <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
