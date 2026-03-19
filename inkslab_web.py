@@ -341,23 +341,36 @@ def save_config(config):
         app.logger.error(f"Failed to save config: {e}")
 
 
+_collection_cache = None
+_collection_cache_mtime = 0.0
+
+
 def load_collection():
-    if os.path.exists(COLLECTION_FILE):
-        try:
+    global _collection_cache, _collection_cache_mtime
+    try:
+        mtime = os.path.getmtime(COLLECTION_FILE) if os.path.exists(COLLECTION_FILE) else 0.0
+        if _collection_cache is not None and mtime == _collection_cache_mtime:
+            return dict(_collection_cache)
+        if os.path.exists(COLLECTION_FILE):
             with open(COLLECTION_FILE, 'r') as f:
-                return json.load(f)
-        except Exception:
-            pass
+                data = json.load(f)
+            _collection_cache = data
+            _collection_cache_mtime = mtime
+            return dict(data)
+    except Exception:
+        pass
     return {}
 
 
 def save_collection(data):
+    global _collection_cache, _collection_cache_mtime
     try:
         _atomic_write_json(COLLECTION_FILE, data)
+        _collection_cache = dict(data)
+        _collection_cache_mtime = os.path.getmtime(COLLECTION_FILE)
     except Exception as e:
         app.logger.error(f"Failed to save collection: {e}")
     # Don't signal daemon on individual card toggles - deck rebuilds on next natural cycle
-    pass
 
 
 def _is_card_image(filename):
@@ -893,7 +906,7 @@ def api_sets():
         return jsonify([])
 
     cache_key = 'sets_' + tcg
-    sets_cache = _cache_get(cache_key, ttl=60)
+    sets_cache = _cache_get(cache_key, ttl=300)
 
     master = {}
     index_path = os.path.join(library, "master_index.json")
@@ -2828,7 +2841,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="tab-display" class="panel active">
   <div class="hero-wrap">
     <div id="st-preview-wrap" onclick="showCardInfoModal()" style="cursor:pointer" title="Tap for card info">
-      <img id="st-preview" class="preview-img" src="/api/card_image" onerror="this.style.display='none'" onload="this.style.display='block'">
+      <img id="st-preview" class="preview-img" style="visibility:hidden" onerror="this.style.visibility='hidden'" onload="this.style.visibility='visible'">
       <div id="st-preview-loading">
         <div style="font-size:28px;margin-bottom:6px" class="preview-spin">&#8635;</div>
         <div id="st-preview-loading-text">Loading...</div>
@@ -2875,9 +2888,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <div class="queue-row">
-    <div class="card" id="queue-card" style="display:none">
+    <div class="card" id="queue-card">
       <div class="q-label">Up Next</div>
-      <div class="q-list" id="q-next-list"></div>
+      <div class="q-list" id="q-next-list">
+        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
+      </div>
     </div>
     <div class="card" id="prev-card" style="display:none">
       <div class="q-label">Previous</div>
@@ -2913,23 +2931,23 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
     <div class="form-row">
       <span class="row-label">Day Interval (min)</span>
-      <input type="number" id="cfg-day-interval" min="1" max="120" value="10">
+      <input type="number" id="cfg-day-interval" min="1" max="120" value="10" inputmode="numeric">
     </div>
     <div class="form-row">
       <span class="row-label">Night Interval (min)</span>
-      <input type="number" id="cfg-night-interval" min="1" max="480" value="60">
+      <input type="number" id="cfg-night-interval" min="1" max="480" value="60" inputmode="numeric">
     </div>
     <div class="form-row">
       <span class="row-label">Day Start (24h)</span>
-      <input type="number" id="cfg-day-start" min="0" max="23" value="7">
+      <input type="number" id="cfg-day-start" min="0" max="23" value="7" inputmode="numeric">
     </div>
     <div class="form-row">
       <span class="row-label">Day End (24h)</span>
-      <input type="number" id="cfg-day-end" min="0" max="23" value="23">
+      <input type="number" id="cfg-day-end" min="0" max="23" value="23" inputmode="numeric">
     </div>
     <div class="form-row">
       <span class="row-label">Color Saturation</span>
-      <input type="number" id="cfg-saturation" min="0.5" max="5.0" step="0.1" value="2.5">
+      <input type="number" id="cfg-saturation" min="0.5" max="5.0" step="0.1" value="2.5" inputmode="decimal">
     </div>
     <div class="form-row">
       <span class="row-label">UI Theme</span>
@@ -2985,18 +3003,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <div class="card">
-    <h3>Software Update</h3>
-    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:var(--text-dim);cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
-    <div class="flex-row" style="margin-bottom:8px">
-      <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
-      <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
-    </div>
-    <div id="update-progress" style="display:none">
-      <div style="background:var(--bg-input);border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:var(--accent);width:0%;transition:width 0.5s"></div></div>
-      <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
-    </div>
-  </div>
-  <div class="card">
     <h3>Dashboard PIN</h3>
     <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
     <div id="pin-status" style="font-size:13px;margin-bottom:10px;"></div>
@@ -3021,6 +3027,18 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <h3>WiFi Network</h3>
     <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
     <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
+  </div>
+  <div class="card">
+    <h3>Software Update</h3>
+    <div id="update-info" style="margin-bottom:10px;font-size:13px;color:var(--text-dim);cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
+    <div class="flex-row" style="margin-bottom:8px">
+      <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
+      <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
+    </div>
+    <div id="update-progress" style="display:none">
+      <div style="background:var(--bg-input);border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:var(--accent);width:0%;transition:width 0.5s"></div></div>
+      <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
+    </div>
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid var(--danger)">
     <h3 style="color:var(--danger)">Prepare for New Owner</h3>
@@ -3333,14 +3351,28 @@ def api_auto_update_run_now():
             return jsonify({'ok': False, 'error': str(e)})
     return jsonify({'ok': True, 'tcg': tcg})
 
-if __name__ == '__main__':
-    import logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    _logger = logging.getLogger(__name__)
+import logging as _logging
+_logging.basicConfig(level=_logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+_logger = _logging.getLogger(__name__)
+
+_startup_done = False
+_startup_lock = threading.Lock()
+
+
+def _app_startup():
+    """One-time startup: background threads, WiFi check. Safe to call from Gunicorn workers."""
+    global _startup_done, _wifi_setup_mode
+    if _startup_done:
+        return
+    with _startup_lock:
+        if _startup_done:
+            return
+        _startup_done = True
+
     _logger.info("InkSlab Web Dashboard starting...")
+
     # Start auto-update background thread
-    import threading as _threading
-    _auto_update_thread = _threading.Thread(target=_run_auto_updates, daemon=True)
+    _auto_update_thread = threading.Thread(target=_run_auto_updates, daemon=True)
     _auto_update_thread.start()
 
     # Auto-start thumbnail background caching if toggle was on before restart
@@ -3351,10 +3383,6 @@ if __name__ == '__main__':
     _trigger_storage_recompute()
 
     # Enter setup mode if WiFi is not connected AND no saved profile exists.
-    # If a profile exists but WiFi is temporarily down (router reboot etc),
-    # don't tear it down — just serve the dashboard normally.
-    # Note: failed connection attempts now clean up their profiles, so stale
-    # profiles from bad passwords won't block re-entering setup mode.
     try:
         if not wifi_manager.is_wifi_connected():
             _wifi_setup_mode = True
@@ -3365,6 +3393,14 @@ if __name__ == '__main__':
     except Exception as e:
         _logger.warning("WiFi check failed, skipping setup mode: %s", e)
 
+
+@app.before_request
+def _lazy_startup():
+    _app_startup()
+
+
+if __name__ == '__main__':
+    _app_startup()
     try:
         app.run(host='0.0.0.0', port=80, debug=False, threaded=True)
     except Exception as e:

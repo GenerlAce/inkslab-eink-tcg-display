@@ -231,6 +231,7 @@ function setBrowseTcg(tcg) {
   updateBrowsePills(tcg || (_lastStatus && _lastStatus.tcg) || '');
   var t = tcg || (_lastStatus && _lastStatus.tcg) || '';
   delete _cache.sets[t]; delete _cache.rarities[t];
+  try { localStorage.removeItem('inkslab_sets_' + t); } catch(e) {}
   loadSets(); loadRarities();
   document.getElementById('search-results').innerHTML = '';
   var inp = document.getElementById('search-input');
@@ -646,22 +647,20 @@ function refreshStatus() {
       document.getElementById('st-total').textContent = d.total_cards || '\\u2014';
       var img = document.getElementById('st-preview');
       if (d.card_path) {
-        var needsReload = (d.card_path !== _lastStatus.card_path
+        var needsReload = (!img.getAttribute('src')
+          || d.card_path !== _lastStatus.card_path
           || d.tcg !== _lastStatus.tcg
           || (_lastStatus.pending && !d.pending));
         if (needsReload) {
-          img.style.display = '';
           if (d.tcg && d.set_id && d.card_id) {
             var base = encodeURIComponent(d.tcg) + '/' + encodeURIComponent(d.set_id) + '/' + encodeURIComponent(d.card_id);
-            img.src = d.thumb_ready
-              ? '/api/card_thumbnail/' + base
-              : '/api/card_image/' + base;
+            img.src = '/api/card_image/' + base;
           } else {
             img.src = '/api/card_image?t=' + Date.now();
           }
         }
       } else {
-        img.style.display = 'none';
+        img.style.visibility = 'hidden';
       }
       // Show/hide loading overlay based on display state
       if (d.display_updating) {
@@ -1194,9 +1193,9 @@ function loadSets() {
     try {
       var stored = localStorage.getItem('inkslab_sets_' + tcg);
       if (stored) renderSets(el, JSON.parse(stored), tcg);
-      else el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+      else el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center"><span class="preview-spin" style="font-size:20px">&#8635;</span></div>';
     } catch(e) {
-      el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Loading sets...</div>';
+      el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center"><span class="preview-spin" style="font-size:20px">&#8635;</span></div>';
     }
   }
   fetch(API + '/api/sets?tcg=' + encodeURIComponent(tcg)).then(r => r.json()).then(sets => {

@@ -165,6 +165,8 @@ body {
 .preview-img {
   display: block;
   width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
   border-radius: 8px;
   border: 2px solid var(--border);
 }
@@ -306,6 +308,7 @@ body {
 
 /* Collection card grid (4 col mobile, 6 col desktop via @media above) */
 .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px 0; width: 100%; }
+@media (max-width: 400px) { .card-grid { grid-template-columns: repeat(3, 1fr); } }
 
 /* Settings 2-col divider */
 .settings-divider { border: none; border-top: 1px solid var(--border-hi); margin: 8px 0; }
@@ -329,6 +332,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-height: 44px;
 }
 .quick-switch-scroll button {
   flex: 1 1 calc(50% - 4px);
@@ -349,7 +353,7 @@ body {
 .btn-secondary:hover { background: var(--bg-card); }
 .btn-danger { background: var(--danger); color: var(--text-hi); }
 .btn-danger:hover { filter: brightness(0.85); }
-.btn-sm { padding: 8px 14px; font-size: 12px; min-height: 36px; }
+.btn-sm { padding: 8px 14px; font-size: 12px; min-height: 44px; }
 .btn-block { display: block; width: 100%; text-align: center; }
 .btn:active { transform: scale(0.95); }
 .btn-primary:active { filter: brightness(0.9); }
