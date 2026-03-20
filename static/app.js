@@ -1174,9 +1174,9 @@ function loadSystemStats() {
     var ramColor = ramPct >= 85 ? 'var(--danger)' : ramPct >= 70 ? '#F59E0B' : 'var(--accent2)';
     var html = '<div class="stat"><span class="stat-label">CPU Temp</span><span class="stat-value" style="color:' + tempColor + '">' + (d.cpu_temp != null ? d.cpu_temp + '°C' : '—') + '</span></div>';
     html += '<div class="stat"><span class="stat-label">RAM</span><span class="stat-value" style="color:' + ramColor + '">' + (d.ram_used_mb != null ? d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB (' + ramPct + '%)' : '—') + '</span></div>';
-    html += '<div class="stat"><span class="stat-label">Uptime</span><span class="stat-value">' + (d.uptime || '—') + '</span></div>';
+    html += '<div class="stat"><span class="stat-label">Uptime</span><span class="stat-value" style="color:var(--accent2)">' + (d.uptime || '—') + '</span></div>';
     var wifiVal = w.ssid ? (w.ssid + (w.ip ? ' · ' + w.ip : '')) : (w.ip || '—');
-    html += '<div class="stat"><span class="stat-label">WiFi</span><span class="stat-value">' + wifiVal + '</span></div>';
+    html += '<div class="stat"><span class="stat-label">WiFi</span><span class="stat-value" style="color:var(--accent2)">' + wifiVal + '</span></div>';
     el.innerHTML = html;
     if (_sysStatsTimer) clearTimeout(_sysStatsTimer);
     _sysStatsTimer = setTimeout(function() {

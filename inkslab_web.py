@@ -3094,7 +3094,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
         <div id="auto-update-list"></div>
         <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-          <div id="auto-update-next" style="font-size:11px;color:var(--text-dim);">Next scheduled: —</div>
+          <div id="auto-update-next" style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Next scheduled: —</div>
         </div>
         <div class="au-run-wrap">
           <button id="btn-run-all" class="btn btn-secondary btn-block" onclick="runAllNow()">Run All Now</button>
