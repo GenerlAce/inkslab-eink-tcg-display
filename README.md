@@ -1,11 +1,11 @@
 # InkSlab — e-Ink TCG Card Display
 
-A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gathering, Disney Lorcana, Manga, and Comic Book covers in a graded-slab style layout. Upload your own custom images too. Control everything from your phone — switch between libraries, download content, curate your collection, and more.
+A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gathering, Disney Lorcana, Manga, and Comic Book covers in a graded-slab style layout. Upload your own custom images too. Control everything from your phone or desktop browser — switch between libraries, download content, curate your collection, and more.
 
-**No command line needed.** Pre-flashed units have built-in WiFi setup — just power on, connect to the InkSlab network, and pick your WiFi. Everything else runs through a clean web dashboard — including software updates.
+**No command line needed after install.** Pre-flashed units have built-in WiFi setup — just power on, connect to the InkSlab network, and pick your WiFi. Everything else runs through a clean web dashboard — including software updates.
 
 **By [Costa Mesa Tech Solutions](https://github.com/costamesatechsolutions)** (a brand of Pine Heights Ventures LLC)
-**Fork maintained by [GenerlAce](https://github.com/GenerlAce)** with extended manga, comics, and dashboard features.
+**Fork maintained by [GenerlAce](https://github.com/GenerlAce)** with AI-assisted development — extended manga, comics, full UI redesign, and dashboard features.
 
 ---
 
@@ -16,11 +16,17 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 - **Full-bleed overlay header** for manga and comics — text overlays directly on the cover when no header space is available
 - **Slab Header Modes:** Normal (white bg), Inverted (black bg), or Off (full-screen card art)
 - **Web Dashboard:** Control everything from your phone or browser at `http://<your-pi-ip>`
+- **Left sidebar desktop layout:** On wide screens, navigation moves to a persistent left sidebar with Quick Switch, Pi system stats (CPU temp, RAM, uptime), and version info
 - **Live Player Controls:** Pause, play, skip, or go back, complete with an "Up Next" queue and countdown timer
-- **Collection Mode & Search:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection.
+- **Collection Mode & Search:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection
 - **Rarity Filtering:** Select or deselect all cards of a specific rarity across every set with one tap
 - **Smart Shuffle:** Remembers recently shown cards and pushes them to the back of the deck upon reshuffling
 - **Custom Images:** Upload your own images and organize them into sets with optional metadata
+- **PIN Login:** Optional 4-8 digit PIN to protect your dashboard
+- **Theme System:** 7 themes — default dark, or auto-switches to match your active library (Lorcana purple, Pokemon blue, MTG teal, Manga pink, Comics orange, Custom gold)
+- **Card Info Modal:** Tap the preview card to see set name, year, card number, rarity, and more — shown inline on desktop, modal on mobile
+- **Thumbnail Cache:** Pre-cached smaller images for instant loading in the collection grid and Up Next queue
+- **Boot Splash Screen:** Shows IP address and scannable QR code on the e-ink display at startup so you can find your dashboard without hunting through your router
 - **WiFi Setup Mode:** Automatically creates an "InkSlab-Setup" WiFi network when no connection is found on boot
 - **OTA Updates:** Update InkSlab software directly from the web dashboard
 - **Auto-Update:** Weekly automatic refresh of all enabled content sources
@@ -46,6 +52,12 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 | +-------------------+ |
 +-----------------------+
 ```
+
+---
+
+## Screenshots
+
+> Screenshots coming soon — captured using Magic: The Gathering cards via Scryfall (used under the [Wizards of the Coast Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy)).
 
 ---
 
@@ -123,6 +135,10 @@ sudo systemctl enable inkslab inkslab_web
 sudo systemctl start inkslab inkslab_web
 ```
 
+### Step 4 — First Launch
+
+Open `http://inkslab.local` (or the IP shown on the e-ink display) in your browser. You'll be prompted to set an optional PIN to protect your dashboard. You can skip this and set it later in **Settings**.
+
 ---
 
 ## Migrating from an Older Installation?
@@ -163,28 +179,36 @@ Comics download from [Metron](https://metron.cloud) — a free account is requir
 ## Web Dashboard
 
 ### Display Tab
-- Live preview, player controls, Up Next queue, Quick Switch between libraries
-
-### Settings Tab
-- Active library, slab header mode, rotation, intervals, collection mode
-- **Metron Comics Account**: Connect/disconnect your Metron account
-- **Auto-Update Sources**: Check which libraries refresh automatically each week
-- **Software Update**: OTA updates from the dashboard
+- Live preview of the current card on the e-ink display
+- Player controls: pause, play, skip forward/back, countdown timer
+- **Up Next** (5 cards) and **Previous** (3 cards) queue — always visible on desktop
+- Tap/click the preview card to see inline stat bubbles (set, year, rarity, card number)
+- Quick Switch: change active library without leaving the tab
 
 ### Collection Tab
-- Browse sets in **List** or **Grid** view
-- Hover over any card name or thumbnail for an instant preview
-- **Filter by Rarity**: Collapsible section — toggle rarities on/off across all sets
-- **Per-series delete**: Two-step confirm delete button on every set
+- Browse sets in **List** or **Grid** (thumbnail) view
+- Hover over any card or thumbnail for an instant preview
+- **Search Collection:** Find cards by name and add all versions across every set at once
+- **Browse any library** without changing your active display library
+- **Add to Collection by Rarity:** Toggle entire rarity tiers on/off across all sets
+- **Per-series delete:** Two-step confirm delete on every set
 - Alphabetical sorting across all libraries
 
 ### Downloads Tab
-- **Storage**: Visual breakdown of SD card usage by library
-- **Download Cards**: One-click download for all libraries
-- **Manga Series Search**: Search MangaDex and download all covers for a specific manga
-- **Comic Series Search**: Search Metron and download all covers for a specific comic series
-- **Delete Entire Library**: Two-step confirm to wipe a full library
-- Live download progress log
+- **Storage:** Visual breakdown of SD card usage by library with color-coded bar
+- **Download Cards:** One-click download for each library, with per-set search for MTG, Lorcana, Pokemon, Manga, and Comics
+- **Custom Images:** Upload your own PNG/JPG images and organize them into named folders
+- **Download Status:** Live progress log, always visible on desktop
+- **Delete Entire Library:** Two-step confirm to wipe a full library
+
+### Settings Tab
+- Active library, slab header mode, rotation, day/night intervals, color saturation
+- **PIN Login:** Set, change, or remove your dashboard PIN
+- **Theme:** Choose default dark, or auto-switch per active library
+- **Thumbnail Pre-Cache:** Pre-generate thumbnails for faster collection browsing
+- **Metron Comics Account:** Connect your Metron account for comics downloads
+- **Auto-Update Sources:** Choose which libraries refresh automatically each week
+- **Software Update:** OTA updates pulled directly from GitHub
 
 ---
 
@@ -345,10 +369,10 @@ AGPL-3.0 — see [LICENSE](LICENSE)
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=costamesatechsolutions%2Finkslab-eink-tcg-display&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=GenerlAce%2Finkslab-eink-tcg-display&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=costamesatechsolutions/inkslab-eink-tcg-display&type=date&theme=dark&legend=bottom-right" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=costamesatechsolutions/inkslab-eink-tcg-display&type=date&legend=bottom-right" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=costamesatechsolutions/inkslab-eink-tcg-display&type=date&legend=bottom-right" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=GenerlAce/inkslab-eink-tcg-display&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=GenerlAce/inkslab-eink-tcg-display&type=date&legend=bottom-right" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=GenerlAce/inkslab-eink-tcg-display&type=date&legend=bottom-right" />
  </picture>
 </a>
