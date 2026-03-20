@@ -1695,13 +1695,16 @@ function toggleSearchGroup(btn, name, owned) {
 
 // --- Downloads ---
 function _fmtGb(gb) {
-  if (gb >= 100) return gb.toFixed(0) + ' GB';
-  if (gb >= 10)  return gb.toFixed(1) + ' GB';
-  return gb.toFixed(2) + ' GB';
+  if (gb >= 10)  return gb.toFixed(0) + ' GB';
+  return gb.toFixed(1) + ' GB';
+}
+function _fmtMb(mb) {
+  if (mb >= 10) return Math.round(mb) + ' MB';
+  return mb.toFixed(1) + ' MB';
 }
 function fmtSize(gb, mb) {
   if (gb >= 1 || mb >= 1000) return _fmtGb(gb >= 1 ? gb : mb / 1024);
-  if (mb > 0) return mb + ' MB';
+  if (mb > 0) return _fmtMb(mb);
   return '0 MB';
 }
 function fmtSizeShort(gb, mb) {
@@ -1773,7 +1776,7 @@ function loadStorage() {
     if (info._thumbcache) {
       var tc = info._thumbcache;
       var cacheVal = tc.cached + ' / ' + tc.total + ' cached';
-      if (tc.size_mb > 0) cacheVal += ' &middot; ' + tc.size_mb + ' MB';
+      if (tc.size_mb > 0) cacheVal += ' &middot; ' + _fmtMb(tc.size_mb);
       html += '<div class="stat"><span class="stat-label">Image Cache</span><span class="stat-value">' + cacheVal + '</span></div>';
     }
     el.innerHTML = html;

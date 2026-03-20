@@ -3196,7 +3196,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
     <div id="search-results" class="search-results"></div>
   </div>
-  <div class="card" style="margin-bottom:16px;">
+  <div class="card">
     <h3 style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRarityFilter()">Add to Collection by Rarity <span id="rarity-toggle-icon" style="font-size:12px;color:var(--text-dim);">▼ Show</span></h3>
     <div id="rarity-filter-body" style="display:none;">
       <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Toggle rarities on/off across all sets. Checked = cards of that rarity are in your collection.</p>

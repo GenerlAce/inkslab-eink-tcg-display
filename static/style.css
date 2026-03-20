@@ -761,4 +761,7 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   /* Keep download log always visible and taller on desktop */
   #dl-log { display: block !important; height: 400px !important; }
   #btn-dl-log-toggle { display: none !important; }
+
+  /* Collection tab: equalize gaps between sections */
+  #tab-collection .two-col-cards { margin-bottom: 12px; }
 }
