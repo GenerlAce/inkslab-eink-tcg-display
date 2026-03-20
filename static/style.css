@@ -563,7 +563,10 @@ body.auth-pending .bottom-nav { visibility: hidden; }
 .display-col-left,
 .display-col-right,
 .dl-col-left,
-.dl-col-right { display: contents; }
+.dl-col-right,
+.settings-mid-cols,
+.settings-col-left,
+.settings-col-right { display: contents; }
 .sidebar-brand { display: none; }
 .sb-section-label,
 .sb-widget,
@@ -764,4 +767,40 @@ body.auth-pending .bottom-nav { visibility: hidden; }
 
   /* Collection tab: equalize gaps between sections */
   #tab-collection .two-col-cards { margin-bottom: 12px; }
+
+  /* Settings tab: mid two-column (Auto-Update | Metron + PIN + WiFi) */
+  .settings-mid-cols {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+    margin-bottom: 16px;
+  }
+  .settings-col-left {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+  .settings-col-left .card {
+    flex: 1;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .settings-col-left .card #auto-update-list { flex: 1; }
+  .settings-col-left .card > div:last-child { margin-top: auto; }
+  .settings-col-right {
+    display: block;
+    flex: 1;
+    min-width: 0;
+  }
+  .settings-col-right .card:last-child { margin-bottom: 0; }
+  /* Reserve space on PIN card so it doesn't jump when form opens */
+  .settings-pin-card { min-height: 120px; }
+  /* Reserve space for Metron status so card doesn't grow when JS loads */
+  #metron-status { min-height: 54px; }
+  /* Extra breathing room in WiFi card to align bottom with Auto-Update */
+  .settings-col-right #wifi-info { margin-bottom: 28px !important; }
+  /* Software Update: full width below */
+  .settings-update-card { margin-bottom: 12px; }
 }

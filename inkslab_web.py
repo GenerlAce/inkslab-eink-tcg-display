@@ -111,6 +111,7 @@ _download_proc = None
 _download_tcg = None
 _download_log_fh = None
 _download_lock = threading.Lock()
+_run_all_running = False
 
 # --- WIFI SETUP MODE ---
 _wifi_setup_mode = False
@@ -2844,7 +2845,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="InkSlab">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=3">
 <script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
@@ -3086,58 +3087,70 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
     </div>
   </div>
-  <div class="card">
-    <h3>Auto-Update Sources</h3>
-    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
-    <div id="auto-update-list"></div>
-  </div>
-  <div class="card">
-    <h3>Metron Comics Account</h3>
-    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
-    <div id="metron-status" style="margin-bottom:10px;"></div>
-    <div id="metron-form" style="display:none;">
-      <div class="form-group">
-        <label>Metron Username</label>
-        <input type="text" id="metron-username" placeholder="your username" autocomplete="off">
-      </div>
-      <div class="form-group">
-        <label>Metron Password</label>
-        <input type="password" id="metron-password" placeholder="your password" autocomplete="off">
-      </div>
-      <div style="display:flex;gap:8px;margin-top:4px;">
-        <button class="btn btn-secondary" style="flex:1" onclick="testMetronCreds()">Test Connection</button>
-        <button class="btn btn-primary" style="flex:1" onclick="saveMetronCreds()">Save Credentials</button>
-      </div>
-      <div id="metron-test-result" style="margin-top:8px;font-size:13px;display:none;"></div>
-    </div>
-  </div>
-  <div class="card">
-    <h3>Dashboard PIN</h3>
-    <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
-    <div id="pin-status" style="font-size:13px;margin-bottom:10px;"></div>
-    <div id="pin-form" style="display:none;">
-      <div class="form-group">
-        <label id="pin-current-label">Current PIN</label>
-        <input type="password" id="pin-current" inputmode="numeric" pattern="[0-9]*" placeholder="current PIN" maxlength="8" autocomplete="off">
-      </div>
-      <div class="form-group">
-        <label>New PIN <span style="color:var(--text-dim);font-size:11px;">(leave blank to remove PIN)</span></label>
-        <input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" placeholder="4-8 digits, or blank to remove" maxlength="8" autocomplete="new-password">
-      </div>
-      <div id="pin-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" style="flex:1;" onclick="savePinChange()">Save</button>
-        <button class="btn" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);" onclick="document.getElementById('pin-form').style.display='none'">Cancel</button>
+  <div class="settings-mid-cols">
+    <div class="settings-col-left">
+      <div class="card">
+        <h3>Auto-Update Sources</h3>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
+        <div id="auto-update-list"></div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <div id="auto-update-next" style="font-size:11px;color:var(--text-dim);">Next scheduled: —</div>
+        </div>
+        <div class="au-run-wrap">
+          <button id="btn-run-all" class="btn btn-secondary btn-block" onclick="runAllNow()">Run All Now</button>
+        </div>
       </div>
     </div>
-    <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
+    <div class="settings-col-right">
+      <div class="card">
+        <h3>Metron Comics Account</h3>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
+        <div id="metron-status" style="margin-bottom:10px;"></div>
+        <div id="metron-form" style="display:none;">
+          <div class="form-group">
+            <label>Metron Username</label>
+            <input type="text" id="metron-username" placeholder="your username" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Metron Password</label>
+            <input type="password" id="metron-password" placeholder="your password" autocomplete="off">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="btn btn-secondary" style="flex:1" onclick="testMetronCreds()">Test Connection</button>
+            <button class="btn btn-primary" style="flex:1" onclick="saveMetronCreds()">Save Credentials</button>
+          </div>
+          <div id="metron-test-result" style="margin-top:8px;font-size:13px;display:none;"></div>
+        </div>
+      </div>
+      <div class="card settings-pin-card">
+        <h3>Dashboard PIN</h3>
+        <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
+        <div id="pin-status" style="font-size:13px;margin-bottom:10px;"></div>
+        <div id="pin-form" style="display:none;">
+          <div class="form-group">
+            <label id="pin-current-label">Current PIN</label>
+            <input type="password" id="pin-current" inputmode="numeric" pattern="[0-9]*" placeholder="current PIN" maxlength="8" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>New PIN <span style="color:var(--text-dim);font-size:11px;">(leave blank to remove PIN)</span></label>
+            <input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" placeholder="4-8 digits, or blank to remove" maxlength="8" autocomplete="new-password">
+          </div>
+          <div id="pin-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" style="flex:1;" onclick="savePinChange()">Save</button>
+            <button class="btn" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);" onclick="document.getElementById('pin-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
+        <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <h3>WiFi Network</h3>
+        <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
+        <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
+      </div>
+    </div>
   </div>
-  <div class="card">
-    <h3>WiFi Network</h3>
-    <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
-    <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
-  </div>
-  <div class="card">
+  <div class="card settings-update-card">
     <h3>Software Update</h3>
     <div id="update-info" style="margin-bottom:10px;font-size:13px;color:var(--text-dim);cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
@@ -3511,6 +3524,47 @@ def api_auto_update_run_now():
             _close_download_log()
             return jsonify({'ok': False, 'error': str(e)})
     return jsonify({'ok': True, 'tcg': tcg})
+
+@app.route('/api/auto_update/run_all', methods=['POST'])
+@protected
+def api_auto_update_run_all():
+    """Manually trigger all enabled auto-update sources sequentially in a background thread."""
+    global _run_all_running
+    if _run_all_running:
+        return jsonify({'ok': False, 'error': 'Already running'})
+    config = load_config()
+    sources = config.get('auto_update_sources', [])
+    if not sources:
+        return jsonify({'ok': False, 'error': 'No sources enabled'})
+    def _do_run_all():
+        global _run_all_running
+        _run_all_running = True
+        try:
+            last_times = {}
+            if os.path.exists(LAST_UPDATE_FILE):
+                try:
+                    with open(LAST_UPDATE_FILE) as f:
+                        last_times = json.load(f)
+                except Exception:
+                    pass
+            for tcg in sources:
+                reg = TCG_REGISTRY.get(tcg)
+                if not reg or not reg.get('download_script'):
+                    continue
+                if not _has_disk_space():
+                    continue
+                cmd = ['python3', os.path.join(SCRIPT_DIR, 'scripts', reg['download_script'])]
+                try:
+                    subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
+                    last_times[tcg] = datetime.datetime.now().isoformat()
+                    with open(LAST_UPDATE_FILE, 'w') as f:
+                        json.dump(last_times, f)
+                except Exception:
+                    pass
+        finally:
+            _run_all_running = False
+    threading.Thread(target=_do_run_all, daemon=True).start()
+    return jsonify({'ok': True, 'count': len(sources)})
 
 import logging as _logging
 _logging.basicConfig(level=_logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

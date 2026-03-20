@@ -916,6 +916,50 @@ function renderAutoUpdate(data) {
     el.appendChild(row);
   });
   if (!el.children.length) el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;">No sources available</div>';
+
+  // Next scheduled update
+  var nextEl = document.getElementById('auto-update-next');
+  if (nextEl) {
+    var enabled = Object.values(data).filter(function(d) { return d.enabled; });
+    if (!enabled.length) {
+      nextEl.textContent = 'Next scheduled: No sources enabled';
+    } else {
+      var earliest = null;
+      enabled.forEach(function(d) {
+        var next = d.last_update
+          ? new Date(new Date(d.last_update).getTime() + 7 * 24 * 60 * 60 * 1000)
+          : new Date();
+        if (!earliest || next < earliest) earliest = next;
+      });
+      nextEl.textContent = earliest <= new Date()
+        ? 'Next scheduled: Due now (runs at next hourly check)'
+        : 'Next scheduled: ' + earliest.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+    }
+  }
+}
+
+function runAllNow() {
+  var btn = document.getElementById('btn-run-all');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  fetch(API + '/api/auto_update/run_all', {method: 'POST', headers: {'Content-Type': 'application/json'}})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        showToast('Running updates for ' + d.count + ' source' + (d.count !== 1 ? 's' : '') + '...', 3000);
+        btn.textContent = 'Running...';
+        setTimeout(function() { btn.disabled = false; btn.textContent = 'Run All Now'; }, 8000);
+      } else {
+        showToast(d.error || 'Failed to start', 3000);
+        btn.disabled = false;
+        btn.textContent = 'Run All Now';
+      }
+    }).catch(function() {
+      showToast('Failed to start', 3000);
+      btn.disabled = false;
+      btn.textContent = 'Run All Now';
+    });
 }
 
 function saveAutoUpdate() {
