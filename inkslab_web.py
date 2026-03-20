@@ -1523,6 +1523,8 @@ def api_download_start():
                        "--id", str(int(comic_id)), "--title", comic_title]
 
         _download_log_fh = open(DOWNLOAD_LOG, 'w')
+        _download_log_fh.write('Download started on ' + time.strftime('%B %-d, %Y at %-I:%M') + time.strftime('%p').lower() + '\n\n')
+        _download_log_fh.flush()
         env = os.environ.copy()
         env['PYTHONUNBUFFERED'] = '1'
         try:
@@ -1804,7 +1806,12 @@ def api_download_status():
         if _download_proc and _download_proc.poll() is None:
             running = True
         elif _download_proc:
-            # Process finished — close log file handle, clean up, refresh storage
+            # Process finished — append completion timestamp, close log, clean up
+            try:
+                with open(DOWNLOAD_LOG, 'a') as _f:
+                    _f.write('\nDownload completed on ' + time.strftime('%B %-d, %Y at %-I:%M') + time.strftime('%p').lower() + '\n')
+            except Exception:
+                pass
             _close_download_log()
             _download_proc = None
             _download_tcg = None

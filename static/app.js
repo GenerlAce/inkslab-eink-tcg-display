@@ -1694,16 +1694,25 @@ function toggleSearchGroup(btn, name, owned) {
 }
 
 // --- Downloads ---
+function _fmtGb(gb) {
+  if (gb >= 100) return gb.toFixed(0) + ' GB';
+  if (gb >= 10)  return gb.toFixed(1) + ' GB';
+  return gb.toFixed(2) + ' GB';
+}
 function fmtSize(gb, mb) {
-  if (gb >= 0.1) return gb.toFixed(1) + ' GB';
+  if (gb >= 1 || mb >= 1000) return _fmtGb(gb >= 1 ? gb : mb / 1024);
   if (mb > 0) return mb + ' MB';
   return '0 MB';
 }
 function fmtSizeShort(gb, mb) {
-  if (gb >= 0.1) return gb.toFixed(1) + 'G';
+  if (gb >= 100) return gb.toFixed(0) + 'G';
+  if (gb >= 10)  return gb.toFixed(1) + 'G';
+  if (gb >= 1)   return gb.toFixed(2) + 'G';
+  if (mb >= 1000) return (mb / 1024).toFixed(2) + 'G';
   if (mb > 0) return mb + 'M';
   return '';
 }
+function fmtCount(n) { return (n || 0).toLocaleString(); }
 function loadStorage() {
   fetch(API + '/api/storage').then(function(r) { return r.json(); }).then(function(info) {
     var el = document.getElementById('storage-info');
