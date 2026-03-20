@@ -2014,7 +2014,8 @@ function checkUpdateStatus() {
     if (d.stage === 'complete') {
       clearInterval(_updatePoll); _updatePoll = null;
       showToast('Update complete!');
-      setTimeout(function() { location.reload(); }, 2000);
+      // Force cache-bypass reload so new JS/CSS is always loaded after an update
+      setTimeout(function() { location.href = location.origin + '/?updated=' + Date.now(); }, 2000);
     } else if (d.error) {
       clearInterval(_updatePoll); _updatePoll = null;
       stage.textContent = d.message || 'Update failed';
@@ -2357,3 +2358,8 @@ function initApp() {
 (function() {
   checkAuth(initApp);
 })();
+
+// Reload if browser restores this page from bfcache (back-forward cache).
+// bfcache freezes JS state, so buttons can silently lose their handlers
+// after navigating away and back. Forcing a reload fixes this transparently.
+window.addEventListener('pageshow', function(e) { if (e.persisted) location.reload(); });
