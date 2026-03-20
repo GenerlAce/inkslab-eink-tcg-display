@@ -3223,8 +3223,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div id="dl-buttons" style="min-height:44px"></div>
       <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
-            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <div style="position:relative;flex:1">
+            <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
+              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+            <button class="search-clear-btn" onclick="_dlClearInput('lorcana-search-input','lorcana-search-results')" style="display:none">&#10005;</button>
+          </div>
           <button onclick="lorcanaSearch()"
             style="padding:8px 14px;background:#C084FC;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
         </div>
@@ -3232,8 +3235,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
       <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
-            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <div style="position:relative;flex:1">
+            <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
+              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+            <button class="search-clear-btn" onclick="_dlClearInput('mtg-set-search-input','mtg-set-search-results')" style="display:none">&#10005;</button>
+          </div>
           <button onclick="mtgSetSearch()"
             style="padding:8px 14px;background:#6BCCBD;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
         </div>
@@ -3241,8 +3247,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
       <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
-            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <div style="position:relative;flex:1">
+            <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
+              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+            <button class="search-clear-btn" onclick="_dlClearInput('pokemon-search-input','pokemon-search-results')" style="display:none">&#10005;</button>
+          </div>
           <button onclick="pokemonSearch()"
             style="padding:8px 14px;background:#36A5CA;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
         </div>
@@ -3250,8 +3259,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
       <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
-            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <div style="position:relative;flex:1">
+            <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
+              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+            <button class="search-clear-btn" onclick="_dlClearInput('manga-search-input','manga-search-results')" style="display:none">&#10005;</button>
+          </div>
           <button onclick="mangaSearch()"
             style="padding:8px 14px;background:#F472B6;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
         </div>
@@ -3259,8 +3271,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
       <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
-            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <div style="position:relative;flex:1">
+            <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
+              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+            <button class="search-clear-btn" onclick="_dlClearInput('comics-search-input','comics-search-results')" style="display:none">&#10005;</button>
+          </div>
           <button onclick="comicSearch()"
             style="padding:8px 14px;background:#F97316;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
         </div>

@@ -247,7 +247,7 @@ def show_splash_screen(epd, config):
             qr_img.close()
 
         # Transition note
-        draw.text((cx, 435), "Cards will appear in ~3 minutes.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 435), "Your collection will appear in ~3 minutes.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Bottom credit
         draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")

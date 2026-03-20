@@ -1780,6 +1780,16 @@ function loadStorage() {
   });
 }
 
+function _dlInputChange(inp) {
+  var btn = inp.parentNode.querySelector('.search-clear-btn');
+  if (btn) btn.style.display = inp.value ? '' : 'none';
+}
+function _dlClearInput(inputId, resultsId) {
+  var inp = document.getElementById(inputId);
+  if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input')); }
+  var res = document.getElementById(resultsId);
+  if (res) { res.style.display = 'none'; res.innerHTML = ''; }
+}
 function closeAllDlSearch() {
   ['dl-lorcana-search','dl-mtg-search','dl-pokemon-search','dl-manga-search','dl-comics-search'].forEach(function(id) {
     var el = document.getElementById(id);
