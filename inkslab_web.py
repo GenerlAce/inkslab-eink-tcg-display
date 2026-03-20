@@ -101,6 +101,8 @@ DEFAULTS = {
     "auto_update_sources": [],
     "auto_update_day": 0,
     "slab_header_mode": "normal",
+    "image_fit": "contain",
+    "image_bg": "black",
     "thumbnail_cache": False,
 }
 
@@ -621,7 +623,7 @@ def api_set_config():
                 f.write('1')
         except OSError:
             pass
-    elif changed & {'color_saturation', 'slab_header_mode', 'rotation_angle'}:
+    elif changed & {'color_saturation', 'slab_header_mode', 'rotation_angle', 'image_fit', 'image_bg'}:
         # Re-render the current card with new display settings, no advance
         try:
             with open(REDRAW_TRIGGER, 'w') as f:
@@ -2890,27 +2892,53 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 <!-- DISPLAY TAB -->
 <div id="tab-display" class="panel active">
-  <div class="hero-wrap">
-    <div id="st-preview-wrap" onclick="showCardInfoModal()" style="cursor:pointer" title="Tap for card info">
-      <img id="st-preview" class="preview-img" style="visibility:hidden" onerror="this.style.visibility='hidden'" onload="this.style.visibility='visible'">
-      <div id="st-preview-loading">
-        <div style="font-size:28px;margin-bottom:6px" class="preview-spin">&#8635;</div>
-        <div id="st-preview-loading-text">Loading...</div>
+  <div class="display-col-left">
+    <div class="hero-wrap">
+      <div id="st-preview-wrap" onclick="showCardInfoModal()" style="cursor:pointer" title="Tap for card info">
+        <img id="st-preview" class="preview-img" style="visibility:hidden" onerror="this.style.visibility='hidden'" onload="this.style.visibility='visible'">
+        <div id="st-preview-loading">
+          <div style="font-size:28px;margin-bottom:6px" class="preview-spin">&#8635;</div>
+          <div id="st-preview-loading-text">Loading...</div>
+        </div>
+        <div class="preview-info-hint">&#9432;</div>
       </div>
-      <div class="preview-info-hint">&#9432;</div>
+      <div class="countdown" id="countdown"></div>
+      <div class="player-controls">
+        <button class="player-btn" id="btn-prev" onclick="prevCard()" title="Previous Card">&#9664;</button>
+        <button class="player-btn play-pause" id="btn-pause" onclick="togglePause()" title="Pause/Play">&#10074;&#10074;</button>
+        <button class="player-btn" id="btn-next" onclick="nextCard()" title="Next Card">&#9654;</button>
+      </div>
     </div>
-    <div class="countdown" id="countdown"></div>
-    <div class="player-controls">
-      <button class="player-btn" id="btn-prev" onclick="prevCard()" title="Previous Card">&#9664;</button>
-      <button class="player-btn play-pause" id="btn-pause" onclick="togglePause()" title="Pause/Play">&#10074;&#10074;</button>
-      <button class="player-btn" id="btn-next" onclick="nextCard()" title="Next Card">&#9654;</button>
+    <div class="card-info-inline">
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-label" id="si-card-label">Card #</div>
+          <div class="stat-value" id="si-card">&mdash;</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label" id="si-total-label">Cards in Deck</div>
+          <div class="stat-value" id="si-total">&mdash;</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label" id="si-rarity-label">Rarity</div>
+          <div class="stat-value" id="si-rarity">&mdash;</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">Collection</div>
+          <div class="stat-value" id="si-tcg">&mdash;</div>
+        </div>
+        <div class="stat-cell full-width">
+          <div class="stat-label">Set</div>
+          <div class="stat-value" id="si-set">&mdash;</div>
+        </div>
+      </div>
     </div>
-  </div>
-  <div id="st-error-row" style="display:none;margin:8px 0;padding:8px;background:#ff6b6b22;border-radius:6px;">
-    <span style="color:#ff6b6b;font-size:12px" id="st-error"></span>
+    <div id="st-error-row" style="display:none;margin:8px 0;padding:8px;background:#ff6b6b22;border-radius:6px;">
+      <span style="color:#ff6b6b;font-size:12px" id="st-error"></span>
+    </div>
   </div>
 
-  <!-- Card info modal -->
+  <!-- Card info modal (position:fixed — location in DOM doesn't affect rendering) -->
   <div class="modal-overlay" id="card-info-modal" onclick="this.classList.remove('open')">
     <div class="modal-content card-info-modal-content" onclick="event.stopPropagation()">
       <div class="stats-grid">
@@ -2938,7 +2966,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <button class="btn btn-secondary btn-sm modal-close" onclick="document.getElementById('card-info-modal').classList.remove('open')">Close</button>
     </div>
   </div>
-  <div class="queue-row">
+
+  <div class="display-col-right">
     <div class="card" id="queue-card">
       <div class="q-label">Up Next</div>
       <div class="q-list" id="q-next-list">
@@ -2946,16 +2975,23 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
       </div>
     </div>
-    <div class="card" id="prev-card" style="display:none">
+    <div class="card" id="prev-card">
       <div class="q-label">Previous</div>
-      <div class="q-list" id="q-prev-list"></div>
+      <div class="q-list" id="q-prev-list">
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+      </div>
     </div>
-  </div>
-  <div class="card">
-    <h3>Quick Switch</h3>
-    <div class="quick-switch-scroll" id="quick-switch-btns"></div>
+    <div class="card mobile-qs-card">
+      <h3>Quick Switch</h3>
+      <div class="quick-switch-scroll" id="quick-switch-btns"></div>
+    </div>
   </div>
 </div>
 
@@ -2974,6 +3010,21 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <option value="normal">Normal</option>
         <option value="inverted">Inverted</option>
         <option value="off">Off</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <span class="row-label">Image Fit</span>
+      <select id="cfg-image-fit">
+        <option value="contain">Contain (letterbox)</option>
+        <option value="fill">Fill (crop to fit)</option>
+        <option value="stretch">Stretch</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <span class="row-label">Letterbox Color</span>
+      <select id="cfg-image-bg">
+        <option value="black">Black</option>
+        <option value="white">White</option>
       </select>
     </div>
     <div class="form-row">
@@ -3091,10 +3142,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
     </div>
   </div>
-  <div class="card">
-    <h3>System Stats</h3>
-    <div id="system-stats" style="min-height:60px"></div>
-  </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid var(--danger)">
     <h3 style="color:var(--danger)">Prepare for New Owner</h3>
     <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
@@ -3159,85 +3206,88 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 <!-- DOWNLOADS TAB -->
 <div id="tab-downloads" class="panel">
-  <div class="card">
-    <h3>Storage</h3>
-    <div id="storage-info" style="min-height:80px"></div>
+  <div class="dl-col-left">
+    <div class="card">
+      <h3>Storage</h3>
+      <div id="storage-info" style="min-height:80px"></div>
+    </div>
+    <div class="card">
+      <h3>Downloads</h3>
+      <div id="dl-buttons" style="min-height:44px"></div>
+      <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
+            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <button onclick="lorcanaSearch()"
+            style="padding:8px 14px;background:#C084FC;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+        </div>
+        <div id="lorcana-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
+      </div>
+      <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
+            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <button onclick="mtgSetSearch()"
+            style="padding:8px 14px;background:#6BCCBD;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+        </div>
+        <div id="mtg-set-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
+      </div>
+      <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
+            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <button onclick="pokemonSearch()"
+            style="padding:8px 14px;background:#36A5CA;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+        </div>
+        <div id="pokemon-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
+      </div>
+      <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
+            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <button onclick="mangaSearch()"
+            style="padding:8px 14px;background:#F472B6;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+        </div>
+        <div id="manga-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
+      </div>
+      <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
+            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
+          <button onclick="comicSearch()"
+            style="padding:8px 14px;background:#F97316;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+        </div>
+        <div id="comics-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Custom Images</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Upload your own images to display. Create folders to organize them.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input id="custom-folder-name" type="text" placeholder="New folder name..."
+          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:14px;">
+        <button onclick="createCustomFolder()" class="btn"
+          style="background:var(--accent2);color:#010001;border:none;white-space:nowrap;">+ Create</button>
+      </div>
+      <div id="custom-folders"></div>
+    </div>
+    <div class="card">
+      <h3>Delete Entire Library</h3>
+      <div id="delete-buttons"></div>
+    </div>
   </div>
-  <div class="card">
-    <h3>Downloads</h3>
-    <div id="dl-buttons" style="min-height:44px"></div>
-    <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
-        <button onclick="lorcanaSearch()"
-          style="padding:8px 14px;background:#C084FC;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
+  <div class="dl-col-right">
+    <div class="card" id="dl-status-card">
+      <h3>Download Status</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:var(--danger);color:var(--bg);border:none;">Stop</button>
+          <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
+        </div>
       </div>
-      <div id="lorcana-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
+      <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
     </div>
-    <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
-        <button onclick="mtgSetSearch()"
-          style="padding:8px 14px;background:#6BCCBD;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
-      </div>
-      <div id="mtg-set-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
-    </div>
-    <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
-        <button onclick="pokemonSearch()"
-          style="padding:8px 14px;background:#36A5CA;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
-      </div>
-      <div id="pokemon-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
-    </div>
-    <div id="dl-manga-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
-        <button onclick="mangaSearch()"
-          style="padding:8px 14px;background:#F472B6;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
-      </div>
-      <div id="manga-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
-    </div>
-    <div id="dl-comics-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;">
-        <button onclick="comicSearch()"
-          style="padding:8px 14px;background:#F97316;color:var(--bg);border:none;border-radius:6px;cursor:pointer;font-weight:600;">Search</button>
-      </div>
-      <div id="comics-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
-    </div>
-  </div>
-
-<div class="card" id="dl-status-card">
-    <h3>Download Status</h3>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:var(--danger);color:var(--bg);border:none;">Stop</button>
-        <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
-      </div>
-    </div>
-    <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
-  </div>
-  <div class="card">
-    <h3>Custom Images</h3>
-    <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Upload your own images to display. Create folders to organize them.</p>
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
-      <input id="custom-folder-name" type="text" placeholder="New folder name..."
-        style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:14px;">
-      <button onclick="createCustomFolder()" class="btn"
-        style="background:var(--accent2);color:#010001;border:none;white-space:nowrap;">+ Create</button>
-    </div>
-    <div id="custom-folders"></div>
-  </div>
-  <div class="card">
-    <h3>Delete Entire Library</h3>
-    <div id="delete-buttons"></div>
   </div>
 </div><!-- /tab-downloads -->
 
@@ -3245,9 +3295,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 <!-- Card preview modal -->
 <div class="modal-overlay" id="preview-modal" onclick="closePreview()">
-  <div class="modal-content" onclick="event.stopPropagation()">
+  <div class="modal-content preview-modal-content" onclick="event.stopPropagation()">
     <img id="preview-img" src="" onclick="closePreview()" style="cursor:pointer">
-    <p id="preview-name"></p>
+    <div class="stats-grid preview-modal-stats" style="margin-top:12px">
+      <div class="stat-cell">
+        <div class="stat-label" id="pm-num-label">Card #</div>
+        <div class="stat-value" id="pm-num">&mdash;</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label" id="pm-rarity-label">Rarity</div>
+        <div class="stat-value" id="pm-rarity">&mdash;</div>
+      </div>
+      <div class="stat-cell full-width">
+        <div class="stat-label">Set</div>
+        <div class="stat-value" id="pm-set">&mdash;</div>
+      </div>
+    </div>
     <button class="btn btn-secondary btn-sm modal-close" onclick="closePreview()">Close</button>
   </div>
 </div>
@@ -3255,6 +3318,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div id="toast" style="display:none;position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:var(--accent);color:#010001;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
 
 <nav class="bottom-nav">
+  <div class="sidebar-brand">
+    <img src="/static/apple-touch-icon.png" class="sb-logo-img" alt="InkSlab">
+    <div class="sb-brand-text">InkSlab</div>
+    <span id="sb-tcg" class="pill-tcg sb-tcg-pill">InkSlab</span>
+  </div>
+  <div class="sb-section-label">CORE</div>
   <div class="nav-item active" data-tab="display" onclick="showTab('display')">
     <span class="nav-icon">&#9654;</span>
     <span class="nav-label">Display</span>
@@ -3267,9 +3336,26 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <span class="nav-icon">&#8595;</span>
     <span class="nav-label">Downloads</span>
   </div>
+  <div class="sb-section-label">FEATURES</div>
   <div class="nav-item" data-tab="settings" onclick="showTab('settings')">
     <span class="nav-icon">&#9881;</span>
     <span class="nav-label">Settings</span>
+  </div>
+  <div class="sb-widget">
+    <div class="sb-widget-label">Quick Switch</div>
+    <div class="quick-switch-scroll" id="sb-quick-switch-btns"></div>
+  </div>
+  <div class="sb-widget sb-widget-stats">
+    <div class="sb-widget-label">Raspberry Pi</div>
+    <div id="system-stats">
+      <div class="stat"><span class="stat-label">CPU Temp</span><span class="stat-value">&mdash;</span></div>
+      <div class="stat"><span class="stat-label">RAM</span><span class="stat-value">&mdash;</span></div>
+      <div class="stat"><span class="stat-label">Uptime</span><span class="stat-value">&mdash;</span></div>
+      <div class="stat"><span class="stat-label">WiFi</span><span class="stat-value">&mdash;</span></div>
+    </div>
+  </div>
+  <div class="sb-bottom">
+    <div id="sb-version" style="font-size:10px;color:var(--text-dim)"></div>
   </div>
 </nav>
 

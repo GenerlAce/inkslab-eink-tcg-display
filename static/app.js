@@ -190,7 +190,7 @@ function showTab(name) {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
   if (name === 'collection') { loadSets(); loadRarities(); }
-  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); loadSystemStats(); }
+  if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
 }
@@ -457,10 +457,18 @@ function _qCardHtml(tcg, c) {
   var qNum = isMangaComics
     ? (c.set_info ? (c.set_info.match(/^(\d{4})/) || [])[1] || '\u2014' : '\u2014')
     : esc(c.card_num);
-  return '<div class="q-card" data-thumb="' + thumbUrl + '">'
+  var setName = esc(c.set_info || '');
+  var isMC = isMangaComics;
+  return '<div class="q-card" data-thumb="' + thumbUrl + '"'
+    + ' data-num="' + (isMC ? esc(c.rarity || '') : qNum) + '"'
+    + ' data-rarity="' + (isMC ? qNum : esc(c.rarity || '')) + '"'
+    + ' data-set="' + setName + '"'
+    + ' data-num-label="' + (isMC ? (tcg === 'manga' ? 'Volume #' : 'Issue #') : 'Card #') + '"'
+    + ' data-rarity-label="' + (isMC ? 'Year' : 'Rarity') + '">'
     + '<img class="q-thumb" src="' + thumbUrl + '" onerror="this.style.display=\'none\'">'
     + '<div class="q-num">' + qNum + '</div>'
-    + '<div class="q-rarity">' + esc(c.rarity || '') + '</div></div>';
+    + '<div class="q-rarity">' + esc(c.rarity || '') + '</div>'
+    + '<div class="q-set-info">' + setName + '</div></div>';
 }
 function _attachQCardClicks(listEl) {
   listEl.querySelectorAll('.q-card').forEach(function(card) {
@@ -474,6 +482,17 @@ function _attachQCardClicks(listEl) {
         previewImg.src = card.dataset.thumb;
         var previewName = document.getElementById('preview-name');
         if (previewName) previewName.textContent = '';
+        // Populate stat bubbles in preview modal
+        var pmNumLbl = document.getElementById('pm-num-label');
+        var pmNum = document.getElementById('pm-num');
+        var pmRarityLbl = document.getElementById('pm-rarity-label');
+        var pmRarity = document.getElementById('pm-rarity');
+        var pmSet = document.getElementById('pm-set');
+        if (pmNumLbl) pmNumLbl.textContent = card.dataset.numLabel || 'Card #';
+        if (pmNum) pmNum.textContent = card.dataset.num || '\u2014';
+        if (pmRarityLbl) pmRarityLbl.textContent = card.dataset.rarityLabel || 'Rarity';
+        if (pmRarity) pmRarity.textContent = card.dataset.rarity || '\u2014';
+        if (pmSet) pmSet.textContent = card.dataset.set || '\u2014';
         previewModal.classList.add('open');
       }
     });
@@ -500,17 +519,15 @@ function renderQueue(d) {
     }
   }
 
-  // --- Previous (desktop only) ---
-  if (isDesktop) {
-    var prev = (d.prev_cards || []).slice(0, 3);
-    var prevKey = JSON.stringify(prev.map(function(c){return c.card_id}));
-    if (prevKey !== _lastPrevKey) {
-      _lastPrevKey = prevKey;
-      var prevCard = document.getElementById('prev-card');
-      prevCard.style.display = 'block';
-      var prevListEl = document.getElementById('q-prev-list');
+  // --- Previous ---
+  var prev = (d.prev_cards || []).slice(0, 5);
+  var prevKey = JSON.stringify(prev.map(function(c){return c.card_id}));
+  if (prevKey !== _lastPrevKey) {
+    _lastPrevKey = prevKey;
+    var prevListEl = document.getElementById('q-prev-list');
+    if (prevListEl) {
       var html = prev.map(function(c) { return _qCardHtml(tcg, c); }).join('');
-      for (var i = prev.length; i < 3; i++) {
+      for (var i = prev.length; i < 5; i++) {
         html += '<div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>';
       }
       prevListEl.innerHTML = html;
@@ -536,15 +553,23 @@ function updatePillTcg(tcg) {
   var explicit = !!tcg;
   var pill = document.getElementById('pill-tcg');
   if (!pill) return;
-  // Fallback to first registry key if tcg is missing
-  if (!tcg && _tcgRegistry) tcg = Object.keys(_tcgRegistry)[0];
-  if (!tcg) return;
+  // While TCG is unknown, show neutral "InkSlab" placeholder
+  if (!tcg) {
+    var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#36A5CA';
+    pill.textContent = 'InkSlab';
+    pill.dataset.color = accentColor;
+    var sbTcgPlaceholder = document.getElementById('sb-tcg');
+    if (sbTcgPlaceholder) { sbTcgPlaceholder.textContent = 'InkSlab'; sbTcgPlaceholder.dataset.color = accentColor; }
+    return;
+  }
   var shortNames = {lorcana: 'Lorcana', mtg: 'Magic', pokemon: 'Pokemon', manga: 'Manga', comics: 'Comics', custom: 'Custom'};
   var info = _tcgRegistry && _tcgRegistry[tcg];
   var color = (info && info.color) || '#36A5CA';
   var name = shortNames[tcg] || (info && info.name) || tcg.toUpperCase();
   pill.textContent = name;
   pill.dataset.color = color;
+  var sbTcg = document.getElementById('sb-tcg');
+  if (sbTcg) { sbTcg.textContent = name; sbTcg.dataset.color = color; }
   // Auto theme: only apply when tcg was explicitly provided (not a null fallback)
   if (explicit && (localStorage.getItem('inkslab_theme') || 'default') === 'auto') {
     localStorage.setItem('inkslab_last_tcg', tcg);
@@ -563,10 +588,16 @@ function updatePillStyle(collectionOnly) {
     pill.style.background = '';
     pill.style.color = color;
   }
+  var sbTcg = document.getElementById('sb-tcg');
+  if (sbTcg) {
+    var sbColor = sbTcg.dataset.color || color;
+    if (collectionOnly) { sbTcg.style.background = sbColor; sbTcg.style.color = 'var(--bg)'; }
+    else { sbTcg.style.background = ''; sbTcg.style.color = sbColor; }
+  }
 }
 
 function updateQuickSwitchActive(tcg) {
-  document.querySelectorAll('#quick-switch-btns .btn').forEach(function(b) {
+  document.querySelectorAll('#quick-switch-btns .btn, #sb-quick-switch-btns .btn').forEach(function(b) {
     var color = b.dataset.color || 'var(--accent)';
     if (b.dataset.tcg === tcg) {
       b.style.background = color;
@@ -594,18 +625,30 @@ function refreshStatus() {
     var cardLbl = document.getElementById('st-card-label');
     var rarityLbl = document.getElementById('st-rarity-label');
     var totalLbl = document.getElementById('st-total-label');
+    var siCardLbl = document.getElementById('si-card-label');
+    var siRarityLbl = document.getElementById('si-rarity-label');
+    var siTotalLbl = document.getElementById('si-total-label');
     if (d.tcg === 'manga') {
       if (cardLbl) cardLbl.textContent = 'Volume #';
       if (rarityLbl) rarityLbl.textContent = 'Year';
       if (totalLbl) totalLbl.textContent = 'Volumes in Series';
+      if (siCardLbl) siCardLbl.textContent = 'Volume #';
+      if (siRarityLbl) siRarityLbl.textContent = 'Year';
+      if (siTotalLbl) siTotalLbl.textContent = 'Volumes in Series';
     } else if (d.tcg === 'comics') {
       if (cardLbl) cardLbl.textContent = 'Issue #';
       if (rarityLbl) rarityLbl.textContent = 'Year';
       if (totalLbl) totalLbl.textContent = 'Issues in Series';
+      if (siCardLbl) siCardLbl.textContent = 'Issue #';
+      if (siRarityLbl) siRarityLbl.textContent = 'Year';
+      if (siTotalLbl) siTotalLbl.textContent = 'Issues in Series';
     } else {
       if (cardLbl) cardLbl.textContent = 'Card #';
       if (rarityLbl) rarityLbl.textContent = 'Rarity';
       if (totalLbl) totalLbl.textContent = 'Cards in Deck';
+      if (siCardLbl) siCardLbl.textContent = 'Card #';
+      if (siRarityLbl) siRarityLbl.textContent = 'Rarity';
+      if (siTotalLbl) siTotalLbl.textContent = 'Cards in Deck';
     }
     updatePillTcg(d.tcg);
     updateQuickSwitchActive(d.tcg || '');
@@ -644,7 +687,18 @@ function refreshStatus() {
         rarityVal = yrMatch ? yrMatch[1] : '\u2014';
       }
       document.getElementById('st-rarity').textContent = rarityVal;
-      document.getElementById('st-total').textContent = d.total_cards || '\\u2014';
+      document.getElementById('st-total').textContent = d.total_cards || '\u2014';
+      // Inline stat bubbles (desktop only, below card)
+      var siCard = document.getElementById('si-card');
+      var siSet = document.getElementById('si-set');
+      var siRarity = document.getElementById('si-rarity');
+      var siTotal = document.getElementById('si-total');
+      var siTcg = document.getElementById('si-tcg');
+      if (siCard) siCard.textContent = cardNum;
+      if (siSet) siSet.textContent = d.set_info || '\u2014';
+      if (siRarity) siRarity.textContent = rarityVal;
+      if (siTotal) siTotal.textContent = d.total_cards || '\u2014';
+      if (siTcg) siTcg.textContent = (d.tcg || '\u2014').toUpperCase();
       var img = document.getElementById('st-preview');
       if (d.card_path) {
         var needsReload = (!img.getAttribute('src')
@@ -668,8 +722,9 @@ function refreshStatus() {
       } else {
         hidePreviewLoading();
       }
-      renderQueue(d);
     }
+    // Always render queue (even during pending — Previous shows placeholders)
+    renderQueue(d);
     // Update pause button and countdown
     updatePauseBtn(d.paused);
     updateCountdown();
@@ -690,6 +745,15 @@ function refreshStatus() {
       tempEl.style.color = d.cpu_temp >= 75 ? '#f87171' : d.cpu_temp >= 61 ? '#fb923c' : '';
       tempWrap.style.display = '';
     }
+    var sbTempWrap = document.getElementById('sb-temp-wrap');
+    var sbTempEl = document.getElementById('sb-temp');
+    if (sbTempEl && sbTempWrap) {
+      if (d.cpu_temp != null) {
+        sbTempEl.textContent = d.cpu_temp + '\u00b0C';
+        sbTempEl.style.color = d.cpu_temp >= 75 ? '#f87171' : d.cpu_temp >= 61 ? '#fb923c' : 'var(--text-dim)';
+        sbTempWrap.style.display = '';
+      }
+    }
   }).catch(() => {});
 }
 
@@ -705,9 +769,12 @@ function startRapidPoll() {
 
 function setOptimisticLoading(msg) {
   showPreviewLoading(msg);
-  document.getElementById('st-card').textContent = '\\u2014';
-  document.getElementById('st-set').textContent = '\\u2014';
-  document.getElementById('st-rarity').textContent = '\\u2014';
+  document.getElementById('st-card').textContent = '\u2014';
+  document.getElementById('st-set').textContent = '\u2014';
+  document.getElementById('st-rarity').textContent = '\u2014';
+  var siCard = document.getElementById('si-card'); if (siCard) siCard.textContent = '\u2014';
+  var siSet = document.getElementById('si-set'); if (siSet) siSet.textContent = '\u2014';
+  var siRarity = document.getElementById('si-rarity'); if (siRarity) siRarity.textContent = '\u2014';
   var errRow = document.getElementById('st-error-row');
   errRow.style.display = 'block';
   var errEl = document.getElementById('st-error');
@@ -719,7 +786,19 @@ function showCardInfoModal() {
   document.getElementById('card-info-modal').classList.add('open');
 }
 
+function _warnShortDisplay() {
+  var ds = _lastStatus && _lastStatus.display_start;
+  if (!ds) return true;
+  var elapsed = Math.floor(Date.now() / 1000) - ds;
+  if (elapsed < 180) {
+    var remaining = 180 - elapsed;
+    return confirm('This card has only been on the display for ' + elapsed + 's.\n\nWaveshare recommends at least 3 minutes between refreshes to avoid display wear.\n\nAdvance anyway? (' + remaining + 's remaining)');
+  }
+  return true;
+}
+
 function nextCard() {
+  if (!_warnShortDisplay()) return;
   var btn = document.getElementById('btn-next');
   btn.disabled = true;
   fetch(API + '/api/next', {method:'POST'})
@@ -733,6 +812,7 @@ function nextCard() {
 }
 
 function prevCard() {
+  if (!_warnShortDisplay()) return;
   var btn = document.getElementById('btn-prev');
   btn.disabled = true;
   fetch(API + '/api/prev', {method:'POST'})
@@ -763,11 +843,12 @@ function togglePause() {
 }
 
 function switchTCG(tcg, activeBtn) {
-  var btns = document.getElementById('quick-switch-btns').querySelectorAll('.btn');
+  var btns = document.querySelectorAll('#quick-switch-btns .btn, #sb-quick-switch-btns .btn');
   btns.forEach(function(b) { b.disabled = true; });
   var orig = activeBtn ? activeBtn.textContent : null;
   if (activeBtn) activeBtn.textContent = 'Switching...';
   updatePillTcg(tcg);
+  updatePillStyle(!!((_lastStatus && _lastStatus.collection_only)));
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify({active_tcg: tcg}),
     headers:{'Content-Type':'application/json'}})
     .then(function() {
@@ -943,6 +1024,10 @@ function loadSettings() {
   fetch(API + '/api/config').then(r => r.json()).then(c => {
     document.getElementById('cfg-tcg').value = c.active_tcg;
     document.getElementById('cfg-header-mode').value = c.slab_header_mode || 'normal';
+    var fitEl = document.getElementById('cfg-image-fit');
+    if (fitEl) fitEl.value = c.image_fit || 'contain';
+    var bgEl = document.getElementById('cfg-image-bg');
+    if (bgEl) bgEl.value = c.image_bg || 'black';
     document.getElementById('cfg-rotation').value = c.rotation_angle;
     document.getElementById('cfg-day-interval').value = Math.round(c.day_interval / 60);
     document.getElementById('cfg-night-interval').value = Math.round(c.night_interval / 60);
@@ -990,6 +1075,8 @@ function saveSettings() {
   const cfg = {
     active_tcg: document.getElementById('cfg-tcg').value,
     slab_header_mode: document.getElementById('cfg-header-mode').value,
+    image_fit: document.getElementById('cfg-image-fit') ? document.getElementById('cfg-image-fit').value : 'contain',
+    image_bg: document.getElementById('cfg-image-bg') ? document.getElementById('cfg-image-bg').value : 'black',
     rotation_angle: parseInt(document.getElementById('cfg-rotation').value) || 270,
     day_interval: (parseInt(document.getElementById('cfg-day-interval').value) || 10) * 60,
     night_interval: (parseInt(document.getElementById('cfg-night-interval').value) || 60) * 60,
@@ -1030,7 +1117,12 @@ function adminTap() {
 // --- WiFi ---
 var _sysStatsTimer = null;
 function loadSystemStats() {
-  fetch(API + '/api/system').then(r => r.json()).then(function(d) {
+  Promise.all([
+    fetch(API + '/api/system').then(r => r.json()),
+    fetch(API + '/api/wifi/status').then(r => r.json()).catch(() => ({}))
+  ]).then(function(results) {
+    var d = results[0];
+    var w = results[1];
     var el = document.getElementById('system-stats');
     if (!el) return;
     var tempColor = d.cpu_temp >= 75 ? 'var(--danger)' : d.cpu_temp >= 60 ? '#F59E0B' : 'var(--accent2)';
@@ -1039,6 +1131,8 @@ function loadSystemStats() {
     var html = '<div class="stat"><span class="stat-label">CPU Temp</span><span class="stat-value" style="color:' + tempColor + '">' + (d.cpu_temp != null ? d.cpu_temp + '°C' : '—') + '</span></div>';
     html += '<div class="stat"><span class="stat-label">RAM</span><span class="stat-value" style="color:' + ramColor + '">' + (d.ram_used_mb != null ? d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB (' + ramPct + '%)' : '—') + '</span></div>';
     html += '<div class="stat"><span class="stat-label">Uptime</span><span class="stat-value">' + (d.uptime || '—') + '</span></div>';
+    var wifiVal = w.ssid ? (w.ssid + (w.ip ? ' · ' + w.ip : '')) : (w.ip || '—');
+    html += '<div class="stat"><span class="stat-label">WiFi</span><span class="stat-value">' + wifiVal + '</span></div>';
     el.innerHTML = html;
     if (_sysStatsTimer) clearTimeout(_sysStatsTimer);
     _sysStatsTimer = setTimeout(function() {
@@ -2005,22 +2099,24 @@ function buildDynamicUI(registry) {
     if (b[0] === 'custom') return 1;
     return a[1].name.localeCompare(b[1].name);
   });
-  // Quick Switch buttons — use short names so 2 fit per row
+  // Quick Switch buttons — populate both mobile (#quick-switch-btns) and sidebar (#sb-quick-switch-btns)
   var shortNames = {lorcana: 'Lorcana', mtg: 'Magic', pokemon: 'Pokemon', manga: 'Manga', comics: 'Comics', custom: 'Custom'};
-  var qsEl = document.getElementById('quick-switch-btns');
-  qsEl.innerHTML = '';
-  sorted.forEach(function(e) {
-    var color = e[1].color || '#36A5CA';
-    var b = document.createElement('button');
-    b.className = 'btn';
-    b.dataset.tcg = e[0];
-    b.dataset.color = color;
-    b.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;';
-    b.textContent = shortNames[e[0]] || e[1].name;
-    b.addEventListener('mouseover', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = color; b.style.color = 'var(--bg)'; } });
-    b.addEventListener('mouseout', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = 'transparent'; b.style.color = color; } });
-    b.addEventListener('click', function() { switchTCG(e[0], b); });
-    qsEl.appendChild(b);
+  [document.getElementById('quick-switch-btns'), document.getElementById('sb-quick-switch-btns')].forEach(function(qsEl) {
+    if (!qsEl) return;
+    qsEl.innerHTML = '';
+    sorted.forEach(function(e) {
+      var color = e[1].color || '#36A5CA';
+      var b = document.createElement('button');
+      b.className = 'btn';
+      b.dataset.tcg = e[0];
+      b.dataset.color = color;
+      b.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;';
+      b.textContent = shortNames[e[0]] || e[1].name;
+      b.addEventListener('mouseover', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = color; b.style.color = 'var(--bg)'; } });
+      b.addEventListener('mouseout', function() { if (b.dataset.tcg !== (_lastStatus.tcg||'')) { b.style.background = 'transparent'; b.style.color = color; } });
+      b.addEventListener('click', function() { switchTCG(e[0], b); });
+      qsEl.appendChild(b);
+    });
   });
   updateQuickSwitchActive(_lastStatus.tcg || '');
   // Browse TCG pills in Collection tab
@@ -2158,24 +2254,32 @@ function initApp() {
     fetch(API + '/api/ip').then(r => r.json()).then(d => {
       var sd = document.getElementById('status-dot');
       var st = document.getElementById('status-text');
+      var sbSt = document.getElementById('sb-status-text');
       if (d.ip) {
         if (sd) sd.className = 'status-dot';
         if (st) st.textContent = d.ip;
+        if (sbSt) sbSt.textContent = d.ip;
       } else {
         if (sd) sd.className = 'status-dot offline';
         if (st) st.textContent = 'Offline';
+        if (sbSt) sbSt.textContent = 'Offline';
       }
     }).catch(function() {
       var sd = document.getElementById('status-dot');
       var st = document.getElementById('status-text');
+      var sbSt = document.getElementById('sb-status-text');
       if (sd) sd.className = 'status-dot offline';
       if (st) st.textContent = 'Offline';
+      if (sbSt) sbSt.textContent = 'Offline';
     });
     fetch(API + '/api/version').then(r => r.json()).then(d => {
       var el = document.getElementById('update-info');
       if (d.version && d.version !== 'unknown') el.textContent = 'Version: ' + d.version + ' — Click below to check for updates.';
       else el.textContent = 'Click below to check for updates.';
+      var sbVer = document.getElementById('sb-version');
+      if (sbVer && d.version && d.version !== 'unknown') sbVer.textContent = 'ver. ' + d.version;
     }).catch(() => { document.getElementById('update-info').textContent = 'Click below to check for updates.'; });
+    loadSystemStats();
   }).catch(function() {
     document.body.classList.remove('auth-pending');
     refreshStatus();

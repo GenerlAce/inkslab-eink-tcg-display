@@ -216,6 +216,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 2px;
+  text-align: center;
 }
 .stat-cell .stat-value {
   font-size: 13px;
@@ -224,6 +225,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
 }
 .stat-cell.full-width {
   grid-column: 1 / -1;
@@ -319,16 +321,10 @@ body {
 
 .q-num { font-size: 11px; font-weight: 600; color: var(--text-hi); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-rarity { font-size: 10px; font-weight: 600; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.q-set-info { display: none; }
 
-/* Queue row: stacked on mobile, side-by-side on desktop */
-.queue-row { display: block; }
-#prev-card { display: none; } /* hidden on mobile */
-@media (min-width: 600px) {
-  .queue-row { display: grid; grid-template-columns: 5fr 3fr; gap: 12px; align-items: stretch; }
-  .queue-row #queue-card { min-width: 0; }
-  .queue-row #prev-card { min-width: 0; }
-  #prev-card .q-list { grid-template-columns: repeat(3, 1fr); }
-}
+/* Previous card: always visible with placeholders */
+#prev-card .q-list { grid-template-columns: repeat(5, 1fr); }
 
 /* Quick switch grid */
 .quick-switch-scroll {
@@ -524,6 +520,9 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .card-info-modal-content .stat-cell .stat-label,
 .card-info-modal-content .stat-cell .stat-value { text-align: center; }
 .card-info-modal-content .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
+.preview-modal-stats .stat-cell .stat-label,
+.preview-modal-stats .stat-cell .stat-value { text-align: center; }
+.preview-modal-stats .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
 
 /* Info hint badge on preview */
 #st-preview-wrap { position: relative; }
@@ -559,3 +558,207 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 body.auth-pending .status-pill,
 body.auth-pending .content,
 body.auth-pending .bottom-nav { visibility: hidden; }
+
+/* === MOBILE: column wrappers are transparent (children flow normally) === */
+.display-col-left,
+.display-col-right,
+.dl-col-left,
+.dl-col-right { display: contents; }
+.sidebar-brand { display: none; }
+.sb-section-label,
+.sb-widget,
+.sb-bottom,
+.card-info-inline,
+.desktop-topbar { display: none; }
+
+/* === DESKTOP SIDEBAR (≥900px) === */
+@media (min-width: 900px) {
+  body { flex-direction: row; }
+  .status-pill { display: none; }
+
+  /* Sidebar */
+  .bottom-nav {
+    order: -1;
+    width: 220px;
+    height: 100dvh;
+    flex-direction: column;
+    border-top: none;
+    border-right: 1px solid var(--border);
+    padding-bottom: 0;
+    overflow-y: auto;
+    align-items: stretch;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* Sidebar brand */
+  .sidebar-brand {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sb-logo-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .sb-brand-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .sb-tcg-pill { display: none; } /* pill in topbar handles this */
+
+  /* Section labels */
+  .sb-section-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    padding: 14px 16px 4px;
+    opacity: 0.6;
+  }
+
+  /* Sidebar nav items */
+  .nav-item {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 11px 16px;
+    gap: 10px;
+    border-radius: 8px;
+    margin: 2px 8px;
+    opacity: 0.65;
+    transform: none !important;
+  }
+  .nav-item.active {
+    background: var(--bg-card);
+    border: 1px solid var(--border-hi);
+    opacity: 1;
+    transform: none !important;
+  }
+  .nav-item.active::before { display: none; }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .nav-label { font-size: 13px; letter-spacing: 0; }
+
+  /* Sidebar widgets (Quick Switch, Pi Stats) */
+  .sb-widget {
+    display: block;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .sb-widget-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    opacity: 0.6;
+    margin-bottom: 8px;
+  }
+  .sb-widget .quick-switch-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sb-widget .quick-switch-scroll .btn {
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
+  }
+
+  /* Sidebar bottom (version) */
+  .sb-bottom {
+    display: block;
+    padding: 10px 16px 14px;
+    margin-top: auto;
+  }
+  .sb-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Content area */
+  .content { height: 100dvh; }
+
+  /* Card info bubbles below preview (desktop only) */
+  .card-info-inline { display: block; padding: 4px 0 0; }
+  .card-info-inline .stat-cell .stat-label,
+  .card-info-inline .stat-cell .stat-value { text-align: center; }
+  .card-info-inline .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
+  /* Hide the ⓘ tap-hint on desktop since stats are always visible */
+  .preview-info-hint { display: none; }
+
+  /* Bigger preview image on desktop */
+  #st-preview-wrap { max-width: 380px; }
+
+  /* Hide mobile quick switch card on desktop */
+  .mobile-qs-card { display: none; }
+
+  /* Centered sidebar bottom */
+  .sb-bottom { text-align: center; }
+  .sb-status { justify-content: center; }
+  .sb-bottom-sep { border-top: 1px solid var(--border); margin: 6px 0; }
+
+  /* Push Pi stats widget down to just above the bottom section */
+  .sb-widget-stats { margin-top: auto; }
+
+  /* Keep prev/next at 5 columns on desktop */
+  #prev-card .q-list,
+  #queue-card .q-list { grid-template-columns: repeat(5, 1fr); }
+
+  /* Set name below each queue card thumbnail */
+  .q-set-info {
+    display: block;
+    font-size: 9px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+    opacity: 0.75;
+  }
+
+  /* Bigger preview modal image on desktop */
+  .modal-content img { max-width: 380px; }
+
+  /* Preview modal: wider content on desktop */
+  .preview-modal-content { max-width: 440px; width: 90%; }
+
+  /* Card not clickable on desktop (info shown inline below) */
+  #st-preview-wrap { cursor: default !important; pointer-events: none; }
+
+  /* Display tab: two-column */
+  #tab-display.active {
+    display: flex;
+    gap: 16px;
+    align-items: start;
+    padding: 16px;
+  }
+  .display-col-left { display: block; flex: 5; min-width: 0; }
+  .display-col-right { display: block; flex: 3; min-width: 0; }
+
+  /* Downloads tab: two-panel */
+  #tab-downloads.active {
+    display: flex;
+    gap: 16px;
+    align-items: start;
+    padding: 16px;
+  }
+  .dl-col-left { display: block; flex: 1; min-width: 0; }
+  .dl-col-right { display: block; flex: 1; min-width: 0; }
+
+  /* Keep download log always visible and taller on desktop */
+  #dl-log { display: block !important; height: 400px !important; }
+  #btn-dl-log-toggle { display: none !important; }
+}

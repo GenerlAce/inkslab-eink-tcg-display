@@ -34,6 +34,8 @@ DEFAULTS = {
     "color_saturation": 2.5,
     "collection_only": False,
     "slab_header_mode": "normal",
+    "image_fit": "contain",
+    "image_bg": "black",
 }
 
 # --- DYNAMIC TCG REGISTRY ---
@@ -539,16 +541,22 @@ def get_card_metadata(img_path, master_index):
     return info
 
 
-def create_slab_layout(img_path, master_index, header_mode="normal"):
+def create_slab_layout(img_path, master_index, header_mode="normal", image_fit="contain", image_bg="black"):
     """Create a PSA-slab-style layout with card info header above the card image.
-    header_mode: 'normal' (white bg, black text), 'inverted' (black bg, white text), 'off' (full card)"""
+    header_mode: 'normal' (white bg, black text), 'inverted' (black bg, white text), 'off' (full card)
+    image_fit: 'contain' (letterbox), 'fill' (crop to fill), 'stretch'
+    image_bg: 'black' or 'white' — letterbox fill color for contain mode"""
     info = get_card_metadata(img_path, master_index)
+    bg_fill = (0, 0, 0) if image_bg == "black" else (255, 255, 255)
 
     with Image.open(img_path) as card_raw:
         card = card_raw.convert("RGB")
 
-        if header_mode == "off":
-            # Full-screen: center-crop card to fill entire display
+        if image_fit == "stretch":
+            card_fitted = card.resize((DISPLAY_WIDTH, DISPLAY_HEIGHT), Image.Resampling.LANCZOS)
+            card.close()
+        elif image_fit == "fill":
+            # Scale to cover, center-crop
             aspect = card.width / card.height
             display_aspect = DISPLAY_WIDTH / DISPLAY_HEIGHT
             if aspect > display_aspect:
@@ -561,30 +569,44 @@ def create_slab_layout(img_path, master_index, header_mode="normal"):
             card.close()
             left = (new_w - DISPLAY_WIDTH) // 2
             top = (new_h - DISPLAY_HEIGHT) // 2
-            card_cropped = card_resized.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
+            card_fitted = card_resized.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
             card_resized.close()
-            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (0, 0, 0))
-            canvas.paste(card_cropped, (0, 0))
-            card_cropped.close()
+        else:  # contain (letterbox)
+            scale = min(DISPLAY_WIDTH / card.width, DISPLAY_HEIGHT / card.height)
+            new_w = int(card.width * scale)
+            new_h = int(card.height * scale)
+            card_resized = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            card.close()
+            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
+            x_pos = (DISPLAY_WIDTH - new_w) // 2
+            y_pos = (DISPLAY_HEIGHT - new_h) // 2
+            canvas.paste(card_resized, (x_pos, y_pos))
+            card_resized.close()
+            if header_mode == "off":
+                return canvas, info
+            card_fitted = canvas
+
+        if header_mode == "off":
+            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
+            canvas.paste(card_fitted, (0, 0))
+            card_fitted.close()
             return canvas, info
 
-        # Normal or inverted: scale card to fill display width
-        aspect = card.height / card.width
-        new_h = int(DISPLAY_WIDTH * aspect)
-        card_resized = card.resize((DISPLAY_WIDTH, new_h), Image.Resampling.LANCZOS)
-        card.close()
-        card = card_resized
-
-        # Background color depends on mode
+        # Normal or inverted: place card and draw header overlay
         bg_color = (0, 0, 0) if header_mode == "inverted" else (255, 255, 255)
         text_color = (255, 255, 255) if header_mode == "inverted" else (0, 0, 0)
 
-        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_color)
-        draw = ImageDraw.Draw(canvas)
-
-        # Position card flush to bottom
-        y_pos = DISPLAY_HEIGHT - new_h
-        canvas.paste(card, (0, y_pos))
+        if image_fit == "contain":
+            # card_fitted is already a full canvas — draw header on top
+            canvas = card_fitted
+            draw = ImageDraw.Draw(canvas)
+            y_pos = (DISPLAY_HEIGHT - new_h) // 2  # top of the card in canvas
+        else:
+            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_color)
+            draw = ImageDraw.Draw(canvas)
+            canvas.paste(card_fitted, (0, 0))
+            card_fitted.close()
+            y_pos = 0  # card fills from top; overlay bar drawn at top
 
         # Draw header text in the space above the card
         if y_pos > 30:
@@ -658,7 +680,9 @@ def process_image(img_path, master_index, config):
     """Full image pipeline: layout -> enhance -> dither -> rotate for display."""
     try:
         header_mode = config.get("slab_header_mode", "normal")
-        img, info = create_slab_layout(img_path, master_index, header_mode)
+        image_fit = config.get("image_fit", "contain")
+        image_bg = config.get("image_bg", "black")
+        img, info = create_slab_layout(img_path, master_index, header_mode, image_fit, image_bg)
 
         # Boost colors for the e-paper display (each enhance creates a new image)
         img = ImageEnhance.Color(img).enhance(config["color_saturation"])
@@ -1136,8 +1160,9 @@ def main():
                     except Exception:
                         pass
 
-                # Display refresh complete — clear the updating flag
+                # Display refresh complete — clear the updating flag, record when card went live
                 status_info["display_updating"] = False
+                status_info["display_start"] = int(time.time())
                 write_status(status_info)
 
                 logger.info(f"Next card in {wait // 60} minutes")
@@ -1228,6 +1253,7 @@ def main():
                             "next_change": next_change,
                             "paused": paused,
                             "interval": wait,
+                            "display_start": status_info.get("display_start", 0),
                         })
                         logger.info(f"Collection updated — deck rebuilt ({deck.total} cards), queue refreshed")
                         if remaining <= 0:
