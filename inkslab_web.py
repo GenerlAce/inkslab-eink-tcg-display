@@ -3293,12 +3293,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </div>
       <div id="custom-folders"></div>
     </div>
-    <div class="card">
-      <h3>Delete Entire Library</h3>
-      <div id="delete-buttons"></div>
-    </div>
-  </div>
-  <div class="dl-col-right">
     <div class="card" id="dl-status-card">
       <h3>Download Status</h3>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -3309,6 +3303,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         </div>
       </div>
       <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
+    </div>
+    <div class="card">
+      <h3>Delete Entire Library</h3>
+      <div id="delete-buttons"></div>
     </div>
   </div>
 </div><!-- /tab-downloads -->
