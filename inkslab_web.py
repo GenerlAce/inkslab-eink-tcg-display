@@ -3423,6 +3423,7 @@ def dashboard():
 
 def _run_auto_updates():
     """Background thread: check weekly and run enabled downloaders."""
+    global _download_proc, _download_tcg
     import time as _time
     import logging as _logging
     _tlog = _logging.getLogger(__name__)
@@ -3459,14 +3460,33 @@ def _run_auto_updates():
                             continue
                         _tlog.info(f"Auto-update: running {tcg} downloader")
                         cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
+                        proc = None
+                        with _download_lock:
+                            if _download_proc and _download_proc.poll() is None:
+                                _tlog.warning(f"Auto-update: skipping {tcg} - download already running")
+                                continue
+                            try:
+                                proc = subprocess.Popen(cmd, cwd=SCRIPT_DIR)
+                                _download_proc = proc
+                                _download_tcg = tcg
+                            except Exception as e:
+                                _tlog.error(f"Auto-update {tcg} failed to start: {e}")
+                                continue
                         try:
-                            subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
+                            proc.wait(timeout=3600)
                             last_times[tcg] = now.isoformat()
-                            with open(LAST_UPDATE_FILE, "w") as f:
-                                json.dump(last_times, f)
+                            _atomic_write_json(LAST_UPDATE_FILE, last_times)
                             _tlog.info(f"Auto-update: {tcg} complete")
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            _tlog.error(f"Auto-update {tcg} timed out")
                         except Exception as e:
                             _tlog.error(f"Auto-update {tcg} failed: {e}")
+                        finally:
+                            with _download_lock:
+                                if _download_proc is proc:
+                                    _download_proc = None
+                                    _download_tcg = None
         except Exception as e:
             _tlog.error(f"Auto-update thread error: {e}")
         _time.sleep(3600)  # check every hour
@@ -3543,7 +3563,7 @@ def api_auto_update_run_all():
     if not sources:
         return jsonify({'ok': False, 'error': 'No sources enabled'})
     def _do_run_all():
-        global _run_all_running
+        global _run_all_running, _download_proc, _download_tcg
         _run_all_running = True
         try:
             last_times = {}
@@ -3560,13 +3580,29 @@ def api_auto_update_run_all():
                 if not _has_disk_space():
                     continue
                 cmd = ['python3', os.path.join(SCRIPT_DIR, 'scripts', reg['download_script'])]
+                proc = None
+                with _download_lock:
+                    if _download_proc and _download_proc.poll() is None:
+                        continue
+                    try:
+                        proc = subprocess.Popen(cmd, cwd=SCRIPT_DIR)
+                        _download_proc = proc
+                        _download_tcg = tcg
+                    except Exception:
+                        continue
                 try:
-                    subprocess.run(cmd, timeout=3600, cwd=SCRIPT_DIR)
+                    proc.wait(timeout=3600)
                     last_times[tcg] = datetime.datetime.now().isoformat()
-                    with open(LAST_UPDATE_FILE, 'w') as f:
-                        json.dump(last_times, f)
+                    _atomic_write_json(LAST_UPDATE_FILE, last_times)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
                 except Exception:
                     pass
+                finally:
+                    with _download_lock:
+                        if _download_proc is proc:
+                            _download_proc = None
+                            _download_tcg = None
         finally:
             _run_all_running = False
     threading.Thread(target=_do_run_all, daemon=True).start()
