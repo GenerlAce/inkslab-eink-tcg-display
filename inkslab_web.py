@@ -3274,7 +3274,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
     <div class="card">
       <h3>Downloads</h3>
-      <div id="dl-buttons" style="min-height:44px"></div>
+      <div id="dl-picker"></div>
       <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
@@ -3439,6 +3439,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js"></script>
 <script src=/static/mtg_sets.js></script>
+<script src="/static/dl_picker.js?v=1"></script>
 </body>
 </html>"""
 

@@ -1884,15 +1884,14 @@ function toggleDlSearch(panelId, btn) {
 }
 
 function setDownloadUI(running, tcg) {
-  const btns = document.getElementById('dl-buttons');
+  const btns = document.getElementById('dl-action-btns');
   const stopBtn = document.getElementById('btn-dl-stop');
-  // MTG set search button disabling handled via dl-buttons querySelectorAll
   if (running) {
-    btns.querySelectorAll('.btn').forEach(b => b.disabled = true);
+    if (btns) btns.querySelectorAll('.btn').forEach(b => b.disabled = true);
     stopBtn.style.display = 'block';
     stopBtn.textContent = 'Stop ' + (tcg || '').toUpperCase() + ' Download';
   } else {
-    btns.querySelectorAll('.btn').forEach(b => b.disabled = false);
+    if (btns) btns.querySelectorAll('.btn').forEach(b => b.disabled = false);
     stopBtn.style.display = 'none';
   }
 }
@@ -2243,39 +2242,8 @@ function buildDynamicUI(registry) {
   sel.innerHTML = sorted.map(function(e) {
     return '<option value="' + e[0] + '">' + e[1].name + '</option>';
   }).join('');
-  // Download buttons with inline Search toggle (only for TCGs with download scripts)
-  var searchPanels = {lorcana: 'dl-lorcana-search', mtg: 'dl-mtg-search', pokemon: 'dl-pokemon-search', manga: 'dl-manga-search', comics: 'dl-comics-search'};
-  var searchLabels = {lorcana: 'Search Sets', mtg: 'Search Sets', pokemon: 'Search Sets', manga: 'Search Series', comics: 'Search Series'};
-  var dlEl = document.getElementById('dl-buttons');
-  dlEl.innerHTML = '';
-  sorted.filter(function(e) { return e[1].download_script; }).forEach(function(e) {
-    var color = e[1].color || '#36A5CA';
-    var panelId = searchPanels[e[0]];
-    var label = searchLabels[e[0]];
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
-    // Download All button (outline + hover solid)
-    var dlBtn = document.createElement('button');
-    dlBtn.className = 'btn btn-block';
-    dlBtn.style.cssText = 'background:transparent;color:' + color + ';border:1px solid ' + color + ';flex:1;';
-    dlBtn.textContent = 'Download All ' + e[1].name;
-    dlBtn.addEventListener('mouseover', function() { dlBtn.style.background = color; dlBtn.style.color = '#010001'; });
-    dlBtn.addEventListener('mouseout', function() { dlBtn.style.background = 'transparent'; dlBtn.style.color = color; });
-    dlBtn.addEventListener('click', function() { startDownload(e[0]); });
-    row.appendChild(dlBtn);
-    // Search button (solid, toggles to outline when open)
-    if (panelId) {
-      var sBtn = document.createElement('button');
-      sBtn.className = 'btn';
-      sBtn.setAttribute('data-search-btn', '1');
-      sBtn.setAttribute('data-color', color);
-      sBtn.style.cssText = 'background:' + color + ';color:#010001;border:none;white-space:nowrap;padding:8px 12px;';
-      sBtn.textContent = label;
-      sBtn.addEventListener('click', function() { toggleDlSearch(panelId, sBtn); });
-      row.appendChild(sBtn);
-    }
-    dlEl.appendChild(row);
-  });
+  // Download picker (pill selector + action buttons) — built by dl_picker.js
+  if (window.initDlPicker) initDlPicker(sorted);
   // Delete Entire Library buttons — 2-col grid, two-step confirm
   var delEl = document.getElementById('delete-buttons');
   if (delEl) {
