@@ -826,3 +826,75 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   /* Software Update: full width below */
   .settings-update-card { margin-bottom: 12px; }
 }
+
+/* ── Mobile Quick Switch Collection — bottom sheet ───────────────────────── */
+.mqs-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 199;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.mqs-overlay.mqs-open { opacity: 1; pointer-events: auto; }
+
+.mqs-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--bg-card);
+  border-radius: 16px 16px 0 0;
+  padding: 8px 16px 32px;
+  z-index: 200;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.mqs-sheet.mqs-open { transform: translateY(0); }
+
+.mqs-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 4px auto 12px;
+}
+.mqs-sheet-title {
+  font-size: 15px; font-weight: 700;
+  color: var(--text-hi);
+  text-align: center;
+  margin-bottom: 16px;
+}
+.mqs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.mqs-grid-btn { padding: 12px 8px; font-weight: 600; white-space: nowrap; }
+
+/* Trigger button — replaces button grid in the mobile card */
+.mqs-trigger {
+  width: 100%; flex: none;
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid;
+  padding: 10px 14px; font-weight: 600; border-radius: 8px;
+}
+.mqs-trigger-lbl { flex: 1; text-align: left; }
+.mqs-chev { font-size: 10px; }
+
+/* Bottom cooldown toast — sits above mobile nav */
+.mqs-cooldown-toast {
+  position: fixed;
+  bottom: 72px; left: 16px; right: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 201;
+  display: flex; flex-direction: column; gap: 10px;
+  font-size: 13px; color: var(--text-hi);
+  transform: translateY(20px); opacity: 0;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.mqs-cooldown-toast.mqs-toast-in { transform: translateY(0); opacity: 1; }
+.mqs-toast-msg { line-height: 1.4; }
+.mqs-toast-btns { display: flex; gap: 8px; }
+.mqs-toast-confirm { background: var(--accent); color: #010001; border: none; flex: 1; }
+.mqs-toast-cancel { flex: 1; }

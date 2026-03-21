@@ -623,6 +623,7 @@ function updateQuickSwitchActive(tcg) {
     }
     b.style.borderColor = color;
   });
+  if (window._mobileQSHook) window._mobileQSHook(tcg);
 }
 
 function pillTcgTap() {
@@ -870,8 +871,10 @@ function _doSwitchTCG(tcg) {
       showToast('Switch failed');
     });
 }
+window._doSwitchTCG = _doSwitchTCG;
 
 function _showSwitchCooldownBanner(tcg, remaining) {
+  if (window._mobileQSCooldown) { window._mobileQSCooldown(tcg, remaining); return; }
   var existing = document.getElementById('switch-cooldown-banner');
   if (existing) existing.remove();
   var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
@@ -2275,6 +2278,8 @@ function buildDynamicUI(registry) {
   }).join('');
   // Download picker (pill selector + action buttons) — built by dl_picker.js
   if (window.initDlPicker) initDlPicker(sorted);
+  // Mobile Quick Switch bottom sheet — built by mobile_qs.js
+  if (window.initMobileQS) { initMobileQS(sorted); if (window._mobileQSHook) _mobileQSHook(_lastStatus.tcg || ''); }
   // Delete Entire Library buttons — 2-col grid, two-step confirm
   var delEl = document.getElementById('delete-buttons');
   if (delEl) {
