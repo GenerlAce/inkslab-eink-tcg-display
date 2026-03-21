@@ -793,7 +793,7 @@ function showCardInfoModal() {
 }
 
 function _warnShortDisplay() {
-  var ds = _lastStatus && _lastStatus.display_start;
+  var ds = _lastStatus && (_lastStatus.display_start || _lastStatus.timestamp);
   if (!ds) return true;
   var elapsed = Math.floor(Date.now() / 1000) - ds;
   if (elapsed < 180) {
@@ -848,17 +848,14 @@ function togglePause() {
     });
 }
 
-function switchTCG(tcg, activeBtn) {
+function _doSwitchTCG(tcg) {
   var btns = document.querySelectorAll('#quick-switch-btns .btn, #sb-quick-switch-btns .btn');
   btns.forEach(function(b) { b.disabled = true; });
-  var orig = activeBtn ? activeBtn.textContent : null;
-  if (activeBtn) activeBtn.textContent = 'Switching...';
   updatePillTcg(tcg);
   updatePillStyle(!!((_lastStatus && _lastStatus.collection_only)));
   fetch(API + '/api/config', {method:'POST', body: JSON.stringify({active_tcg: tcg}),
     headers:{'Content-Type':'application/json'}})
     .then(function() {
-      if (activeBtn) activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
       var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
       showToast('Switching to ' + name + '...');
@@ -869,10 +866,44 @@ function switchTCG(tcg, activeBtn) {
       startRapidPoll();
     })
     .catch(function() {
-      if (activeBtn) activeBtn.textContent = orig;
       btns.forEach(function(b) { b.disabled = false; });
       showToast('Switch failed');
     });
+}
+
+function _showSwitchCooldownBanner(tcg, remaining) {
+  var existing = document.getElementById('switch-cooldown-banner');
+  if (existing) existing.remove();
+  var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
+  var banner = document.createElement('div');
+  banner.id = 'switch-cooldown-banner';
+  banner.className = 'switch-cooldown-banner';
+  banner.innerHTML = '<span>Display refreshes in ~' + remaining + 's. Switch to ' + name + ' now anyway?</span>'
+    + '<div class="scb-btns">'
+    + '<button class="btn btn-sm btn-secondary scb-cancel">Cancel</button>'
+    + '<button class="btn btn-sm scb-confirm">Switch Anyway</button>'
+    + '</div>';
+  banner.querySelector('.scb-cancel').addEventListener('click', function() { banner.remove(); });
+  banner.querySelector('.scb-confirm').addEventListener('click', function() {
+    banner.remove();
+    _doSwitchTCG(tcg);
+  });
+  // Insert after whichever quick-switch container is visible
+  var sbQs = document.getElementById('sb-quick-switch-btns');
+  var mobQs = document.getElementById('quick-switch-btns');
+  var qs = (sbQs && sbQs.offsetParent) ? sbQs : (mobQs || sbQs);
+  if (qs) qs.parentNode.insertBefore(banner, qs.nextSibling);
+  else document.body.appendChild(banner);
+}
+
+function switchTCG(tcg, activeBtn) {
+  var ds = _lastStatus && (_lastStatus.display_start || _lastStatus.timestamp);
+  var cooldownRemaining = ds ? Math.max(0, 180 - Math.floor(Date.now() / 1000 - ds)) : 0;
+  if (cooldownRemaining > 0) {
+    _showSwitchCooldownBanner(tcg, cooldownRemaining);
+    return;
+  }
+  _doSwitchTCG(tcg);
 }
 
 // --- Settings ---
