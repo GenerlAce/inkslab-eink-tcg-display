@@ -3433,13 +3433,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=11"></script>
+<script src="/static/app.js?v=12"></script>
 <script src="/static/collection_view.js"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js"></script>
 <script src=/static/mtg_sets.js></script>
-<script src="/static/dl_picker.js?v=2"></script>
+<script src="/static/dl_picker.js?v=3"></script>
 <script src="/static/mobile_qs.js?v=1"></script>
 </body>
 </html>"""

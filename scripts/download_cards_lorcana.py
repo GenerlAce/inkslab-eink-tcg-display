@@ -242,16 +242,10 @@ def main():
         print("No sets found to download.")
         return
 
-    if args.set:
-        sets = [s for s in sets if str(s.get("code", s.get("id", ""))) == args.set]
-        if not sets:
-            print(f"Set '{args.set}' not found.")
-            return
-        print(f"Downloading single set: {args.set}\n")
-
     os.makedirs(BASE_DIR, exist_ok=True)
 
-    # Build master_index.json
+    # Build master_index.json from ALL sets before filtering.
+    # Must happen here so a single-set download doesn't overwrite the full index.
     master_index = {}
     for s in sets:
         code = s.get("code", s.get("id", "unknown"))
@@ -265,6 +259,14 @@ def main():
     index_path = os.path.join(BASE_DIR, "master_index.json")
     atomic_write_json(index_path, master_index)
     print(f"2. Saved master_index.json ({len(master_index)} sets)\n")
+
+    # Apply set filter AFTER master_index is saved
+    if args.set:
+        sets = [s for s in sets if str(s.get("code", s.get("id", ""))) == args.set]
+        if not sets:
+            print(f"Set '{args.set}' not found.")
+            return
+        print(f"Downloading single set: {args.set}\n")
 
     print("3. Downloading cards per set...")
 

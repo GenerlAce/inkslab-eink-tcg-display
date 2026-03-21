@@ -24,6 +24,13 @@
     manga:   'Manga',
     pokemon: 'Pok\u00e9mon'
   };
+  var ACCENT_COLORS = {
+    comics:  '#f97316',
+    lorcana: '#a855f7',
+    mtg:     '#2dd4bf',
+    manga:   '#ec4899',
+    pokemon: '#22d3ee'
+  };
 
   function closeDlDropdown() {
     var dd  = document.getElementById('dl-source-dd');
@@ -35,15 +42,16 @@
   function updateDlPill(tcg) {
     var info  = _dlRegistry[tcg];
     if (!info) return;
-    var color = info.color || '#36A5CA';
+    var color = ACCENT_COLORS[tcg] || info.color || '#36A5CA';
     var btn   = document.getElementById('dl-source-pill-btn');
     if (!btn) return;
     btn.style.borderColor = color;
     btn.style.color       = color;
+    btn.style.boxShadow   = '0 0 0 2px ' + color + '33';
     var dot = btn.querySelector('.source-dot');
     var lbl = btn.querySelector('.dl-pill-label');
     if (dot) dot.style.background = color;
-    if (lbl) lbl.textContent = SHORT_NAMES[tcg] || info.name;
+    if (lbl) { lbl.textContent = SHORT_NAMES[tcg] || info.name; lbl.style.color = color; }
     document.querySelectorAll('.dl-dd-item').forEach(function(el) {
       el.classList.toggle('active', el.dataset.tcg === tcg);
     });

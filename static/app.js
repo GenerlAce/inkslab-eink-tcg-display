@@ -230,7 +230,7 @@ function updateBrowsePills(activeTcg) {
   if (!btn) return;
   var info = _tcgRegistry && _tcgRegistry[activeTcg];
   var color = (info && info.color) || '#36A5CA';
-  var shortN = {lorcana:'Lorcana',mtg:'Magic: The Gathering',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
+  var shortN = {lorcana:'Disney Lorcana',mtg:'Magic: The Gathering',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
   var name = shortN[activeTcg] || (info && info.name) || activeTcg;
   btn.style.borderColor = color;
   btn.style.color = color;
@@ -2237,7 +2237,7 @@ function buildDynamicUI(registry) {
   if (pillsEl) {
     pillsEl.innerHTML = '';
     pillsEl.className = 'source-picker';
-    var shortN = {lorcana:'Lorcana',mtg:'Magic: The Gathering',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
+    var shortN = {lorcana:'Disney Lorcana',mtg:'Magic: The Gathering',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
     var btn = document.createElement('button');
     btn.id = 'source-pill-btn';
     btn.className = 'source-pill-btn';
