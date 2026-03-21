@@ -16,7 +16,7 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 - **Full-bleed overlay header** for manga and comics — text overlays directly on the cover when no header space is available
 - **Slab Header Modes:** Normal (white bg), Inverted (black bg), or Off (full-screen card art)
 - **Web Dashboard:** Control everything from your phone or browser at `http://<your-pi-ip>`
-- **Left sidebar desktop layout:** On wide screens, navigation moves to a persistent left sidebar with Quick Switch, Pi system stats (CPU temp, RAM, uptime), and version info
+- **Left sidebar desktop layout:** On wide screens, navigation moves to a persistent left sidebar with Quick Switch Collection, Pi system stats (CPU temp, RAM, uptime), and version info
 - **Live Player Controls:** Pause, play, skip, or go back, complete with an "Up Next" queue and countdown timer
 - **Collection Mode & Search:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection
 - **Rarity Filtering:** Select or deselect all cards of a specific rarity across every set with one tap
@@ -65,7 +65,7 @@ A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gatheri
 
 | Part | Notes |
 |------|-------|
-| **Raspberry Pi Zero W H** | The "H" means headers are pre-soldered (required for the display HAT) |
+| **Raspberry Pi Zero 2 W** | Recommended — 5× faster than the original Zero W. The "WH" variant has pre-soldered headers (required for the display HAT). Original Zero W H also works but is noticeably slower. |
 | **[Waveshare 4" e-Paper HAT+ (E)](https://www.waveshare.com/wiki/4inch_e-Paper_HAT%2B_(E)_Manual)** | Spectra 6 — the 7-color model |
 | **Micro SD card** | 32 GB for one TCG, 64 GB+ for all (Pokemon ~13 GB, MTG ~13 GB, Lorcana ~2 GB, Manga ~2 GB, Comics grows weekly) |
 | **90-degree micro USB cable** | Optional but recommended — keeps the power cable hidden behind the frame |
@@ -93,7 +93,7 @@ If you received a pre-flashed InkSlab, setup takes about 30 seconds:
 ### Step 1 — Flash the SD Card
 
 1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Choose **Raspberry Pi Zero** > **Raspberry Pi OS (Legacy, 32-bit) Lite**
+2. Choose **Raspberry Pi Zero 2 W** > **Raspberry Pi OS (Legacy, 32-bit) Lite**
 3. Click **Next** > **Edit Settings**:
    - Set hostname to `inkslab`, username to `pi`, pick a password
    - Enter your Wi-Fi name and password
@@ -183,7 +183,7 @@ Comics download from [Metron](https://metron.cloud) — a free account is requir
 - Player controls: pause, play, skip forward/back, countdown timer
 - **Up Next** (5 cards) and **Previous** (3 cards) queue — always visible on desktop
 - Tap/click the preview card to see inline stat bubbles (set, year, rarity, card number)
-- Quick Switch: change active library without leaving the tab
+- Quick Switch Collection: change active library without leaving the tab (bottom sheet on mobile)
 
 ### Collection Tab
 - Browse sets in **List** or **Grid** (thumbnail) view
@@ -198,7 +198,7 @@ Comics download from [Metron](https://metron.cloud) — a free account is requir
 - **Storage:** Visual breakdown of SD card usage by library with color-coded bar
 - **Download Cards:** One-click download for each library, with per-set search for MTG, Lorcana, Pokemon, Manga, and Comics
 - **Custom Images:** Upload your own PNG/JPG images and organize them into named folders
-- **Download Status:** Live progress log, always visible on desktop
+- **Download Status:** Live progress log — auto-expands when a download starts, always visible on desktop
 - **Delete Entire Library:** Two-step confirm to wipe a full library
 
 ### Settings Tab
@@ -263,6 +263,11 @@ sudo systemctl restart inkslab inkslab_web
     style.css                   # Web dashboard styles
     collection_view.js          # Grid/list view toggle and thumbnails
     delete_library.js           # Two-step library delete
+    dl_picker.js                # Downloads tab pill selector
+    mobile_qs.js                # Mobile Quick Switch Collection bottom sheet
+    mtg_sets.js                 # MTG set search and download
+    pokemon_bulk.js             # Pokémon bulk download by name
+    search_fix.js               # Search input UX helpers
   scripts/
     download_cards_pokemon.py   # Pokemon card downloader
     download_cards_mtg.py       # MTG card downloader (Scryfall API)
