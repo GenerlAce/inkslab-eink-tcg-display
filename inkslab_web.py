@@ -3217,7 +3217,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         </div>
         <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
       </div>
-      <div class="card" style="margin-bottom:0">
+      <div class="card">
         <h3>WiFi Network</h3>
         <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
         <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
