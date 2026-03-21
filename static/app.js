@@ -457,7 +457,7 @@ function _qCardHtml(tcg, c) {
   var qNum = isMangaComics
     ? (c.set_info ? (c.set_info.match(/^(\d{4})/) || [])[1] || '\u2014' : '\u2014')
     : esc(c.card_num);
-  var setName = esc(c.set_info || '');
+  var setName = esc(c.set_name || (c.set_info || '').replace(/^\d{4}\s+/, ''));
   var isMC = isMangaComics;
   return '<div class="q-card" data-thumb="' + thumbUrl + '"'
     + ' data-num="' + (isMC ? esc(c.rarity || '') : qNum) + '"'
@@ -673,7 +673,7 @@ function refreshStatus() {
         ? (d.number && d.number !== '?' ? d.number : '\u2014')
         : ((d.card_num || '').replace(/^#/, '') || '\u2014');
       document.getElementById('st-card').textContent = cardNum;
-      document.getElementById('st-set').textContent = d.set_info || '\u2014';
+      document.getElementById('st-set').textContent = d.set_name || d.set_info || '\u2014';
       var rarityVal = d.rarity || '\u2014';
       if (isMangaComics && d.set_info) {
         var yrMatch = d.set_info.match(/^(\d{4})/);
@@ -688,7 +688,7 @@ function refreshStatus() {
       var siTotal = document.getElementById('si-total');
       var siTcg = document.getElementById('si-tcg');
       if (siCard) siCard.textContent = cardNum;
-      if (siSet) siSet.textContent = d.set_info || '\u2014';
+      if (siSet) siSet.textContent = d.set_name || d.set_info || '\u2014';
       if (siRarity) siRarity.textContent = rarityVal;
       if (siTotal) siTotal.textContent = d.total_cards || '\u2014';
       if (siTcg) siTcg.textContent = (d.tcg || '\u2014').toUpperCase();

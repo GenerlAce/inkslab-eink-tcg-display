@@ -783,6 +783,7 @@ def card_summary(card_path, master_index):
     return {
         "set_id": set_id,
         "card_id": card_id,
+        "set_name": info.get("set_name", ""),
         "set_info": info.get("set_info", ""),
         "card_num": info.get("card_num", ""),
         "rarity": info.get("rarity", ""),
