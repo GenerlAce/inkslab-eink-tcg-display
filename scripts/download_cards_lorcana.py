@@ -9,6 +9,7 @@ Usage:
 
 import os
 import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
+import argparse
 import requests
 import json
 import shutil
@@ -228,6 +229,11 @@ def process_set(set_info, cards):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Download Disney Lorcana card images from Lorcast API")
+    parser.add_argument("--set", type=str, metavar="CODE",
+                        help="Only download a specific set by code (e.g. --set 1)")
+    args = parser.parse_args()
+
     print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
     print("=== Disney Lorcana Card Downloader (Lorcast API) ===\n")
 
@@ -235,6 +241,13 @@ def main():
     if not sets:
         print("No sets found to download.")
         return
+
+    if args.set:
+        sets = [s for s in sets if str(s.get("code", s.get("id", ""))) == args.set]
+        if not sets:
+            print(f"Set '{args.set}' not found.")
+            return
+        print(f"Downloading single set: {args.set}\n")
 
     os.makedirs(BASE_DIR, exist_ok=True)
 
