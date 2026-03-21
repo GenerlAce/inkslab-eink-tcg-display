@@ -80,7 +80,7 @@
     if (window.closeAllDlSearch) closeAllDlSearch();
   }
 
-  window.initDlPicker = function(sorted) {
+  window.initDlPicker = function(sorted, activeTcg) {
     var dlSorted = sorted.filter(function(e) { return e[1].download_script; });
     if (!dlSorted.length) return;
 
@@ -173,7 +173,9 @@
     actionRow.appendChild(sBtn);
     container.appendChild(actionRow);
 
-    // Init with first option
-    setDlTcg(dlSorted[0][0]);
+    // Init with active TCG if it has a download script, else first option
+    var defaultTcg = (activeTcg && _dlRegistry[activeTcg] && _dlRegistry[activeTcg].download_script)
+      ? activeTcg : dlSorted[0][0];
+    setDlTcg(defaultTcg);
   };
 })();
