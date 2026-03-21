@@ -90,6 +90,16 @@ If you received a pre-flashed InkSlab, setup takes about 30 seconds:
 
 ### DIY Setup (Flash Your Own SD Card)
 
+After flashing and SSH'ing in, you can run the automated installer **or** follow the manual steps below — both do the same thing.
+
+**Option A — Automated installer (recommended):**
+```bash
+curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/master/scripts/install.sh | bash
+```
+The script checks SPI, installs packages, clones InkSlab, sets up systemd services, and starts everything. If SPI isn't enabled yet it will enable it and prompt for a reboot — just re-run after rebooting and it will continue.
+
+**Option B — Manual steps:**
+
 ### Step 1 — Flash the SD Card
 
 1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -279,6 +289,7 @@ sudo systemctl restart inkslab inkslab_web
     ota_update.sh               # OTA update script
     selfheal.sh                 # Service health monitor
     migrate_paths.sh            # One-time migration from old path layout
+    install.sh                  # Automated installer (SPI, packages, services)
 
 /home/pi/inkslab-collections/   ← Card library data (separate from program)
   pokemon/
