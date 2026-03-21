@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 import os, sys, argparse, requests, json, time, gc
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from download_utils import atomic_write_json
 
 BASE_DIR = "/home/pi/inkslab-collections/manga"
 API_BASE = "https://api.mangadex.org"
@@ -121,8 +123,7 @@ def download_series(manga_id, title):
         volume = cover_attrs.get("volume") or "?"
         slim_db[cover_id] = {"name": title, "number": str(volume),
                              "rarity": f"Vol. {volume}" if volume != "?" else "Cover", "year": series_year}
-    with open(os.path.join(manga_dir, "_data.json"), "w") as f:
-        json.dump(slim_db, f, ensure_ascii=False, indent=2)
+    atomic_write_json(os.path.join(manga_dir, "_data.json"), slim_db, ensure_ascii=False, indent=2)
     index_path = os.path.join(BASE_DIR, "master_index.json")
     master_index = {}
     if os.path.exists(index_path):
@@ -132,8 +133,7 @@ def download_series(manga_id, title):
         except:
             pass
     master_index[dirname] = {"name": title, "year": series_year, "id": manga_id}
-    with open(index_path, "w") as f:
-        json.dump(master_index, f, ensure_ascii=False, indent=2)
+    atomic_write_json(index_path, master_index, ensure_ascii=False, indent=2)
     downloaded = skipped = failed = 0
     for i, cover in enumerate(covers):
         cover_id = cover["id"]

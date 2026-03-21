@@ -11,11 +11,13 @@ Usage:
 """
 
 import os
+import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
 import requests
 import json
 import time
 import random
 import gc
+from download_utils import atomic_write_json
 
 BASE_DIR = "/home/pi/inkslab-collections/manga"
 API_BASE = "https://api.mangadex.org"
@@ -141,8 +143,7 @@ def main():
         master_index[dirname] = {"name": title, "year": year, "id": manga_id}
 
     index_path = os.path.join(BASE_DIR, "master_index.json")
-    with open(index_path, "w") as f:
-        json.dump(master_index, f, ensure_ascii=False, indent=2)
+    atomic_write_json(index_path, master_index, ensure_ascii=False, indent=2)
     print(f"2. Saved master_index.json ({len(master_index)} manga)\n")
 
     print("3. Downloading covers...")
@@ -169,13 +170,12 @@ def main():
 
         data_file = os.path.join(manga_dir, "_data.json")
         if not os.path.exists(data_file):
-            with open(data_file, "w") as f:
-                json.dump({manga_id: {
-                    "name": title,
-                    "number": str(i + 1),
-                    "rarity": (attrs.get("publicationDemographic") or "Manga").title(),
-                    "year": year,
-                }}, f, ensure_ascii=False)
+            atomic_write_json(data_file, {manga_id: {
+                "name": title,
+                "number": str(i + 1),
+                "rarity": (attrs.get("publicationDemographic") or "Manga").title(),
+                "year": year,
+            }}, ensure_ascii=False)
 
         filepath = os.path.join(manga_dir, f"{manga_id}{ext}")
         status = download_file(image_url, filepath)

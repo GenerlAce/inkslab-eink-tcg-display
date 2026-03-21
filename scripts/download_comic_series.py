@@ -17,6 +17,8 @@ import argparse
 import requests
 import json
 import time
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from download_utils import atomic_write_json
 
 BASE_DIR = "/home/pi/inkslab-collections/comics"
 CREDENTIALS_FILE = "/home/pi/.metron_credentials"
@@ -201,8 +203,7 @@ def download_series(series_id, title, auth):
         except Exception:
             pass
     existing.update(slim_db)
-    with open(data_file, "w") as f:
-        json.dump(existing, f, ensure_ascii=False, indent=2)
+    atomic_write_json(data_file, existing, ensure_ascii=False, indent=2)
 
     # Update master_index.json
     index_path = os.path.join(BASE_DIR, "master_index.json")
@@ -218,8 +219,7 @@ def download_series(series_id, title, auth):
     year_match = _re.search(r'\((\d{4})\)', title)
     series_year = year_match.group(1) if year_match else ""
     master_index[dirname] = {"name": title, "year": series_year, "id": series_id}
-    with open(index_path, "w") as f:
-        json.dump(master_index, f, ensure_ascii=False, indent=2)
+    atomic_write_json(index_path, master_index, ensure_ascii=False, indent=2)
 
     print(f"\n=== Done! {title} — Downloaded: {downloaded}, Skipped: {skipped}, Failed: {failed} ===")
 

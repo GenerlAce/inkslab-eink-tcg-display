@@ -17,7 +17,7 @@ import random
 import argparse
 import gc
 import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
-from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file
+from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file, atomic_write_json
 
 # --- CONFIGURATION ---
 BASE_DIR = "/home/pi/inkslab-collections/mtg"
@@ -156,8 +156,7 @@ def process_set(set_info, cards):
         }
 
     data_file = os.path.join(set_dir, "_data.json")
-    with open(data_file, "w") as f:
-        json.dump(slim_db, f)
+    atomic_write_json(data_file, slim_db)
 
     # Download images
     download_count = 0
@@ -223,8 +222,7 @@ def main():
             "year": s.get("released_at", "0000")[:4],
         }
     index_path = os.path.join(BASE_DIR, "master_index.json")
-    with open(index_path, "w") as f:
-        json.dump(master_index, f)
+    atomic_write_json(index_path, master_index)
     print(f"2. Saved master_index.json ({len(master_index)} sets)\n")
 
     print("3. Downloading cards per set...")

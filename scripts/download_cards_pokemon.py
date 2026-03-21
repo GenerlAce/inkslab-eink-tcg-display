@@ -10,7 +10,7 @@ import json
 import time
 import random
 import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
-from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file
+from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file, atomic_write_json
 
 # --- CONFIGURATION ---
 BASE_DIR = "/home/pi/inkslab-collections/pokemon"
@@ -53,8 +53,7 @@ def main():
         }
 
     index_path = os.path.join(BASE_DIR, "master_index.json")
-    with open(index_path, 'w') as f:
-        json.dump(master_index, f)
+    atomic_write_json(index_path, master_index)
     print(f"   Saved master_index.json ({len(master_index)} sets)")
 
     # Start with newest sets
@@ -91,8 +90,7 @@ def main():
             }
 
         data_file = os.path.join(set_dir, "_data.json")
-        with open(data_file, 'w') as f:
-            json.dump(slim_db, f)
+        atomic_write_json(data_file, slim_db)
 
         # Download card images
         for card in cards:

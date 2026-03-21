@@ -2,10 +2,28 @@
 """Shared utilities for InkSlab download scripts."""
 
 import os
+import json
 import shutil
+import tempfile
 import requests
 
 MIN_FREE_SPACE_MB = 50
+
+
+def atomic_write_json(path, data, **kwargs):
+    """Write JSON atomically: write to temp file then rename, preventing corruption on interruption."""
+    dir_name = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, **kwargs)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def check_disk_space(path):

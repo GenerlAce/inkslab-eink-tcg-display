@@ -5,7 +5,7 @@ Usage: python3 download_pokemon_bulk.py --name "Pikachu"
 """
 import os, sys, argparse, requests, json, time, random
 import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
-from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file
+from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file, atomic_write_json
 
 BASE_DIR = "/home/pi/inkslab-collections/pokemon"
 SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
@@ -40,8 +40,7 @@ def main():
             pass
     for s in sets:
         master_index[s['id']] = {"name": s['name'], "year": s['releaseDate'][:4]}
-    with open(index_path, 'w') as f:
-        json.dump(master_index, f)
+    atomic_write_json(index_path, master_index)
 
     downloaded = skipped = failed = found = 0
 
@@ -72,8 +71,7 @@ def main():
                 pass
         for card in cards:
             slim_db[card['id']] = {"name": card.get('name', 'Unknown'), "number": card.get('number', '00'), "rarity": card.get('rarity', 'Common')}
-        with open(data_file, 'w') as f:
-            json.dump(slim_db, f)
+        atomic_write_json(data_file, slim_db)
 
         for card in matching:
             found += 1

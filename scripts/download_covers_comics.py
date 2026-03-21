@@ -21,6 +21,8 @@ import json
 import time
 import datetime
 import gc
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from download_utils import atomic_write_json
 
 # --- CONFIGURATION ---
 BASE_DIR = "/home/pi/inkslab-collections/comics"
@@ -217,8 +219,7 @@ def process_issues(issues):
                 "year": idata["year"],
             }
 
-        with open(data_file, "w") as f:
-            json.dump(slim_db, f, ensure_ascii=False)
+        atomic_write_json(data_file, slim_db, ensure_ascii=False)
 
         # Download images
         for issue_id, idata in series_data["issues"].items():
@@ -265,8 +266,7 @@ def update_master_index(series_map):
                 "publisher": series_data.get("publisher", ""),
             }
 
-    with open(index_path, "w") as f:
-        json.dump(master_index, f, ensure_ascii=False, indent=2)
+    atomic_write_json(index_path, master_index, ensure_ascii=False, indent=2)
 
     return len(master_index)
 
