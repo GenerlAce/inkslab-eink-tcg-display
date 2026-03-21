@@ -1160,7 +1160,7 @@ def api_rarities():
     config = load_config()
     tcg = request.args.get('tcg', config['active_tcg'])
     cache_key = 'rarities_' + tcg
-    cached = _cache_get(cache_key, ttl=60)
+    cached = _cache_get(cache_key, ttl=300)
     if cached:
         return jsonify(cached)
 
@@ -1206,26 +1206,27 @@ def api_collection_toggle_all():
     if not library or not os.path.isdir(library):
         return jsonify({"error": "invalid tcg"}), 400
 
+    # Walk library outside the lock — this can be slow on SD card
+    all_ids = set()
+    if owned:
+        for d in os.listdir(library):
+            set_path = os.path.join(library, d)
+            if not os.path.isdir(set_path):
+                continue
+            for f in os.listdir(set_path):
+                if _is_card_image(f):
+                    all_ids.add(os.path.splitext(f)[0])
+
     with _collection_lock:
         collection = load_collection()
         if tcg not in collection:
             collection[tcg] = []
-
         if not owned:
             count = len(collection[tcg])
             collection[tcg] = []
         else:
-            all_ids = set()
-            for d in os.listdir(library):
-                set_path = os.path.join(library, d)
-                if not os.path.isdir(set_path):
-                    continue
-                for f in os.listdir(set_path):
-                    if _is_card_image(f):
-                        all_ids.add(os.path.splitext(f)[0])
             collection[tcg] = list(all_ids)
             count = len(all_ids)
-
         save_collection(collection)
     _cache_invalidate('rarities_' + tcg)
     if config.get("collection_only"):
@@ -1341,6 +1342,11 @@ def api_search():
     if not library or not os.path.isdir(library):
         return jsonify([])
 
+    cache_key = f'search_{tcg}_{q}'
+    cached = _cache_get(cache_key, ttl=30)
+    if cached is not None:
+        return jsonify(cached)
+
     master = {}
     index_path = os.path.join(library, "master_index.json")
     if os.path.exists(index_path):
@@ -1381,7 +1387,9 @@ def api_search():
 
     results.sort(key=lambda x: (x["name"].lower(), x["set_id"]))
     total = len(results)
-    return jsonify({"results": results[:200], "total": total, "sets_searched": sets_searched})
+    payload = {"results": results[:200], "total": total, "sets_searched": sets_searched}
+    _cache_set(cache_key, payload)
+    return jsonify(payload)
 
 
 @app.route('/api/collection/favorites')
