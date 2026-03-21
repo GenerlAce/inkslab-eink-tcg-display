@@ -900,7 +900,7 @@ def main():
     collection = None
     if config["collection_only"]:
         loaded = load_collection(active_tcg)
-        collection = loaded if loaded else set()
+        collection = loaded if loaded is not None else set()
         logger.info(f"Collection mode: {len(collection)} owned cards")
 
     deck = ShuffleDeck(library_dir, collection)
@@ -995,7 +995,7 @@ def main():
         master_index = load_master_index(library_dir)
         if config["collection_only"]:
             loaded = load_collection(active_tcg)
-            collection = loaded if loaded else set()
+            collection = loaded if loaded is not None else set()
         else:
             collection = None
         deck = ShuffleDeck(library_dir, collection, recent=old_history)

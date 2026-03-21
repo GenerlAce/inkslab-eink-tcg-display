@@ -3457,9 +3457,6 @@ def _run_auto_updates():
                         if not _has_disk_space():
                             _tlog.warning(f"Auto-update: skipping {tcg} - low disk space")
                             continue
-                        if not _has_disk_space():
-                            _tlog.warning(f"Auto-update: skipping {tcg} - low disk space")
-                            continue
                         _tlog.info(f"Auto-update: running {tcg} downloader")
                         cmd = ["python3", os.path.join(SCRIPT_DIR, "scripts", reg["download_script"])]
                         try:
