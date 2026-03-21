@@ -226,17 +226,27 @@ def show_splash_screen(epd, config):
         canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), (255, 255, 255))
         draw = ImageDraw.Draw(canvas)
 
-        # Load fonts
-        try:
-            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
-            font_url = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
-            font_body  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
-            font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
-        except Exception:
-            font_title = ImageFont.load_default()
-            font_url = font_title
-            font_body = font_title
-            font_small = font_title
+        MARGIN = 20
+        max_w = DISPLAY_WIDTH - 2 * MARGIN
+        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+        def fit_font(size):
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception:
+                return ImageFont.load_default()
+
+        def shrink_to_fit(text, size):
+            """Return a font that fits text within max_w."""
+            f = fit_font(size)
+            while size > 10 and draw.textlength(text, font=f) > max_w:
+                size -= 1
+                f = fit_font(size)
+            return f
+
+        font_title = fit_font(42)
+        font_body  = fit_font(18)
+        font_small = fit_font(14)
 
         # Draw content centered
         cx = DISPLAY_WIDTH // 2
@@ -246,20 +256,22 @@ def show_splash_screen(epd, config):
 
         # Dashboard URL with QR code
         url_text = f"http://{ip}"
+        font_url = shrink_to_fit(url_text, 28)
         draw.text((cx, 120), "Scan or open in your", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 148), "web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
-        draw.text((cx, 190), url_text, fill=(0, 0, 0), font=font_url, anchor="mm")
+        draw.text((cx, 144), "web browser:", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 186), url_text, fill=(0, 0, 0), font=font_url, anchor="mm")
 
         # QR code — larger to fill available space
         qr_img = make_qr(url_text)
         if qr_img:
             qr_size = min(qr_img.size[0], 190)
             qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.NEAREST)
-            canvas.paste(qr_img, (cx - qr_size // 2, 220))
+            canvas.paste(qr_img, (cx - qr_size // 2, 216))
             qr_img.close()
 
-        # Transition note
-        draw.text((cx, 435), "Your collection will appear in ~3 minutes.", fill=(0, 0, 0), font=font_body, anchor="mm")
+        # Transition note (two lines to stay within 400px width)
+        draw.text((cx, 428), "Your collection will appear", fill=(0, 0, 0), font=font_body, anchor="mm")
+        draw.text((cx, 450), "in ~3 minutes.", fill=(0, 0, 0), font=font_body, anchor="mm")
 
         # Bottom credit
         draw.text((cx, 555), "Costa Mesa Tech Solutions", fill=(0, 0, 0), font=font_small, anchor="mm")
