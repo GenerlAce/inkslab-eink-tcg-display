@@ -517,19 +517,17 @@ def get_card_metadata(img_path, master_index):
 
         json_path = os.path.join(folder_path, "_data.json")
         if os.path.exists(json_path):
-            with open(json_path, "r") as f:
-                data = json.load(f)
+            try:
+                with open(json_path, "r") as f:
+                    data = json.load(f)
                 if card_id in data:
                     entry = data[card_id]
                     num = entry.get("number", "00")
-
                     if entry.get("rarity"):
                         extra = entry["rarity"].upper()
                         extra = extra.replace("RARE HOLO", "HOLO").replace("DOUBLE RARE", "DBL RARE")
-        else:
-            # Auto-generate metadata from filename (for custom images)
-            name = card_id.replace('_', ' ').replace('-', ' ').title()
-            # No number or rarity to extract
+            except Exception as e:
+                logger.warning(f"Corrupt _data.json at {json_path}: {e}")
 
         # Try extracting number from card ID if not found in metadata
         if num == "00" and "-" in card_id:
