@@ -346,23 +346,25 @@ def save_config(config):
 
 _collection_cache = None
 _collection_cache_mtime = 0.0
+_collection_cache_lock = threading.Lock()
 
 
 def load_collection():
     global _collection_cache, _collection_cache_mtime
-    try:
-        mtime = os.path.getmtime(COLLECTION_FILE) if os.path.exists(COLLECTION_FILE) else 0.0
-        if _collection_cache is not None and mtime == _collection_cache_mtime:
-            return dict(_collection_cache)
-        if os.path.exists(COLLECTION_FILE):
-            with open(COLLECTION_FILE, 'r') as f:
-                data = json.load(f)
-            _collection_cache = data
-            _collection_cache_mtime = mtime
-            return dict(data)
-    except Exception:
-        pass
-    return {}
+    with _collection_cache_lock:
+        try:
+            mtime = os.path.getmtime(COLLECTION_FILE) if os.path.exists(COLLECTION_FILE) else 0.0
+            if _collection_cache is not None and mtime == _collection_cache_mtime:
+                return dict(_collection_cache)
+            if os.path.exists(COLLECTION_FILE):
+                with open(COLLECTION_FILE, 'r') as f:
+                    data = json.load(f)
+                _collection_cache = data
+                _collection_cache_mtime = mtime
+                return dict(data)
+        except Exception:
+            pass
+        return {}
 
 
 def save_collection(data):
@@ -1580,21 +1582,37 @@ def api_delete_series():
     if not os.path.isdir(series_path):
         return jsonify({'ok': False, 'error': 'Series not found'})
     try:
+        # Read card IDs before deletion so we can clean the collection
+        card_ids_in_set = set()
+        data_file = os.path.join(series_path, '_data.json')
+        if os.path.exists(data_file):
+            try:
+                with open(data_file) as f:
+                    card_ids_in_set = set(json.load(f).keys())
+            except Exception:
+                pass
+
         shutil.rmtree(series_path)
+
+        # Remove deleted card IDs from collection file
+        if card_ids_in_set:
+            with _collection_lock:
+                coll = load_collection()
+                if tcg in coll:
+                    coll[tcg] = [c for c in coll.get(tcg, []) if c not in card_ids_in_set]
+                    save_collection(coll)
+
         # Remove from master_index.json if present
         index_path = os.path.join(library, 'master_index.json')
         if os.path.exists(index_path):
             try:
                 with open(index_path) as f:
                     idx = json.load(f)
-                # Try both safe dirname and original name
                 idx.pop(safe_set, None)
-                # Also remove any key whose folder name matches
                 to_remove = [k for k in idx if os.path.basename(k) == safe_set or k == safe_set]
                 for k in to_remove:
                     idx.pop(k, None)
-                with open(index_path, 'w') as f:
-                    json.dump(idx, f, ensure_ascii=False, indent=2)
+                _atomic_write_json(index_path, idx, ensure_ascii=False, indent=2)
             except Exception:
                 pass
         _cache_invalidate('sets_' + tcg, 'rarities_' + tcg)

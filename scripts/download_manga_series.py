@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import os, sys, argparse, requests, json, time, gc
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from download_utils import atomic_write_json
+from download_utils import atomic_write_json, check_disk_space, MIN_FREE_SPACE_MB
 
 BASE_DIR = "/home/pi/inkslab-collections/manga"
 API_BASE = "https://api.mangadex.org"
@@ -144,6 +144,9 @@ def download_series(manga_id, title):
             failed += 1
             continue
         ext = ".png" if filename.lower().endswith(".png") else ".jpg"
+        if not check_disk_space(BASE_DIR):
+            print(f"\n=== STOPPING: Less than {MIN_FREE_SPACE_MB}MB free space remaining. ===")
+            break
         url = f"{CDN_BASE}/covers/{manga_id}/{filename}"
         filepath = os.path.join(manga_dir, f"{cover_id}{ext}")
         status = download_file(url, filepath)

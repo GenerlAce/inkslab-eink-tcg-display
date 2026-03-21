@@ -17,7 +17,7 @@ import json
 import time
 import random
 import gc
-from download_utils import atomic_write_json
+from download_utils import atomic_write_json, check_disk_space, MIN_FREE_SPACE_MB
 
 BASE_DIR = "/home/pi/inkslab-collections/manga"
 API_BASE = "https://api.mangadex.org"
@@ -176,6 +176,10 @@ def main():
                 "rarity": (attrs.get("publicationDemographic") or "Manga").title(),
                 "year": year,
             }}, ensure_ascii=False)
+
+        if not check_disk_space(BASE_DIR):
+            print(f"\n=== STOPPING: Less than {MIN_FREE_SPACE_MB}MB free space remaining. ===")
+            break
 
         filepath = os.path.join(manga_dir, f"{manga_id}{ext}")
         status = download_file(image_url, filepath)

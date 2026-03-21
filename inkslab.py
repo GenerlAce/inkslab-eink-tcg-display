@@ -1191,7 +1191,9 @@ def main():
                 # WiFi connected — show splash screen with new IP, then resume cards
                 if action == "wifi_connected":
                     logger.info("WiFi connected — resuming cards")
-                    config, action = wait_with_polling(wait)
+                    remaining = max(0, next_change - int(time.time())) if next_change else 0
+                    if remaining > 0:
+                        config, action = wait_with_polling(remaining)
                     continue
 
                 # WiFi setup mode — show setup instructions on display
