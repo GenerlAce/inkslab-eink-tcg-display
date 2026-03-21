@@ -503,9 +503,10 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .source-dd-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-hi); transition: background 0.1s; }
 .source-dd-item:hover, .source-dd-item.active { background: var(--bg-input); }
 /* Quick switch cooldown confirmation banner */
-.switch-cooldown-banner { background: var(--bg-input); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 12px; color: var(--text-hi); display: flex; flex-direction: column; gap: 8px; }
+.switch-cooldown-banner { background: var(--bg-input); background-image: linear-gradient(rgba(239,68,68,0.08),rgba(239,68,68,0.08)); border: 1px solid #ef4444; border-radius: 10px; padding: 10px 12px; margin-top: 8px; font-size: 12px; color: var(--text-hi); display: flex; flex-direction: column; gap: 8px; animation: warn-glow-pulse 2s ease-in-out infinite; }
 .scb-btns { display: flex; gap: 8px; }
-.scb-confirm { background: var(--accent); color: #010001; border: none; flex: 1; }
+.scb-msg { display: flex; align-items: flex-start; gap: 6px; line-height: 1.4; }
+.scb-confirm { background: #ef4444; color: #fff; border: none; flex: 1; }
 .scb-cancel { flex: 1; }
 /* Download picker pill (dot + name + chevron) */
 .dl-pill-btn { width: 100%; position: relative; display: flex; align-items: center; gap: 8px; padding: 9px 36px 9px 14px; border-radius: 20px; border: 1.5px solid; background: transparent; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 38px; transition: opacity 0.15s; }
@@ -879,12 +880,25 @@ body.auth-pending .bottom-nav { visibility: hidden; }
 .mqs-trigger-lbl { flex: 1; text-align: left; }
 .mqs-chev { font-size: 10px; }
 
+/* Warn pulse keyframes — shared by cooldown banner + toast */
+@keyframes warn-glow-pulse {
+  0%, 100% { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 8px rgba(239,68,68,0.25); }
+  50%       { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 20px rgba(239,68,68,0.55); }
+}
+/* Warning icon badge — shared */
+.warn-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #ef4444; color: #fff; font-weight: 800;
+  font-size: 10px; flex-shrink: 0; line-height: 1;
+}
 /* Bottom cooldown toast — sits above mobile nav */
 .mqs-cooldown-toast {
   position: fixed;
   bottom: 72px; left: 16px; right: 16px;
   background: var(--bg-card);
-  border: 1px solid var(--accent);
+  background-image: linear-gradient(rgba(239,68,68,0.08),rgba(239,68,68,0.08));
+  border: 1px solid #ef4444;
   border-radius: 10px;
   padding: 12px 14px;
   z-index: 201;
@@ -893,8 +907,8 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   transform: translateY(20px); opacity: 0;
   transition: transform 0.25s ease, opacity 0.25s ease;
 }
-.mqs-cooldown-toast.mqs-toast-in { transform: translateY(0); opacity: 1; }
-.mqs-toast-msg { line-height: 1.4; }
+.mqs-cooldown-toast.mqs-toast-in { transform: translateY(0); opacity: 1; animation: warn-glow-pulse 2s ease-in-out infinite; }
+.mqs-toast-msg { display: flex; align-items: flex-start; gap: 6px; line-height: 1.4; }
 .mqs-toast-btns { display: flex; gap: 8px; }
-.mqs-toast-confirm { background: var(--accent); color: #010001; border: none; flex: 1; }
+.mqs-toast-confirm { background: #ef4444; color: #fff; border: none; flex: 1; }
 .mqs-toast-cancel { flex: 1; }

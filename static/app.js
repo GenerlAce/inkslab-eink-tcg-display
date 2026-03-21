@@ -890,7 +890,7 @@ function _showSwitchCooldownBanner(tcg, remaining) {
   var banner = document.createElement('div');
   banner.id = 'switch-cooldown-banner';
   banner.className = 'switch-cooldown-banner';
-  banner.innerHTML = '<span>Display refreshes in ~' + remaining + 's. Switch to ' + name + ' now anyway?</span>'
+  banner.innerHTML = '<div class="scb-msg"><span class="warn-badge">!</span><span>Display refreshes in ~' + remaining + 's. Switch to ' + name + ' now anyway?</span></div>'
     + '<div class="scb-btns">'
     + '<button class="btn btn-sm btn-secondary scb-cancel">Cancel</button>'
     + '<button class="btn btn-sm scb-confirm">Switch Anyway</button>'

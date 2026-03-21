@@ -123,7 +123,7 @@
     _toast = document.createElement('div');
     _toast.className = 'mqs-cooldown-toast';
     _toast.innerHTML =
-      '<span class="mqs-toast-msg">Display refreshes in ~' + remaining + 's. Switch to ' + name + ' now anyway?</span>' +
+      '<div class="mqs-toast-msg"><span class="warn-badge">!</span><span>Display refreshes in ~' + remaining + 's. Switch to ' + name + ' now anyway?</span></div>' +
       '<div class="mqs-toast-btns">' +
         '<button class="btn btn-sm btn-secondary mqs-toast-cancel">Cancel</button>' +
         '<button class="btn btn-sm mqs-toast-confirm">Switch Anyway</button>' +
