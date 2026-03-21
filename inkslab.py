@@ -18,6 +18,7 @@ import random
 import json
 import logging
 import signal
+import tempfile
 from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageOps
 import wifi_manager
 
@@ -154,10 +155,20 @@ def load_master_index(library_dir):
 
 
 def write_status(info):
-    """Write current display status for the web dashboard."""
+    """Write current display status for the web dashboard (atomic)."""
     try:
-        with open(STATUS_FILE, 'w') as f:
-            json.dump(info, f)
+        dir_name = os.path.dirname(STATUS_FILE) or '.'
+        fd, tmp = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                json.dump(info, f)
+            os.replace(tmp, STATUS_FILE)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         pass
 

@@ -615,8 +615,7 @@ def api_set_config():
             status['pending'] = 'Switching to ' + updates['active_tcg'].upper() + '...'
             status['timestamp'] = int(time.time())
             status.pop('display_updating', None)
-            with open(STATUS_FILE, 'w') as f:
-                json.dump(status, f)
+            _atomic_write_json(STATUS_FILE, status)
         except Exception:
             pass
         try:
@@ -657,8 +656,7 @@ def api_next():
             status['pending'] = 'Loading next card...'
             status['timestamp'] = int(time.time())
             status.pop('display_updating', None)
-            with open(STATUS_FILE, 'w') as f:
-                json.dump(status, f)
+            _atomic_write_json(STATUS_FILE, status)
         except Exception:
             pass
         return jsonify({"ok": True})
@@ -684,8 +682,7 @@ def api_prev():
             status['pending'] = 'Loading previous card...'
             status['timestamp'] = int(time.time())
             status.pop('display_updating', None)
-            with open(STATUS_FILE, 'w') as f:
-                json.dump(status, f)
+            _atomic_write_json(STATUS_FILE, status)
         except Exception:
             pass
         return jsonify({"ok": True})
