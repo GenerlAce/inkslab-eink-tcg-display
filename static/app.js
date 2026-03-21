@@ -694,6 +694,7 @@ function refreshStatus() {
       if (siTcg) siTcg.textContent = (d.tcg || '\u2014').toUpperCase();
       var img = document.getElementById('st-preview');
       if (d.card_path) {
+        img.style.visibility = '';
         var needsReload = (!img.getAttribute('src')
           || d.card_path !== _lastStatus.card_path
           || d.tcg !== _lastStatus.tcg
@@ -707,7 +708,10 @@ function refreshStatus() {
           }
         }
       } else {
-        img.style.visibility = 'hidden';
+        img.style.visibility = '';
+        if (img.src.indexOf('/static/inkslab-booting.png') === -1) {
+          img.src = '/static/inkslab-booting.png';
+        }
       }
       // Show/hide loading overlay based on display state
       if (d.display_updating) {
