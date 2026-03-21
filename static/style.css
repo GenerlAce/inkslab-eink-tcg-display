@@ -194,8 +194,8 @@ body {
   justify-content: center;
   align-items: center;
   color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 /* Stats below hero */

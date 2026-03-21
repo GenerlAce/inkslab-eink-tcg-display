@@ -508,15 +508,16 @@ function renderQueue(d) {
   if (queueKey !== _lastQueueKey) {
     _lastQueueKey = queueKey;
     var queueCard = document.getElementById('queue-card');
-    if (!next.length) {
-      queueCard.style.display = 'none';
-    } else {
-      queueCard.style.display = 'block';
-      var listEl = document.getElementById('q-next-list');
-      listEl.style.gridTemplateColumns = 'repeat(' + (isDesktop ? 5 : 4) + ', 1fr)';
-      listEl.innerHTML = next.map(function(c) { return _qCardHtml(tcg, c); }).join('');
-      _attachQCardClicks(listEl);
+    queueCard.style.display = 'block';
+    var listEl = document.getElementById('q-next-list');
+    var maxNext = isDesktop ? 5 : 4;
+    listEl.style.gridTemplateColumns = 'repeat(' + maxNext + ', 1fr)';
+    var html = next.map(function(c) { return _qCardHtml(tcg, c); }).join('');
+    for (var i = next.length; i < maxNext; i++) {
+      html += '<div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>';
     }
+    listEl.innerHTML = html;
+    _attachQCardClicks(listEl);
   }
 
   // --- Previous ---
@@ -659,15 +660,7 @@ function refreshStatus() {
     if (collCb) collCb.checked = collOnly;
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
-    if (d.pending) {
-      errEl.textContent = d.pending;
-      errRow.style.display = 'block';
-      errEl.style.color = 'var(--accent)';
-    } else if (d.display_updating) {
-      errEl.textContent = 'Updating display...';
-      errRow.style.display = 'block';
-      errEl.style.color = 'var(--accent)';
-    } else if (d.error) {
+    if (d.error) {
       errEl.textContent = d.error;
       errRow.style.display = 'block';
       errEl.style.color = 'var(--danger)';
@@ -775,11 +768,6 @@ function setOptimisticLoading(msg) {
   var siCard = document.getElementById('si-card'); if (siCard) siCard.textContent = '\u2014';
   var siSet = document.getElementById('si-set'); if (siSet) siSet.textContent = '\u2014';
   var siRarity = document.getElementById('si-rarity'); if (siRarity) siRarity.textContent = '\u2014';
-  var errRow = document.getElementById('st-error-row');
-  errRow.style.display = 'block';
-  var errEl = document.getElementById('st-error');
-  errEl.textContent = msg;
-  errEl.style.color = 'var(--accent)';
 }
 
 function showCardInfoModal() {
