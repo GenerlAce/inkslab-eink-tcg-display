@@ -31,6 +31,11 @@ COOLDOWN_SECONDS = 30
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--set', default=None, help='Download a specific set by ID')
+    args = parser.parse_args()
+
     os.makedirs(BASE_DIR, exist_ok=True)
 
     print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
@@ -45,7 +50,7 @@ def main():
         print(f"Error fetching sets: {e}")
         return
 
-    # Build master_index.json
+    # Build master_index.json from ALL sets before filtering
     master_index = {}
     for s in sets:
         master_index[s['id']] = {
@@ -56,6 +61,14 @@ def main():
     index_path = os.path.join(BASE_DIR, "master_index.json")
     atomic_write_json(index_path, master_index)
     print(f"   Saved master_index.json ({len(master_index)} sets)")
+
+    # Apply set filter AFTER master_index is saved
+    if args.set:
+        sets = [s for s in sets if s.get('id') == args.set]
+        if not sets:
+            print(f"Set '{args.set}' not found.")
+            return
+        print(f"Downloading single set: {args.set}\n")
 
     # Start with newest sets
     sets.reverse()

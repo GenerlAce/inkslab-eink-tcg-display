@@ -1512,6 +1512,11 @@ def api_download_start():
                 return jsonify({"ok": False, "error": "Invalid set code"})
             cmd.extend(["--set", set_code])
 
+        if tcg == "pokemon" and data.get("pokemon_set"):
+            set_id = data.get("pokemon_set")
+            if not _valid_set_code(set_id):
+                return jsonify({"ok": False, "error": "Invalid set code"})
+            cmd.extend(["--set", set_id])
         if tcg == "pokemon" and data.get("pokemon_name"):
             pname = data.get("pokemon_name")
             if not _valid_pokemon_name(pname):
@@ -1767,6 +1772,34 @@ def api_mtg_sets():
                 "name": name,
                 "released": s.get("released_at", ""),
                 "card_count": s.get("card_count", 0),
+            })
+        results.sort(key=lambda x: x["released"], reverse=True)
+        return jsonify({"results": results[:50]})
+    except Exception as e:
+        return jsonify({"results": [], "error": str(e)})
+
+@app.route('/api/pokemon/sets')
+def api_pokemon_sets():
+    """Fetch available Pokemon sets from the PokemonTCG GitHub data for the set-search UI."""
+    q = request.args.get('q', '').strip().lower()
+    try:
+        import requests as req
+        r = req.get(
+            "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json",
+            timeout=15, headers={"User-Agent": "InkSlab/1.0"})
+        r.raise_for_status()
+        all_sets = r.json()
+        results = []
+        for s in all_sets:
+            name = s.get("name", "")
+            set_id = s.get("id", "")
+            if q and q not in name.lower() and q not in set_id.lower():
+                continue
+            results.append({
+                "id": set_id,
+                "name": name,
+                "total": s.get("total", 0),
+                "released": s.get("releaseDate", ""),
             })
         results.sort(key=lambda x: x["released"], reverse=True)
         return jsonify({"results": results[:50]})
@@ -3426,8 +3459,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <script src="/static/collection_view.js?v=2"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
-<script src="/static/pokemon_bulk.js"></script>
-<script src=/static/mtg_sets.js></script>
+<script src="/static/pokemon_bulk.js?v=2"></script>
+<script src="/static/mtg_sets.js?v=2"></script>
 <script src="/static/dl_picker.js?v=3"></script>
 <script src="/static/mobile_qs.js?v=2"></script>
 </body>

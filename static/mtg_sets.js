@@ -9,7 +9,8 @@ function mtgSetSearch() {
     .then(function(data) {
       var results = data.results || [];
       if (!results.length) {
-        resultsEl.innerHTML = '<div style="padding:10px;color:var(--text-dim);">No sets found.</div>';
+        resultsEl.innerHTML = '<div style="padding:10px;color:var(--text-dim);">'
+          + (data.error ? 'Search failed: ' + esc(data.error) : 'No sets found.') + '</div>';
         return;
       }
       var html = '';
