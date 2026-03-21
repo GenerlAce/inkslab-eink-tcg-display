@@ -170,6 +170,12 @@ function equalizeSearchBtns() {
   if (maxW > 0) btns.forEach(function(b) { b.style.width = maxW + 'px'; });
 }
 
+function openDlLog() {
+  var log = document.getElementById('dl-log');
+  var btn = document.getElementById('btn-dl-log-toggle');
+  if (log && log.style.display === 'none') { log.style.display = 'block'; if (btn) btn.textContent = 'Hide Log'; }
+}
+
 function toggleDlLog() {
   var log = document.getElementById('dl-log');
   var btn = document.getElementById('btn-dl-log-toggle');
@@ -304,6 +310,7 @@ function lorcanaDownloadSet(btn) {
       closeAllDlSearch();
       document.getElementById('lorcana-search-results').style.display = 'none';
       document.getElementById('lorcana-search-input').value = '';
+      openDlLog();
       setDownloadUI(true, 'lorcana');
       pollDownload();
     } else {
@@ -360,6 +367,7 @@ function mangaDownloadSeries(btn) {
       closeAllDlSearch();
       document.getElementById('manga-search-results').style.display = 'none';
       document.getElementById('manga-search-input').value = '';
+      openDlLog();
       setDownloadUI(true, 'manga');
       pollDownload();
     } else {
@@ -416,6 +424,7 @@ function comicDownloadSeries(btn) {
       closeAllDlSearch();
       document.getElementById('comics-search-results').style.display = 'none';
       document.getElementById('comics-search-input').value = '';
+      openDlLog();
       setDownloadUI(true, 'comics');
       pollDownload();
     } else {
@@ -1937,9 +1946,7 @@ function startDownload(tcg, since) {
     .then(r => r.json()).then(d => {
       if (d.ok) {
         document.getElementById('dl-status').textContent = 'Downloading ' + tcg.toUpperCase() + '...';
-        var log = document.getElementById('dl-log');
-        var btn = document.getElementById('btn-dl-log-toggle');
-        if (log) { log.style.display = 'block'; if (btn) btn.textContent = 'Hide Log'; }
+        openDlLog();
         setDownloadUI(true, tcg);
         pollDownload();
       } else {

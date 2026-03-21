@@ -47,6 +47,7 @@ function mtgSetDownload(btn) {
       document.getElementById('mtg-set-search-results').style.display = 'none';
       document.getElementById('mtg-set-search-input').value = '';
       document.getElementById('dl-status').textContent = 'Downloading ' + name + '...';
+      if (window.openDlLog) openDlLog();
       setDownloadUI(true, 'mtg');
       pollDownload();
     } else {

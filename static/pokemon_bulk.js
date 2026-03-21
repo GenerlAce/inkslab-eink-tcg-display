@@ -55,6 +55,7 @@ function pokemonBulkDownloadByName(btn) {
       document.getElementById('pokemon-search-results').style.display = 'none';
       document.getElementById('pokemon-search-input').value = '';
       document.getElementById('dl-status').textContent = 'Downloading ' + name + '...';
+      if (window.openDlLog) openDlLog();
       setDownloadUI(true, 'pokemon');
       pollDownload();
     } else {
