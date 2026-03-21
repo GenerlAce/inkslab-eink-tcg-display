@@ -3433,7 +3433,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=5"></script>
+<script src="/static/app.js?v=6"></script>
 <script src="/static/collection_view.js"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>

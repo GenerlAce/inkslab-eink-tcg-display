@@ -220,11 +220,25 @@ function getEffectiveBrowseTcg() {
   return _browseTcg || (_lastStatus && _lastStatus.tcg) || 'pokemon';
 }
 function updateBrowsePills(activeTcg) {
-  document.querySelectorAll('.tcg-browse-pill').forEach(function(p) {
-    var isActive = p.dataset.tcg === activeTcg;
-    p.style.background = isActive ? p.dataset.color : 'transparent';
-    p.style.color = isActive ? '#010001' : p.dataset.color;
+  var btn = document.getElementById('source-pill-btn');
+  if (!btn) return;
+  var info = _tcgRegistry && _tcgRegistry[activeTcg];
+  var color = (info && info.color) || '#36A5CA';
+  var shortN = {lorcana:'Lorcana',mtg:'Magic',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
+  var name = shortN[activeTcg] || (info && info.name) || activeTcg;
+  btn.style.borderColor = color;
+  btn.style.color = color;
+  var lbl = btn.querySelector('.source-pill-label');
+  if (lbl) lbl.textContent = name;
+  document.querySelectorAll('.source-dd-item').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.tcg === activeTcg);
   });
+}
+function closeSourceDropdown() {
+  var dd = document.getElementById('source-dd');
+  var btn = document.getElementById('source-pill-btn');
+  if (dd) dd.style.display = 'none';
+  if (btn) btn.classList.remove('open');
 }
 function setBrowseTcg(tcg) {
   _browseTcg = tcg;
@@ -2178,23 +2192,51 @@ function buildDynamicUI(registry) {
     });
   });
   updateQuickSwitchActive(_lastStatus.tcg || '');
-  // Browse TCG pills in Collection tab
+  // Browse TCG source picker in Collection tab (single pill selector + dropdown)
   var pillsEl = document.getElementById('tcg-browse-pills');
   if (pillsEl) {
     pillsEl.innerHTML = '';
+    pillsEl.className = 'source-picker';
+    var shortN = {lorcana:'Lorcana',mtg:'Magic',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
+    var btn = document.createElement('button');
+    btn.id = 'source-pill-btn';
+    btn.className = 'source-pill-btn';
+    btn.type = 'button';
+    var lbl = document.createElement('span');
+    lbl.className = 'source-pill-label';
+    btn.appendChild(lbl);
+    var chev = document.createElement('span');
+    chev.className = 'source-pill-chevron';
+    chev.textContent = '\u25BC';
+    btn.appendChild(chev);
+    var dd = document.createElement('div');
+    dd.id = 'source-dd';
+    dd.className = 'source-dd';
+    dd.style.display = 'none';
     sorted.forEach(function(e) {
       var tcg = e[0], info = e[1];
       var color = info.color || '#36A5CA';
-      var shortN = {lorcana:'Lorcana',mtg:'Magic',pokemon:'Pokemon',manga:'Manga',comics:'Comics',custom:'Custom'};
-      var b = document.createElement('button');
-      b.className = 'tcg-browse-pill';
-      b.dataset.tcg = tcg;
-      b.dataset.color = color;
-      b.style.cssText = 'background:transparent;color:' + color + ';border-color:' + color + ';';
-      b.textContent = shortN[tcg] || info.name;
-      b.addEventListener('click', function() { setBrowseTcg(tcg); });
-      pillsEl.appendChild(b);
+      var item = document.createElement('div');
+      item.className = 'source-dd-item';
+      item.dataset.tcg = tcg;
+      var idot = document.createElement('span');
+      idot.className = 'source-dot';
+      idot.style.background = color;
+      item.appendChild(idot);
+      item.appendChild(document.createTextNode(shortN[tcg] || info.name));
+      item.addEventListener('click', function() { closeSourceDropdown(); setBrowseTcg(tcg); });
+      dd.appendChild(item);
     });
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (dd.style.display !== 'none') { closeSourceDropdown(); } else { dd.style.display = 'block'; btn.classList.add('open'); }
+    });
+    document.addEventListener('click', function(e) {
+      if (!pillsEl.contains(e.target)) closeSourceDropdown();
+    });
+    pillsEl.appendChild(btn);
+    pillsEl.appendChild(dd);
+    updateBrowsePills(getEffectiveBrowseTcg());
   }
   // Settings TCG dropdown
   var sel = document.getElementById('cfg-tcg');
@@ -2302,6 +2344,14 @@ function initApp() {
     var registry = results[0], status = results[1];
     _lastStatus = status;
     buildDynamicUI(registry);
+    // Wrap sets-list in a scroll container for max-height + fade hint
+    var sl = document.getElementById('sets-list');
+    if (sl && !sl.parentElement.classList.contains('sets-scroll-wrap')) {
+      var wrap = document.createElement('div');
+      wrap.className = 'sets-scroll-wrap';
+      sl.parentNode.insertBefore(wrap, sl);
+      wrap.appendChild(sl);
+    }
     const saved = localStorage.getItem('inkslab_tab');
     if (saved && document.getElementById('tab-' + saved)) {
       showTab(saved);
