@@ -2452,6 +2452,7 @@ def api_custom_rename_folder():
 
 
 @app.route('/api/custom/folder/<name>', methods=['DELETE'])
+@protected
 def api_custom_delete_folder(name):
     """Delete an entire custom folder."""
     safe = os.path.basename(name)
@@ -2474,6 +2475,7 @@ def api_custom_delete_folder(name):
 
 
 @app.route('/api/custom/card/<folder>/<card_id>', methods=['DELETE'])
+@protected
 def api_custom_delete_card(folder, card_id):
     """Delete a single card from a custom folder."""
     safe_folder = os.path.basename(folder)
