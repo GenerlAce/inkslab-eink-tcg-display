@@ -217,20 +217,24 @@
 
   function init() {
     var setsList = document.getElementById('sets-list');
-    if (setsList) {
-      if (window.innerWidth < 600) {
-        // Mobile: always grid, no toggle
-        localStorage.setItem('inkslab_collection_view', 'grid');
-      } else {
-        // Desktop: show list/grid toggle
-        var toggleDiv = document.createElement('div');
-        toggleDiv.className = 'card';
-        toggleDiv.style.cssText = 'padding:16px;margin-bottom:12px;';
-        toggleDiv.innerHTML = '<h3 style="margin:0 0 8px 0;">Collection View</h3><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;color:var(--text-dim);">Choose display style</span><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm" style="font-size:12px;">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="font-size:12px;">Grid</button></div></div>';
-        setsList.parentNode.insertBefore(toggleDiv, setsList);
-        document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
-        document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });
-      }
+    var ctrlEl = document.getElementById('collection-view-ctrl');
+    if (window.innerWidth < 600) {
+      // Mobile: always grid, no toggle
+      localStorage.setItem('inkslab_collection_view', 'grid');
+    } else if (ctrlEl) {
+      // Desktop: populate the pre-placed top-row card
+      ctrlEl.innerHTML = '<h3 style="margin:0 0 10px 0;font-size:13px;">Collection View</h3><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm">Grid</button></div>';
+      document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
+      document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });
+    } else if (setsList) {
+      // Fallback: insert card before sets-list
+      var toggleDiv = document.createElement('div');
+      toggleDiv.className = 'card';
+      toggleDiv.style.cssText = 'padding:16px;margin-bottom:12px;';
+      toggleDiv.innerHTML = '<h3 style="margin:0 0 8px 0;">Collection View</h3><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;color:var(--text-dim);">Choose display style</span><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm" style="font-size:12px;">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="font-size:12px;">Grid</button></div></div>';
+      setsList.parentNode.insertBefore(toggleDiv, setsList);
+      document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
+      document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });
     }
     updateViewButtons();
     watchForSets();

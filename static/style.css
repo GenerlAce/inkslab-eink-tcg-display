@@ -562,19 +562,21 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .preview-spin { animation: spin 1.2s linear infinite; display: inline-block; }
 
-/* === TWO-COL CARD GRID (collection tab top) === */
-/* Mobile: merge both cards into one visual block */
-.two-col-cards { display: flex; flex-direction: column; }
-.two-col-cards .card:first-child { border-radius: 10px 10px 0 0; margin-bottom: 0; border-bottom: none; }
-.collection-only-card { border-radius: 0 0 10px 10px; border-top: 1px solid var(--border); margin-bottom: 8px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+/* === COLLECTION TOP ROW (mobile: 2 joined cards; desktop: 3-col) === */
+#coll-top-row { display: flex; flex-direction: column; margin-bottom: 12px; }
+#coll-top-row > .card:first-child { border-radius: 10px 10px 0 0; margin-bottom: 0; border-bottom: none; }
+.collection-only-card { border-radius: 0 0 10px 10px; border-top: 1px solid var(--border); margin-bottom: 0; display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
 .collection-only-card h3 { margin: 0; font-size: 13px; }
 .collection-only-card p { display: none; }
-@media (min-width: 600px) {
-  .two-col-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0; }
-  .two-col-cards .card:first-child { border-radius: 10px; margin-bottom: 0; border-bottom: 1px solid var(--border); }
-  .collection-only-card { border-radius: 10px; border-top: 1px solid var(--border); flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; margin-bottom: 0; }
+#collection-view-ctrl { display: none; }
+@media (min-width: 900px) {
+  #coll-top-row { flex-direction: row; gap: 8px; align-items: stretch; }
+  #coll-top-row > .card { flex: 1; margin-bottom: 0; border-radius: 10px; border-bottom: 1px solid var(--border); }
+  #coll-top-row > .card:first-child { border-radius: 10px; border-bottom: 1px solid var(--border); }
+  .collection-only-card { border-radius: 10px; border-top: 1px solid var(--border); flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; }
   .collection-only-card h3 { font-size: inherit; }
   .collection-only-card p { display: block; }
+  #collection-view-ctrl { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; }
 }
 
 /* Hide main UI until auth resolves — prevents flash before PIN prompt */
@@ -789,7 +791,7 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   #btn-dl-log-toggle { display: none !important; }
 
   /* Collection tab: equalize gaps between sections */
-  #tab-collection .two-col-cards { margin-bottom: 12px; }
+  #tab-collection #coll-top-row { margin-bottom: 12px; }
 
   /* Settings tab: mid two-column (Auto-Update | Metron + PIN + WiFi) */
   .settings-mid-cols {
