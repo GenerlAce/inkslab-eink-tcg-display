@@ -38,7 +38,8 @@ def main():
     print("1. Fetching master set list...")
 
     try:
-        r = requests.get(SETS_URL, headers=HEADERS)
+        r = requests.get(SETS_URL, headers=HEADERS, timeout=30)
+        r.raise_for_status()
         sets = r.json()
     except Exception as e:
         print(f"Error fetching sets: {e}")
@@ -72,11 +73,19 @@ def main():
 
         print(f"[{i + 1}/{total_sets}] {set_name}...")
 
-        try:
-            r = requests.get(f"{CARDS_BASE_URL}{set_id}.json", headers=HEADERS)
-            cards = r.json()
-        except Exception:
-            print(f"  > Error fetching card list. Skipping.")
+        cards = None
+        for attempt in range(3):
+            try:
+                r = requests.get(f"{CARDS_BASE_URL}{set_id}.json", headers=HEADERS, timeout=30)
+                r.raise_for_status()
+                cards = r.json()
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(5)
+                else:
+                    print(f"  > Error fetching card list: {e}. Skipping.")
+        if cards is None:
             continue
 
         # Build _data.json for this set
@@ -90,7 +99,15 @@ def main():
             }
 
         data_file = os.path.join(set_dir, "_data.json")
-        atomic_write_json(data_file, slim_db)
+        needs_write = True
+        if os.path.exists(data_file):
+            try:
+                with open(data_file, 'r') as f:
+                    needs_write = json.load(f) != slim_db
+            except Exception:
+                pass
+        if needs_write:
+            atomic_write_json(data_file, slim_db)
 
         # Download card images
         for card in cards:

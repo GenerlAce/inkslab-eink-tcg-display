@@ -583,7 +583,8 @@ def api_status():
     if tcg and set_id and card_id:
         thumb_path = os.path.join(THUMB_CACHE_DIR, tcg, os.path.basename(set_id), os.path.basename(card_id) + '.jpg')
         status['thumb_ready'] = os.path.exists(thumb_path)
-    _warm_current_thumb(status)
+    if _download_proc is None:
+        _warm_current_thumb(status)
     return jsonify(status)
 
 
@@ -929,7 +930,8 @@ def _start_precache_thread():
                 with _precache_lock:
                     _precache_state['done'] = i + 1
                 if generated:
-                    time.sleep(3.0)  # slow & safe — fine to run while display is cycling
+                    # Back off hard if a download is active to avoid I/O contention
+                    time.sleep(30.0 if _download_proc is not None else 3.0)
         finally:
             with _precache_lock:
                 _precache_state['running'] = False
