@@ -89,8 +89,10 @@ def download_file(url, filepath):
     try:
         r = requests.get(url, headers=HEADERS, timeout=30)
         if r.status_code == 200:
-            with open(filepath, 'wb') as f:
+            tmp = filepath + '.tmp'
+            with open(tmp, 'wb') as f:
                 f.write(r.content)
+            os.replace(tmp, filepath)
             return "DOWNLOADED"
         return f"HTTP {r.status_code}"
     except Exception as e:

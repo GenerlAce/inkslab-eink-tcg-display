@@ -80,8 +80,10 @@ def download_file(url, filepath, auth=None):
     try:
         r = requests.get(url, headers=HEADERS, timeout=30)
         if r.status_code == 200:
-            with open(filepath, 'wb') as f:
+            tmp = filepath + '.tmp'
+            with open(tmp, 'wb') as f:
                 f.write(r.content)
+            os.replace(tmp, filepath)
             return "DOWNLOADED"
         return f"HTTP {r.status_code}"
     except Exception as e:
@@ -158,11 +160,7 @@ def download_series(series_id, title, auth):
         number = issue.get("number", "0")
         cover_date = issue.get("cover_date", "")
 
-        # Get cover URL — issue_list may not include image, fetch detail if needed
         image_url = issue.get("image", "")
-        if not image_url:
-            print(f"  [{i+1}/{len(issues)}] #{number} — fetching cover URL...")
-            image_url = fetch_issue_cover(issue_id, auth)
 
         slim_db[issue_id] = {
             "name": title,

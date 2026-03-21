@@ -320,7 +320,7 @@ function mangaSearch() {
           + '<div style="font-weight:600;"><a href="https://mangadex.org/title/' + m.id + '" target="_blank" style="color:#F472B6;text-decoration:none;">' + esc(m.title) + '</a></div>'
           + '<div style="color:#888;font-size:12px;">' + esc(info) + '</div>'
           + '</div>'
-          + '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '"'
+          + '<button onclick="mangaDownloadSeries(this)" data-id="' + m.id + '" data-title="' + esc(m.title) + '"'
           + ' style="padding:6px 14px;background:#F472B6;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       }).join('');
@@ -376,7 +376,7 @@ function comicSearch() {
           + '<div style="font-weight:600;"><a href="https://metron.cloud/series/' + m.id + '/" target="_blank" style="color:#F97316;text-decoration:none;">' + esc(m.title) + '</a></div>'
           + '<div style="color:#888;font-size:12px;">' + esc(info) + '</div>'
           + '</div>'
-          + '<button onclick="comicDownloadSeries(this)" data-id="' + m.id + '" data-title="' + m.title.replace(/"/g, '&quot;') + '"'
+          + '<button onclick="comicDownloadSeries(this)" data-id="' + m.id + '" data-title="' + esc(m.title) + '"'
           + ' style="padding:6px 14px;background:#F97316;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
           + '</div>';
       }).join('');
@@ -1350,7 +1350,7 @@ function loadSets() {
   }
   fetch(API + '/api/sets?tcg=' + encodeURIComponent(tcg)).then(r => r.json()).then(sets => {
     _cache.sets[tcg] = sets;
-    try { localStorage.setItem('inkslab_sets_' + tcg, JSON.stringify(sets)); } catch(e) {}
+    try { localStorage.setItem('inkslab_sets_' + tcg, JSON.stringify(sets)); } catch(e) { console.warn('localStorage quota exceeded, sets not cached locally'); }
     if (tcg === getEffectiveBrowseTcg()) renderSets(el, sets, tcg);
   }).catch(function() {
     if (!_cache.sets[tcg]) el.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center">Failed to load sets</div>';
@@ -1540,10 +1540,10 @@ function renderRarityChips() {
   if (!_rarityData.length) { el.innerHTML = '<span style="color:var(--text-dim);font-size:12px">No cards downloaded yet</span>'; return; }
   el.innerHTML = _rarityData.map(function(r) {
     var sel = r.owned > 0;
-    var safeR = r.name.replace(/'/g, "\'");
+    var safeR = r.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     return '<span class="rarity-toggle' + (sel ? ' selected' : '') + '" onclick="toggleRarityChip(this,\'' + safeR + '\',' + (sel ? 'false' : 'true') + ')">'
       + '<span class="rt-check">' + (sel ? '&#10003;' : '') + '</span>'
-      + r.name
+      + esc(r.name)
       + '<span class="rt-count">' + r.owned + '/' + r.count + '</span>'
       + '</span>';
   }).join('');

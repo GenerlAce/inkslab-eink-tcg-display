@@ -19,8 +19,10 @@ def download_file(url, filepath):
     try:
         r = requests.get(url, headers=HEADERS, timeout=30)
         if r.status_code == 200:
-            with open(filepath, 'wb') as f:
+            tmp = filepath + '.tmp'
+            with open(tmp, 'wb') as f:
                 f.write(r.content)
+            os.replace(tmp, filepath)
             return "DOWNLOADED"
         return f"HTTP {r.status_code}"
     except Exception as e:
@@ -109,7 +111,13 @@ def download_series(manga_id, title):
             elif locale == 'en' and existing_locale != 'ja':
                 seen_volumes[vol] = cover
     covers = list(seen_volumes.values())
-    covers.sort(key=lambda c: (float(c.get('attributes', {}).get('volume') or 0)))
+    def _vol_key(c):
+        v = c.get('attributes', {}).get('volume') or '0'
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return 999999
+    covers.sort(key=_vol_key)
     if not covers:
         print("No covers found for this manga.")
         return

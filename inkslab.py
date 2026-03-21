@@ -19,6 +19,7 @@ import json
 import logging
 import signal
 import tempfile
+from collections import deque
 from PIL import Image, ImageEnhance, ImageDraw, ImageFont, ImageOps
 import wifi_manager
 
@@ -51,7 +52,7 @@ TCG_REGISTRY = {
 TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 
 # Supported image formats
-IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg')
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp')
 
 CONFIG_FILE = "/home/pi/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/inkslab_collection.json"
@@ -721,7 +722,7 @@ class ShuffleDeck:
     def __init__(self, root_dir, collection=None, recent=None):
         self.root_dir = root_dir
         self.collection = collection
-        self.deck = []
+        self.deck = deque()
         self.total = 0
         self.history = list(recent) if recent else []
         self.reshuffle()
@@ -730,15 +731,18 @@ class ShuffleDeck:
         logger.info("Shuffling deck...")
         temp = []
         if os.path.isdir(self.root_dir):
-            for root, dirs, files in os.walk(self.root_dir):
-                for f in files:
+            for set_dir in os.listdir(self.root_dir):
+                set_path = os.path.join(self.root_dir, set_dir)
+                if not os.path.isdir(set_path):
+                    continue
+                for f in os.listdir(set_path):
                     if _is_card_image(f):
                         # If collection mode, only include owned cards
                         if self.collection is not None:
                             card_id = os.path.splitext(f)[0]
                             if card_id not in self.collection:
                                 continue
-                        temp.append(os.path.join(root, f))
+                        temp.append(os.path.join(set_path, f))
 
         if self.collection is not None and len(temp) == 0:
             logger.info("Collection mode: no matching cards on disk yet")
@@ -755,7 +759,7 @@ class ShuffleDeck:
         else:
             random.shuffle(temp)
 
-        self.deck = temp
+        self.deck = deque(temp)
         self.total = len(temp)
         logger.info(f"Deck loaded: {self.total} cards")
 
@@ -764,7 +768,7 @@ class ShuffleDeck:
             self.reshuffle()
         if not self.deck:
             return None
-        card = self.deck.pop(0)
+        card = self.deck.popleft()
         self.history.insert(0, card)
         if len(self.history) > 30:
             self.history = self.history[:30]
@@ -772,7 +776,7 @@ class ShuffleDeck:
 
     def peek(self, n=3):
         """Return the next n cards without removing them."""
-        return self.deck[:n]
+        return list(self.deck)[:n]
 
 
 def card_summary(card_path, master_index):
@@ -941,7 +945,10 @@ def main():
         if deck.total > 0:
             show_splash_screen(epd, config)
             logger.info(f"IP/QR screen shown — waiting {EINK_MIN_INTERVAL}s before first card (Waveshare ACeP minimum)")
-            time.sleep(EINK_MIN_INTERVAL)
+            for _ in range(EINK_MIN_INTERVAL // 5):
+                time.sleep(5)
+                if os.path.exists(NEXT_TRIGGER) or os.path.exists(PREV_TRIGGER):
+                    break
         else:
             logger.info("WiFi connected but no cards — skipping splash, will show no-cards screen")
 

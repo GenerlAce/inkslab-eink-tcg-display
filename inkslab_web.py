@@ -468,6 +468,9 @@ def api_auth_login():
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_auth_logout():
+    tok = request.headers.get('X-CSRF-Token', '')
+    if session.get('csrf_token') and not secrets.compare_digest(tok, session.get('csrf_token', '')):
+        return jsonify({'error': 'Invalid CSRF token'}), 403
     session.clear()
     return jsonify({'ok': True})
 
@@ -790,7 +793,8 @@ def api_current_card_image():
                 real = os.path.realpath(card_path)
                 if not any(real == os.path.realpath(d) or real.startswith(os.path.realpath(d) + os.sep) for d in allowed_dirs):
                     return '', 403
-                mime = 'image/png' if card_path.lower().endswith('.png') else 'image/jpeg'
+                ext_lc = card_path.lower()
+                mime = 'image/png' if ext_lc.endswith('.png') else 'image/webp' if ext_lc.endswith('.webp') else 'image/jpeg'
                 resp = send_file(card_path, mimetype=mime)
                 resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
                 return resp
@@ -811,7 +815,7 @@ def api_card_image(tcg, set_id, card_id):
     for ext in IMAGE_EXTENSIONS:
         card_path = os.path.join(library, safe_set, safe_card + ext)
         if os.path.exists(card_path):
-            mime = 'image/png' if ext == '.png' else 'image/jpeg'
+            mime = 'image/png' if ext == '.png' else 'image/webp' if ext == '.webp' else 'image/jpeg'
             resp = send_file(card_path, mimetype=mime)
             resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
             return resp
@@ -3429,7 +3433,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=4"></script>
+<script src="/static/app.js?v=5"></script>
 <script src="/static/collection_view.js"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>

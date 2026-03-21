@@ -69,7 +69,7 @@ def main():
                     slim_db = json.load(f)
             except Exception:
                 pass
-        for card in cards:
+        for card in matching:
             slim_db[card['id']] = {"name": card.get('name', 'Unknown'), "number": card.get('number', '00'), "rarity": card.get('rarity', 'Common')}
         atomic_write_json(data_file, slim_db)
 
