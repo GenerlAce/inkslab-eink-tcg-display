@@ -71,7 +71,7 @@
     if (gb) gb.style.background = mode === 'grid' ? 'var(--accent)' : '';
   }
 
-  function openPreviewModal(src, label) {
+  function openPreviewModal(src, cardNum, rarity, setName) {
     var previewImg = document.getElementById('preview-img');
     var previewModal = document.getElementById('preview-modal');
     if (!previewModal || !previewImg) return;
@@ -79,7 +79,17 @@
     previewImg.onload = function() { this.style.opacity = '1'; };
     previewImg.src = src;
     var previewName = document.getElementById('preview-name');
-    if (previewName) previewName.textContent = label || '';
+    if (previewName) previewName.textContent = '';
+    var pmNumLbl = document.getElementById('pm-num-label');
+    var pmNum = document.getElementById('pm-num');
+    var pmRarityLbl = document.getElementById('pm-rarity-label');
+    var pmRarity = document.getElementById('pm-rarity');
+    var pmSet = document.getElementById('pm-set');
+    if (pmNumLbl) pmNumLbl.textContent = 'Card #';
+    if (pmNum) pmNum.textContent = cardNum || '\u2014';
+    if (pmRarityLbl) pmRarityLbl.textContent = 'Rarity';
+    if (pmRarity) pmRarity.textContent = rarity || '\u2014';
+    if (pmSet) pmSet.textContent = setName || '\u2014';
     previewModal.classList.add('open');
   }
 
@@ -91,6 +101,8 @@
       var cols = window.innerWidth >= 600 ? 8 : 4;
       var gridDiv = document.createElement('div');
       gridDiv.style.cssText = 'display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:6px;padding:6px 0;width:100%;';
+      var setItem = container.closest('.set-item');
+      var setNameText = setItem ? (setItem.querySelector('.set-name') ? setItem.querySelector('.set-name').textContent.trim() : '') : '';
       rows.forEach(function(row) {
         var cb = row.querySelector('input[type=checkbox]');
         if (!cb) return;
@@ -103,6 +115,10 @@
         var thumbSrc = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(cardId);
         var rarityEl = row.querySelector('.card-rarity');
         var rarity = rarityEl ? rarityEl.textContent : '';
+        var previewBtnEl = row.querySelector('.card-preview-btn');
+        var previewText = previewBtnEl ? previewBtnEl.textContent.trim() : '';
+        var numMatch = previewText.match(/^#(\S+)/);
+        var cardNum = numMatch ? numMatch[1] : '';
         var wrap = document.createElement('div');
         wrap.className = 'grid-thumb-wrap';
         wrap.id = 'gw-' + cardId;
@@ -134,7 +150,7 @@
           if (relY < rect.height / 2) {
             window.toggleCardThumb(cardId);
           } else {
-            openPreviewModal(src, rarity);
+            openPreviewModal(src, cardNum, rarity, setNameText);
           }
         });
         // Mobile: touchend handles top/bottom half tap; scrolls are ignored
@@ -161,7 +177,7 @@
           if (relY < rect.height / 2) {
             window.toggleCardThumb(cardId); // top half: add/remove from collection
           } else {
-            openPreviewModal(thumbSrc, rarity); // bottom half: use thumbnail (already cached, fast on mobile)
+            openPreviewModal(thumbSrc, cardNum, rarity, setNameText); // bottom half: use thumbnail (already cached, fast on mobile)
           }
         }, {passive: false});
         var check = document.createElement('div');

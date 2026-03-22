@@ -3465,7 +3465,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </nav>
 
 <script src="/static/app.js?v=14"></script>
-<script src="/static/collection_view.js?v=2"></script>
+<script src="/static/collection_view.js?v=3"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js?v=2"></script>
