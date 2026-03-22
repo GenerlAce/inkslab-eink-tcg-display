@@ -1216,8 +1216,6 @@ function loadSystemStats() {
   ]).then(function(results) {
     var d = results[0];
     var w = results[1];
-    var el = document.getElementById('system-stats');
-    if (!el) return;
     var tempColor = d.cpu_temp >= 75 ? 'var(--danger)' : d.cpu_temp >= 60 ? '#F59E0B' : 'var(--accent2)';
     var ramPct = d.ram_total_mb ? Math.round(d.ram_used_mb / d.ram_total_mb * 100) : 0;
     var ramColor = ramPct >= 85 ? 'var(--danger)' : ramPct >= 70 ? '#F59E0B' : 'var(--accent2)';
@@ -1226,10 +1224,13 @@ function loadSystemStats() {
     html += '<div class="stat"><span class="stat-label">Uptime</span><span class="stat-value" style="color:var(--accent2)">' + (d.uptime || '—') + '</span></div>';
     var wifiVal = w.ssid ? (w.ssid + (w.ip ? ' · ' + w.ip : '')) : (w.ip || '—');
     html += '<div class="stat"><span class="stat-label">WiFi</span><span class="stat-value" style="color:var(--accent2)">' + wifiVal + '</span></div>';
-    el.innerHTML = html;
+    var el = document.getElementById('system-stats');
+    if (el) el.innerHTML = html;
+    var el2 = document.getElementById('settings-system-stats');
+    if (el2) el2.innerHTML = html;
     if (_sysStatsTimer) clearTimeout(_sysStatsTimer);
     _sysStatsTimer = setTimeout(function() {
-      if (document.getElementById('system-stats')) loadSystemStats();
+      if (document.getElementById('system-stats') || document.getElementById('settings-system-stats')) loadSystemStats();
     }, 30000);
   }).catch(function() {});
 }

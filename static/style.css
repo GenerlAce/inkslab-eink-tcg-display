@@ -914,3 +914,4 @@ body.auth-pending .bottom-nav { visibility: hidden; }
 .mqs-toast-btns { display: flex; gap: 8px; }
 .mqs-toast-confirm { background: #ef4444; color: #fff; border: none; flex: 1; }
 .mqs-toast-cancel { flex: 1; }
+@media (min-width: 900px) { .hide-on-desktop { display: none !important; } }
