@@ -6,7 +6,7 @@ Wants=NetworkManager.service
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/local/bin/gunicorn --worker-class sync --workers 1 --bind 0.0.0.0:80 --timeout 120 --access-logfile - --error-logfile - inkslab_web:app
+ExecStart=/usr/local/bin/waitress-serve --host=0.0.0.0 --port=80 --threads=4 --channel-timeout=120 inkslab_web:app
 WorkingDirectory=/home/pi/inkslab
 Restart=on-failure
 RestartSec=10

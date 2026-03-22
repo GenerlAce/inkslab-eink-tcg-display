@@ -1466,7 +1466,7 @@ function toggleSet(setId) {
       html += '</div>';
     }
     html += cards.map(c => `
-      <div class="card-row" data-rarity="${esc(c.rarity)}">
+      <div class="card-row" data-rarity="${esc(c.rarity)}" data-year="${esc(c.year||'')}">
         <label>
           <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${esc(c.id)}', this)">
           <span class="card-preview-btn">#${esc(c.number)} ${esc(c.name)}</span>

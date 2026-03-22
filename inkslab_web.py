@@ -1060,6 +1060,7 @@ def api_set_cards(set_id):
             "name": info.get("name", card_id),
             "number": info.get("number", "?"),
             "rarity": info.get("rarity", ""),
+            "year": info.get("year", ""),
             "owned": card_id in owned_ids,
             "set_id": set_id,
         })
@@ -3464,8 +3465,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=14"></script>
-<script src="/static/collection_view.js?v=3"></script>
+<script src="/static/app.js?v=15"></script>
+<script src="/static/collection_view.js?v=5"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js?v=2"></script>

@@ -71,7 +71,7 @@
     if (gb) gb.style.background = mode === 'grid' ? 'var(--accent)' : '';
   }
 
-  function openPreviewModal(src, cardNum, rarity, setName) {
+  function openPreviewModal(src, cardNum, rarity, setName, tcg, year) {
     var previewImg = document.getElementById('preview-img');
     var previewModal = document.getElementById('preview-modal');
     if (!previewModal || !previewImg) return;
@@ -80,15 +80,19 @@
     previewImg.src = src;
     var previewName = document.getElementById('preview-name');
     if (previewName) previewName.textContent = '';
+    var isMC = (tcg === 'manga' || tcg === 'comics');
+    var numLabel = isMC ? (tcg === 'manga' ? 'Volume #' : 'Issue #') : 'Card #';
+    var rarityLabel = isMC ? 'Year' : 'Rarity';
+    var rarityVal = isMC ? (year || '\u2014') : (rarity || '\u2014');
     var pmNumLbl = document.getElementById('pm-num-label');
     var pmNum = document.getElementById('pm-num');
     var pmRarityLbl = document.getElementById('pm-rarity-label');
     var pmRarity = document.getElementById('pm-rarity');
     var pmSet = document.getElementById('pm-set');
-    if (pmNumLbl) pmNumLbl.textContent = 'Card #';
+    if (pmNumLbl) pmNumLbl.textContent = numLabel;
     if (pmNum) pmNum.textContent = cardNum || '\u2014';
-    if (pmRarityLbl) pmRarityLbl.textContent = 'Rarity';
-    if (pmRarity) pmRarity.textContent = rarity || '\u2014';
+    if (pmRarityLbl) pmRarityLbl.textContent = rarityLabel;
+    if (pmRarity) pmRarity.textContent = rarityVal;
     if (pmSet) pmSet.textContent = setName || '\u2014';
     previewModal.classList.add('open');
   }
@@ -119,6 +123,7 @@
         var previewText = previewBtnEl ? previewBtnEl.textContent.trim() : '';
         var numMatch = previewText.match(/^#(\S+)/);
         var cardNum = numMatch ? numMatch[1] : '';
+        var cardYear = row.dataset.year || '';
         var wrap = document.createElement('div');
         wrap.className = 'grid-thumb-wrap';
         wrap.id = 'gw-' + cardId;
@@ -150,7 +155,7 @@
           if (relY < rect.height / 2) {
             window.toggleCardThumb(cardId);
           } else {
-            openPreviewModal(src, cardNum, rarity, setNameText);
+            openPreviewModal(src, cardNum, rarity, setNameText, tcg, cardYear);
           }
         });
         // Mobile: touchend handles top/bottom half tap; scrolls are ignored
@@ -177,7 +182,7 @@
           if (relY < rect.height / 2) {
             window.toggleCardThumb(cardId); // top half: add/remove from collection
           } else {
-            openPreviewModal(thumbSrc, cardNum, rarity, setNameText); // bottom half: use thumbnail (already cached, fast on mobile)
+            openPreviewModal(thumbSrc, cardNum, rarity, setNameText, tcg, cardYear); // bottom half: use thumbnail (already cached, fast on mobile)
           }
         }, {passive: false});
         var check = document.createElement('div');
