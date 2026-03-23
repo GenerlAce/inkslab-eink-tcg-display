@@ -775,6 +775,12 @@ function refreshStatus() {
         sbTempWrap.style.display = '';
       }
     }
+    var collBadge = document.getElementById('nav-coll-count');
+    if (collBadge && d.owned_total !== (_lastStatus && _lastStatus.owned_total)) {
+      var ct = d.owned_total || 0;
+      collBadge.textContent = ct > 9999 ? '9999+' : ct;
+      collBadge.style.display = ct > 0 ? '' : 'none';
+    }
   }).catch(() => {});
 }
 
@@ -1989,12 +1995,15 @@ function checkDownload() {
       return '<span style="' + style + '">' + clean + '</span>';
     }).join('\n');
     logEl.scrollTop = logEl.scrollHeight;
+    var dlDot = document.getElementById('nav-dl-dot');
     if (d.running) {
       document.getElementById('dl-status').textContent = 'Downloading ' + (d.tcg || '').toUpperCase() + '...';
       setDownloadUI(true, d.tcg);
+      if (dlDot) dlDot.style.display = '';
     } else {
       document.getElementById('dl-status').textContent = 'Idle';
       setDownloadUI(false);
+      if (dlDot) dlDot.style.display = 'none';
       if (_dlPoll) { clearInterval(_dlPoll); _dlPoll = null; loadStorage(); }
     }
   });
