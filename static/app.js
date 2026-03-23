@@ -949,12 +949,16 @@ function renderAutoUpdate(data) {
   }).forEach(function(entry) {
     var tcg = entry[0], info = entry[1];
     var lastStr = info.last_update ? new Date(info.last_update).toLocaleDateString() : 'Never';
+    var days = info.last_update ? (Date.now() - new Date(info.last_update).getTime()) / 86400000 : Infinity;
+    var badgeCls = days <= 14 ? 'stale-green' : days <= 60 ? 'stale-amber' : 'stale-red';
+    var badgeLbl = days <= 14 ? 'Fresh' : days <= 60 ? 'Aging' : 'Stale';
+    var staleBadge = '<span class="stale-badge ' + badgeCls + '">' + badgeLbl + '</span>';
     var row = document.createElement('div');
     row.className = 'form-row';
     var left = document.createElement('div');
     left.style.flex = '1';
     left.innerHTML = '<span class="row-label">' + esc(info.name) + '</span>'
-      + '<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Last: ' + lastStr + '</div>';
+      + '<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">Last: ' + lastStr + ' ' + staleBadge + '</div>';
     var sw = document.createElement('label');
     sw.className = 'switch';
     var inp = document.createElement('input');
