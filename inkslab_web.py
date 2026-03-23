@@ -2921,7 +2921,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="InkSlab">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
-<link rel="stylesheet" href="/static/style.css?v=11">
+<link rel="stylesheet" href="/static/style.css?v=13">
 <script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
@@ -2993,27 +2993,30 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button class="player-btn" id="btn-next" onclick="nextCard()" title="Next Card">&#9654;</button>
       </div>
     </div>
-    <div class="card-info-inline">
-      <div class="stats-grid">
-        <div class="stat-cell">
-          <div class="stat-label" id="si-card-label">Card #</div>
-          <div class="stat-value" id="si-card">&mdash;</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label" id="si-total-label">Cards in Deck</div>
-          <div class="stat-value" id="si-total">&mdash;</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label" id="si-rarity-label">Rarity</div>
-          <div class="stat-value" id="si-rarity">&mdash;</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label">Collection</div>
-          <div class="stat-value" id="si-tcg">&mdash;</div>
-        </div>
-        <div class="stat-cell full-width">
-          <div class="stat-label">Set</div>
-          <div class="stat-value" id="si-set">&mdash;</div>
+    <div class="dl-section card-info-inline">
+      <div class="dl-section-hd">Card Info</div>
+      <div class="dl-section-body">
+        <div class="stats-grid">
+          <div class="stat-cell">
+            <div class="stat-label" id="si-card-label">Card #</div>
+            <div class="stat-value" id="si-card">&mdash;</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label" id="si-total-label">Cards in Deck</div>
+            <div class="stat-value" id="si-total">&mdash;</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label" id="si-rarity-label">Rarity</div>
+            <div class="stat-value" id="si-rarity">&mdash;</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">Collection</div>
+            <div class="stat-value" id="si-tcg">&mdash;</div>
+          </div>
+          <div class="stat-cell full-width">
+            <div class="stat-label">Set</div>
+            <div class="stat-value" id="si-set">&mdash;</div>
+          </div>
         </div>
       </div>
     </div>
@@ -3052,8 +3055,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 
   <div class="display-col-right">
-    <div class="card" id="queue-card">
-      <div class="q-label">Up Next</div>
+    <div class="dl-section" id="queue-card">
+      <div class="dl-section-hd">Up Next</div>
+      <div class="dl-section-body" style="padding:10px 12px 12px;">
       <div class="q-list" id="q-next-list">
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
@@ -3061,28 +3065,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
         <div class="q-card"><div class="q-thumb-placeholder"></div></div>
       </div>
-    </div>
-    <div class="card" id="prev-card">
-      <div class="q-label">Previous</div>
-      <div class="q-list" id="q-prev-list">
-        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
       </div>
     </div>
-    <div class="card mobile-qs-card">
-      <h3>Quick Switch Collection</h3>
-      <div class="quick-switch-scroll" id="quick-switch-btns"></div>
+    <div class="dl-section" id="prev-card">
+      <div class="dl-section-hd">Previous</div>
+      <div class="dl-section-body" style="padding:10px 12px 12px;">
+        <div class="q-list" id="q-prev-list">
+          <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+          <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+          <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+          <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+          <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="dl-section mobile-qs-card">
+      <div class="dl-section-hd">Quick Switch</div>
+      <div class="dl-section-body">
+        <div class="quick-switch-scroll" id="quick-switch-btns"></div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- SETTINGS TAB -->
 <div id="tab-settings" class="panel">
-  <div class="card">
-    <h3>Display Settings</h3>
+  <div class="dl-section">
+    <div class="dl-section-hd">Display Settings</div>
+    <div class="dl-section-body">
     <div class="settings-display-grid">
     <div class="form-row">
       <span class="row-label">Active Collection</span>
@@ -3164,24 +3174,28 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
       <button class="btn btn-primary btn-block" onclick="saveSettings()">Save Settings</button>
     </div>
+    </div><!-- end dl-section-body -->
   </div>
   <div class="settings-mid-cols">
     <div class="settings-col-left">
-      <div class="card">
-        <h3>Auto-Update Sources</h3>
-        <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
-        <div id="auto-update-list"></div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-          <div id="auto-update-next" style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Next scheduled: —</div>
-        </div>
-        <div class="au-run-wrap">
-          <button id="btn-run-all" class="btn btn-secondary btn-block" onclick="runAllNow()">Run All Now</button>
+      <div class="dl-section">
+        <div class="dl-section-hd">Auto-Update Sources</div>
+        <div class="dl-section-body">
+          <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Sources checked automatically every week. Toggle to enable or disable.</p>
+          <div id="auto-update-list"></div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+            <div id="auto-update-next" style="font-size:13px;color:var(--text-dim);margin-bottom:10px;">Next scheduled: —</div>
+          </div>
+          <div class="au-run-wrap">
+            <button id="btn-run-all" class="btn btn-secondary btn-block" onclick="runAllNow()">Run All Now</button>
+          </div>
         </div>
       </div>
     </div>
     <div class="settings-col-right">
-      <div class="card">
-        <h3>Metron Comics Account</h3>
+      <div class="dl-section">
+        <div class="dl-section-hd">Metron Comics Account</div>
+        <div class="dl-section-body">
         <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Required for comic book cover downloads. <a href="https://metron.cloud/accounts/signup/" target="_blank" style="color:#F97316;">Sign up free at metron.cloud</a></p>
         <div id="metron-status" style="margin-bottom:10px;"></div>
         <div id="metron-form" style="display:none;">
@@ -3199,9 +3213,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
           </div>
           <div id="metron-test-result" style="margin-top:8px;font-size:13px;display:none;"></div>
         </div>
+        </div><!-- end dl-section-body -->
       </div>
-      <div class="card settings-pin-card">
-        <h3>Dashboard PIN</h3>
+      <div class="dl-section settings-pin-card">
+        <div class="dl-section-hd">Dashboard PIN</div>
+        <div class="dl-section-body">
         <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
         <div id="pin-status" style="font-size:13px;margin-bottom:10px;"></div>
         <div id="pin-form" style="display:none;">
@@ -3220,16 +3236,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
           </div>
         </div>
         <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
+        </div><!-- end dl-section-body -->
       </div>
-      <div class="card">
-        <h3>WiFi Network</h3>
+      <div class="dl-section">
+        <div class="dl-section-hd">WiFi Network</div>
+        <div class="dl-section-body">
         <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
         <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
+        </div><!-- end dl-section-body -->
       </div>
     </div>
   </div>
-  <div class="card settings-update-card">
-    <h3>Software Update</h3>
+  <div class="dl-section settings-update-card">
+    <div class="dl-section-hd">Software Update</div>
+    <div class="dl-section-body">
     <div id="update-info" style="margin-bottom:10px;font-size:13px;color:var(--text-dim);cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
     <div class="flex-row" style="margin-bottom:8px">
       <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
@@ -3239,15 +3259,18 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div style="background:var(--bg-input);border-radius:4px;height:8px;margin:8px 0"><div id="update-bar" style="height:100%;border-radius:4px;background:var(--accent);width:0%;transition:width 0.5s"></div></div>
       <div id="update-stage" style="font-size:12px;color:var(--text-dim);text-align:center"></div>
     </div>
+    </div><!-- end dl-section-body -->
   </div>
-  <div class="card hide-on-desktop">
-    <h3>System Information</h3>
+  <div class="dl-section hide-on-desktop">
+    <div class="dl-section-hd">System Information</div>
+    <div class="dl-section-body">
     <div id="settings-system-stats">
       <div class="stat"><span class="stat-label">CPU Temp</span><span class="stat-value">&mdash;</span></div>
       <div class="stat"><span class="stat-label">RAM</span><span class="stat-value">&mdash;</span></div>
       <div class="stat"><span class="stat-label">Uptime</span><span class="stat-value">&mdash;</span></div>
       <div class="stat"><span class="stat-label">WiFi</span><span class="stat-value">&mdash;</span></div>
     </div>
+    </div><!-- end dl-section-body -->
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid var(--danger)">
     <h3 style="color:var(--danger)">Prepare for New Owner</h3>
@@ -3266,27 +3289,30 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <!-- COLLECTION TAB -->
 <div id="tab-collection" class="panel">
   <div id="coll-top-row">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-        <div>
-          <h3 style="margin-bottom:4px">My Collection</h3>
+    <div class="dl-section">
+      <div class="dl-section-hd">My Collection</div>
+      <div class="dl-section-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
           <p style="color:var(--text-dim);font-size:12px;margin:0">Mark cards as owned to build your collection. Enable <strong>Collection Only Mode</strong> to display only your owned cards.</p>
+          <button class="btn btn-secondary btn-sm" onclick="clearCollection()" style="flex-shrink:0">Clear All</button>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="clearCollection()" style="flex-shrink:0">Clear All</button>
       </div>
     </div>
-    <div class="card collection-only-card">
-      <h3>Collection Only Mode</h3>
-      <p style="color:var(--text-dim);font-size:12px;margin:0">When ON, only cards you have marked as owned will display on the e-ink screen.</p>
-      <label class="switch">
-        <input type="checkbox" id="cfg-collection" onchange="saveCollectionMode()">
-        <span class="switch-slider"></span>
-      </label>
+    <div class="dl-section collection-only-card">
+      <div class="dl-section-hd">Collection Only Mode</div>
+      <div class="dl-section-body">
+        <p style="color:var(--text-dim);font-size:12px;margin:0">When ON, only cards you have marked as owned will display on the e-ink screen.</p>
+        <label class="switch">
+          <input type="checkbox" id="cfg-collection" onchange="saveCollectionMode()">
+          <span class="switch-slider"></span>
+        </label>
+      </div>
     </div>
     <div class="card" id="collection-view-ctrl"></div>
   </div>
-  <div class="card">
-    <h3>Search Collection</h3>
+  <div class="dl-section">
+    <div class="dl-section-hd">Search Collection</div>
+    <div class="dl-section-body">
     <p style="color:var(--text-dim);font-size:12px;margin-bottom:8px">Find by name and add all versions to your collection.</p>
     <div id="tcg-browse-pills" class="tcg-browse-row"></div>
     <div id="search-filters" class="search-filters" style="display:none"></div>
@@ -3296,6 +3322,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <button id="search-clear" class="search-clear-btn" onclick="clearSearch()" style="display:none">&#10005;</button>
     </div>
     <div id="search-results" class="search-results"></div>
+    </div><!-- end dl-section-body -->
   </div>
   <div id="sets-list"></div>
 </div>
@@ -3303,12 +3330,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <!-- DOWNLOADS TAB -->
 <div id="tab-downloads" class="panel">
   <div class="dl-col-left">
-    <div class="card">
-      <h3>Storage</h3>
+    <div class="dl-section">
+      <div class="dl-section-hd">Storage</div>
+      <div class="dl-section-body">
       <div id="storage-info" style="min-height:80px"></div>
+      </div>
     </div>
-    <div class="card">
-      <h3>Downloads</h3>
+    <div class="dl-section">
+      <div class="dl-section-hd">Downloads</div>
+      <div class="dl-section-body">
       <div id="dl-picker"></div>
       <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -3370,32 +3400,39 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         </div>
         <div id="comics-search-results" style="display:none;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;"></div>
       </div>
+      </div><!-- end dl-section-body -->
     </div>
-    <div class="card">
-      <h3>Custom Images</h3>
-      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Upload your own images to display. Create folders to organize them.</p>
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <input id="custom-folder-name" type="text" placeholder="New folder name..."
-          style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:14px;">
-        <button onclick="createCustomFolder()" class="btn"
-          style="background:var(--accent2);color:#010001;border:none;white-space:nowrap;">+ Create</button>
-      </div>
-      <div id="custom-folders"></div>
-    </div>
-    <div class="card" id="dl-status-card">
-      <h3>Download Status</h3>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:var(--danger);color:var(--bg);border:none;">Stop</button>
-          <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
+    <div class="dl-section">
+      <div class="dl-section-hd">Custom Images</div>
+      <div class="dl-section-body">
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Upload your own images to display. Create folders to organize them.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input id="custom-folder-name" type="text" placeholder="New folder name..."
+            style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text);font-size:14px;">
+          <button onclick="createCustomFolder()" class="btn"
+            style="background:var(--accent2);color:#010001;border:none;white-space:nowrap;">+ Create</button>
         </div>
+        <div id="custom-folders"></div>
       </div>
-      <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
     </div>
-    <div class="card">
-      <h3>Delete Entire Library</h3>
-      <div id="delete-buttons"></div>
+    <div class="dl-section" id="dl-status-card">
+      <div class="dl-section-hd">Download Status</div>
+      <div class="dl-section-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:var(--danger);color:var(--bg);border:none;">Stop</button>
+            <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
+          </div>
+        </div>
+        <pre id="dl-log" class="log-box" style="display:none;height:200px;margin:0"></pre>
+      </div>
+    </div>
+    <div class="dl-section">
+      <div class="dl-section-hd">Delete Entire Library</div>
+      <div class="dl-section-body">
+        <div id="delete-buttons"></div>
+      </div>
     </div>
   </div>
 </div><!-- /tab-downloads -->
