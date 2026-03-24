@@ -88,6 +88,8 @@
     if (window.closeAllDlSearch) closeAllDlSearch();
   }
 
+  window.setDlTcg = setDlTcg;
+
   window.initDlPicker = function(sorted, activeTcg) {
     var dlSorted = sorted.filter(function(e) { return e[1].download_script; });
     if (!dlSorted.length) return;

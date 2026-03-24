@@ -961,6 +961,8 @@ function _doSwitchTCG(tcg) {
       document.getElementById('st-tcg').textContent = name;
       updatePillTcg(tcg);
       updateQuickSwitchActive(tcg);
+      updateBrowsePills(tcg);
+      if (window.setDlTcg) window.setDlTcg(tcg);
       setOptimisticLoading('Switching to ' + name + '...');
       startRapidPoll();
     })
