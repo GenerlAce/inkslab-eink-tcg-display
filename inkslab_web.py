@@ -1725,7 +1725,7 @@ def api_metron_save():
                 f.write(f'METRON_USERNAME={username}\n')
                 f.write(f'METRON_PASSWORD={password}\n')
         os.chmod(creds_file, 0o600)
-        return jsonify({'ok': True, 'username': username})
+        return jsonify({'ok': True, 'username': username, 'encrypted': bool(encrypted)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)})
 
@@ -3570,8 +3570,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=32"></script>
-<script src="/static/collection_view.js?v=5"></script>
+<script src="/static/app.js?v=33"></script>
+<script src="/static/collection_view.js?v=6"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>
 <script src="/static/delete_library.js"></script>

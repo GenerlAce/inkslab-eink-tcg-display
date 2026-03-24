@@ -123,7 +123,7 @@
         var thumbSrc = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(cardId);
         var rarityEl = row.querySelector('.card-rarity');
         var rarity = rarityEl ? rarityEl.textContent : '';
-        var previewBtnEl = row.querySelector('.card-preview-btn');
+        var previewBtnEl = row.querySelector('.card-preview-btn') || row.querySelector('.card-row-name');
         var previewText = previewBtnEl ? previewBtnEl.textContent.trim() : '';
         var numMatch = previewText.match(/^#(\S+)/);
         var cardNum = numMatch ? numMatch[1] : '';

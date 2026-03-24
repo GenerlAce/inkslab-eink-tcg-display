@@ -1172,7 +1172,11 @@ function saveMetronCreds() {
     body: JSON.stringify({username: username, password: password})
   }).then(r => r.json()).then(function(d) {
     if (d.ok) {
-      showToast('Metron credentials saved!', 2000);
+      if (d.encrypted === false) {
+        showToast('Saved — WARNING: stored as plaintext (install cryptography library to encrypt)', 6000);
+      } else {
+        showToast('Metron credentials saved!', 2000);
+      }
       document.getElementById('metron-username').value = '';
       document.getElementById('metron-password').value = '';
       loadMetronStatus();
@@ -1828,8 +1832,8 @@ function loadFavorites() {
     if (!favs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.display = '';
     el.innerHTML = favs.map(function(name) {
-      var safeN = name.replace(/'/g, "\'");
-      return '<span class="search-filter-chip">' + name + '<span class="sfc-x" onclick="removeFavorite(\'' + safeN + '\', event)">&times;</span></span>';
+      var safeN = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return '<span class="search-filter-chip">' + esc(name) + '<span class="sfc-x" onclick="removeFavorite(\'' + safeN + '\', event)">&times;</span></span>';
     }).join('');
   });
 }
