@@ -3518,6 +3518,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <span><span class="cdm-btn-label">Force Now</span><span class="cdm-btn-sub">may cause ghosting</span></span>
       </button>
     </div>
+    <div class="cdm-cancel-row">
+      <button class="cdm-cancel-btn" onclick="_CooldownGate.dismiss()">Close</button>
+    </div>
   </div>
 </div>
 
@@ -3567,10 +3570,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=30"></script>
+<script src="/static/app.js?v=32"></script>
 <script src="/static/collection_view.js?v=5"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
-<script src="/static/qs_pending.js?v=3"></script>
+<script src="/static/qs_pending.js?v=4"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js?v=2"></script>

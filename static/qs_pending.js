@@ -48,7 +48,7 @@
     var sub  = banner.querySelector('.qs-pb-sub');
     if (dot)  dot.style.background = color;
     if (text) { text.textContent = 'Switching to ' + name + '\u2026'; text.style.color = color; }
-    if (sub)  sub.textContent = 'Fires at next card interval \u2014 or cancel to stay on ' + (currentName || 'current');
+    if (sub)  sub.textContent = 'Queued \u2014 fires at next card interval';
   }
 
   function setBar(banner, pct) {

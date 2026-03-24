@@ -825,12 +825,24 @@ var _CooldownGate = (function() {
   var _pendingLabel = null;
   var _pendingMeta = null;
   var _queuedAction = null;
-  var _countdownInterval = null;
+  var _countdownInterval = null; // modal countdown only
+  var _queueInterval = null;     // background queue runner — never cleared by _closeModal
 
   function _remaining() {
     var ds = _lastStatus && (_lastStatus.display_start || _lastStatus.timestamp);
     if (!ds) return 0;
     return Math.max(0, WINDOW - (Math.floor(Date.now() / 1000) - ds));
+  }
+
+  function _fireQueue() {
+    var fn = _queuedAction;
+    _queuedAction = null;
+    if (_queueInterval) { clearInterval(_queueInterval); _queueInterval = null; }
+    _closeModal();
+    if (window._qsPendingHide) window._qsPendingHide();
+    fetch(API + '/api/pending_switch', {method: 'DELETE'}).catch(function(){});
+    localStorage.removeItem('inkslab_pending_switch');
+    fn();
   }
 
   function _startCountdown() {
@@ -842,15 +854,6 @@ var _CooldownGate = (function() {
       var barEl = document.getElementById('cdm-progress-bar');
       if (timeEl) timeEl.textContent = Math.floor(rem / 60) + ':' + ('0' + (rem % 60)).slice(-2) + ' remaining';
       if (barEl) barEl.style.width = pct + '%';
-      if (rem <= 0 && _queuedAction) {
-        var fn = _queuedAction;
-        _queuedAction = null;
-        _closeModal();
-        if (window._qsPendingHide) window._qsPendingHide();
-        fetch(API + '/api/pending_switch', {method: 'DELETE'}).catch(function(){});
-        localStorage.removeItem('inkslab_pending_switch');
-        fn();
-      }
     }, 500);
   }
 
@@ -886,19 +889,11 @@ var _CooldownGate = (function() {
   function _startQueue(action, label, meta) {
     _queuedAction = action;
     if (window._qsPendingShow) window._qsPendingShow(label, meta);
-    _countdownInterval = setInterval(function() {
+    if (_queueInterval) clearInterval(_queueInterval);
+    _queueInterval = setInterval(function() {
       var rem = _remaining();
       if (window._qsPendingUpdate) window._qsPendingUpdate(rem);
-      if (rem <= 0 && _queuedAction) {
-        var fn = _queuedAction;
-        _queuedAction = null;
-        clearInterval(_countdownInterval);
-        _countdownInterval = null;
-        if (window._qsPendingHide) window._qsPendingHide();
-        fetch(API + '/api/pending_switch', {method: 'DELETE'}).catch(function(){});
-        localStorage.removeItem('inkslab_pending_switch');
-        fn();
-      }
+      if (rem <= 0 && _queuedAction) { _fireQueue(); }
     }, 500);
   }
 
@@ -927,9 +922,13 @@ var _CooldownGate = (function() {
     if (fn) fn();
   }
 
+  function dismiss() {
+    _closeModal(); // closes modal only — does not touch an active queue
+  }
+
   return {
     check: check, addToQueue: addToQueue, restoreQueue: restoreQueue,
-    forceNow: forceNow, remaining: _remaining,
+    forceNow: forceNow, dismiss: dismiss, remaining: _remaining,
     hasQueue: function() { return !!_queuedAction; }
   };
 })();
