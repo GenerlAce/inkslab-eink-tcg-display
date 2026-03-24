@@ -243,8 +243,10 @@
       // Mobile: always grid, no toggle
       localStorage.setItem('inkslab_collection_view', 'grid');
     } else if (ctrlEl) {
-      // Desktop: populate the pre-placed top-row card
-      ctrlEl.innerHTML = '<h3 style="margin:0 0 10px 0;font-size:13px;">Collection View</h3><div style="display:flex;gap:6px;"><button id="btn-view-list" class="btn btn-secondary btn-sm">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm">Grid</button></div>';
+      // Desktop: populate the pre-placed top-row section
+      ctrlEl.innerHTML = '<button id="btn-view-list" class="btn btn-secondary btn-sm">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm">Grid</button>';
+      var wrap = document.getElementById('collection-view-ctrl-wrap');
+      if (wrap) wrap.style.display = '';
       document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });
       document.getElementById('btn-view-grid').addEventListener('click', function() { window.setCollectionView('grid'); });
     } else if (setsList) {

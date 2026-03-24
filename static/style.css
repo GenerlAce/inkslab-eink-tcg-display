@@ -606,13 +606,13 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 #coll-top-row { display: flex; flex-direction: column; margin-bottom: 12px; }
 .collection-only-card .dl-section-body { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
 .collection-only-card p { display: none; }
-#collection-view-ctrl { display: none; }
+#collection-view-ctrl-wrap { display: none; }
 @media (min-width: 900px) {
   #coll-top-row { flex-direction: row; gap: 8px; align-items: stretch; }
   #coll-top-row > .dl-section { flex: 1; margin-bottom: 0; }
   .collection-only-card .dl-section-body { flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; }
   .collection-only-card p { display: block; }
-  #collection-view-ctrl { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; }
+  #collection-view-ctrl-wrap { display: flex; flex-direction: column; }
 }
 
 /* Hide main UI until auth resolves — prevents flash before PIN prompt */
@@ -787,6 +787,8 @@ body.auth-pending .bottom-nav { visibility: hidden; }
 
   /* Card info bubbles below preview (desktop only) */
   .card-info-inline { display: block; }
+  .card-info-inline .stats-grid { grid-template-columns: repeat(4, 1fr); }
+  .card-info-inline .stat-cell { padding: 5px 8px; }
   .card-info-inline .stat-cell .stat-label,
   .card-info-inline .stat-cell .stat-value { text-align: center; }
   .card-info-inline .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
@@ -856,8 +858,9 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   #dl-log { display: block !important; height: 400px !important; }
   #btn-dl-log-toggle { display: none !important; }
 
-  /* Collection tab: equalize gaps between sections */
+  /* Collection tab: sets list taller on desktop */
   #tab-collection #coll-top-row { margin-bottom: 12px; }
+  #tab-collection #sets-list { max-height: 58vh; }
 
   /* Settings tab: mid two-column (Auto-Update | Metron + PIN + WiFi) */
   .settings-mid-cols {
