@@ -72,6 +72,29 @@ body {
   border: 1px solid currentColor;
   opacity: 0.9;
 }
+.pill-qs-dropdown {
+  position: fixed;
+  z-index: 9999;
+  width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  animation: clp-fade 0.15s ease both;
+}
+.pill-qs-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 /* === CONTENT AREA === */
 .content {

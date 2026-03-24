@@ -2291,6 +2291,56 @@ var _tcgRegistry = {};
 var _delConfirmTcg = null;
 var _delConfirmTimer = null;
 
+var _pillDropdown = null;
+function initPillDropdown(sorted, shortNames) {
+  var pillTcg = document.getElementById('pill-tcg');
+  if (!pillTcg || pillTcg._qdInit) return;
+  pillTcg._qdInit = true;
+  pillTcg.style.cursor = 'pointer';
+
+  function closePillDropdown() {
+    if (_pillDropdown) { _pillDropdown.remove(); _pillDropdown = null; }
+    document.removeEventListener('click', outsideHandler, true);
+  }
+  function outsideHandler(e) {
+    if (_pillDropdown && !_pillDropdown.contains(e.target) && e.target !== pillTcg) {
+      closePillDropdown();
+    }
+  }
+  pillTcg.addEventListener('click', function(e) {
+    if (window.innerWidth >= 900) return;
+    e.stopPropagation();
+    if (_pillDropdown) { closePillDropdown(); return; }
+    var rect = pillTcg.getBoundingClientRect();
+    _pillDropdown = document.createElement('div');
+    _pillDropdown.className = 'pill-qs-dropdown';
+    sorted.forEach(function(entry) {
+      var tcgKey = entry[0], info = entry[1];
+      var color = info.color || '#36A5CA';
+      var item = document.createElement('button');
+      item.className = 'pill-qs-item';
+      item.style.color = color;
+      item.textContent = shortNames[tcgKey] || info.name;
+      var isActive = tcgKey === ((_lastStatus && _lastStatus.tcg) || '');
+      if (isActive) { item.style.background = color + '22'; item.style.fontWeight = '700'; }
+      item.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        closePillDropdown();
+        switchTCG(tcgKey, null);
+      });
+      _pillDropdown.appendChild(item);
+    });
+    // Position centered under the pill
+    var left = Math.round(rect.left + rect.width / 2 - 90);
+    if (left + 180 > window.innerWidth - 8) left = window.innerWidth - 188;
+    if (left < 8) left = 8;
+    _pillDropdown.style.top  = (rect.bottom + 6) + 'px';
+    _pillDropdown.style.left = left + 'px';
+    document.body.appendChild(_pillDropdown);
+    setTimeout(function() { document.addEventListener('click', outsideHandler, true); }, 0);
+  });
+}
+
 function buildDynamicUI(registry) {
   _tcgRegistry = registry;
   window._tcgRegistry = registry;
@@ -2319,6 +2369,8 @@ function buildDynamicUI(registry) {
     });
   });
   updateQuickSwitchActive(_lastStatus.tcg || '');
+  // Mobile top-pill quick-switch dropdown
+  initPillDropdown(sorted, shortNames);
   // Browse TCG source picker in Collection tab (single pill selector + dropdown)
   var pillsEl = document.getElementById('tcg-browse-pills');
   if (pillsEl) {
