@@ -1541,32 +1541,23 @@ function toggleSet(setId) {
       });
       html += '</div>';
     }
-    html += cards.map(c => `
-      <div class="card-row" data-rarity="${esc(c.rarity)}" data-year="${esc(c.year||'')}">
-        <label>
-          <input type="checkbox" ${c.owned ? 'checked' : ''} onchange="toggleCard('${esc(c.id)}', this)">
-          <span class="card-preview-btn">#${esc(c.number)} ${esc(c.name)}</span>
-        </label>
-        <span class="card-rarity">${esc(c.rarity)}</span>
-      </div>
-    `).join('');
+    var isDesktop = window.innerWidth >= 900;
+    var tcg = getEffectiveBrowseTcg();
+    html += cards.map(function(c) {
+      var ts = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(c.id);
+      if (isDesktop) {
+        return '<div class="card-row" data-rarity="' + esc(c.rarity) + '" data-year="' + esc(c.year||'') + '">'
+          + '<label class="card-row-check"><input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\'' + esc(c.id) + '\', this)"></label>'
+          + '<img class="card-row-thumb" src="' + ts + '" loading="lazy" alt="">'
+          + '<div class="card-row-info"><span class="card-row-name">#' + esc(c.number) + ' ' + esc(c.name) + '</span><span class="card-rarity">' + esc(c.rarity) + '</span></div>'
+          + '</div>';
+      }
+      return '<div class="card-row" data-rarity="' + esc(c.rarity) + '" data-year="' + esc(c.year||'') + '" data-thumb="' + ts + '">'
+        + '<label><input type="checkbox" ' + (c.owned ? 'checked' : '') + ' onchange="toggleCard(\'' + esc(c.id) + '\', this)"><span class="card-preview-btn">#' + esc(c.number) + ' ' + esc(c.name) + '</span></label>'
+        + '<span class="card-rarity">' + esc(c.rarity) + '</span>'
+        + '</div>';
+    }).join('');
     liveEl.innerHTML = html;
-    // Desktop list view: click row to open preview modal
-    if (window.innerWidth >= 900 && window.openPreviewModal) {
-      var tcg = getEffectiveBrowseTcg();
-      var setItem = liveEl.closest('.set-item');
-      var setNameText = setItem && setItem.querySelector('.set-name') ? setItem.querySelector('.set-name').textContent.trim() : '';
-      liveEl.querySelectorAll('.card-row').forEach(function(row, i) {
-        var c = cards[i];
-        if (!c) return;
-        var thumbSrc = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(c.id);
-        row.style.cursor = 'pointer';
-        row.addEventListener('click', function(e) {
-          if (e.target.type === 'checkbox') return;
-          window.openPreviewModal(thumbSrc, c.number, c.rarity, setNameText, tcg, c.year || '');
-        });
-      });
-    }
   });
 }
 
