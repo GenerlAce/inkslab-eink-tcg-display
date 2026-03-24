@@ -2104,6 +2104,14 @@ function checkDownload() {
     lines = lines.filter(function(l) { return l.trim() && !/^\s*[\d]+%\|/.test(l) && !/\r/.test(l); });
     logEl.innerHTML = lines.map(function(l) {
       var clean = l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if (/^===/.test(l.trim())) {
+        // Summary line — blue base; highlight non-zero Failed/Skipped counts in red
+        var html = clean.replace(/(Failed|Skipped)(:\s*)(\d+)/g, function(m, label, sep, num) {
+          if (parseInt(num) > 0) return '<span style="color:#FF6B6B;font-weight:600">' + label + sep + num + '</span>';
+          return m;
+        });
+        return '<span style="color:#60A5FA;font-weight:600">' + html + '</span>';
+      }
       var style = 'color:#FCFDF0';
       if (/error|fail|exception/i.test(l)) style = 'color:#FF6B6B;font-weight:600';
       else if (/warning|warn/i.test(l)) style = 'color:#FACC15';

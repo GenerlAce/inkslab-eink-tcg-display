@@ -75,6 +75,7 @@ def main():
 
     total_sets = len(sets)
     download_count = 0
+    failed_count = 0
 
     print(f"\n2. Downloading cards from {total_sets} sets...")
 
@@ -150,9 +151,10 @@ def main():
                     print(f"    [Cooldown {COOLDOWN_SECONDS}s...]")
                     time.sleep(COOLDOWN_SECONDS)
             elif status != "EXISTS":
+                failed_count += 1
                 print(f"  > Failed: {card_id} ({status})")
 
-    print(f"\n=== Done! Downloaded {download_count} new cards. ===")
+    print(f"\n=== Done! Downloaded: {download_count}, Failed: {failed_count} ===")
 
 
 if __name__ == "__main__":

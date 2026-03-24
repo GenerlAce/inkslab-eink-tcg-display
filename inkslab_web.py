@@ -3581,7 +3581,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=33"></script>
+<script src="/static/app.js?v=34"></script>
 <script src="/static/collection_view.js?v=6"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>
