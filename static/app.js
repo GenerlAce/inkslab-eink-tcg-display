@@ -808,43 +808,126 @@ function showCardInfoModal() {
   document.getElementById('card-info-modal').classList.add('open');
 }
 
-function _warnShortDisplay() {
-  var ds = _lastStatus && (_lastStatus.display_start || _lastStatus.timestamp);
-  if (!ds) return true;
-  var elapsed = Math.floor(Date.now() / 1000) - ds;
-  if (elapsed < 180) {
-    var remaining = 180 - elapsed;
-    return confirm('This card has only been on the display for ' + elapsed + 's.\n\nWaveshare recommends at least 3 minutes between refreshes to avoid display wear.\n\nAdvance anyway? (' + remaining + 's remaining)');
+// === COOLDOWN GATE ===
+var _CooldownGate = (function() {
+  var WINDOW = 180;
+  var _pendingAction = null;
+  var _pendingLabel = null;
+  var _queuedAction = null;
+  var _countdownInterval = null;
+
+  function _remaining() {
+    var ds = _lastStatus && (_lastStatus.display_start || _lastStatus.timestamp);
+    if (!ds) return 0;
+    return Math.max(0, WINDOW - (Math.floor(Date.now() / 1000) - ds));
   }
-  return true;
-}
+
+  function _startCountdown() {
+    if (_countdownInterval) clearInterval(_countdownInterval);
+    _countdownInterval = setInterval(function() {
+      var rem = _remaining();
+      var pct = Math.min(100, ((WINDOW - rem) / WINDOW) * 100);
+      var timeEl = document.getElementById('cdm-time');
+      var barEl = document.getElementById('cdm-progress-bar');
+      if (timeEl) timeEl.textContent = Math.floor(rem / 60) + ':' + ('0' + (rem % 60)).slice(-2) + ' remaining';
+      if (barEl) barEl.style.width = pct + '%';
+      if (rem <= 0 && _queuedAction) {
+        var fn = _queuedAction;
+        _queuedAction = null;
+        _closeModal();
+        fn();
+      }
+    }, 500);
+  }
+
+  function _closeModal() {
+    var modal = document.getElementById('cooldown-modal');
+    if (modal) modal.classList.remove('open');
+    if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
+    _pendingAction = null;
+    _pendingLabel = null;
+  }
+
+  function check(action, label) {
+    var rem = _remaining();
+    if (rem <= 0) { action(); return; }
+    _pendingAction = action;
+    _pendingLabel = label || 'Display action';
+    var subtitleEl = document.getElementById('cdm-subtitle');
+    var msgEl = document.getElementById('cdm-message');
+    if (subtitleEl) subtitleEl.textContent = _pendingLabel + ' \u00B7 too soon';
+    if (msgEl) msgEl.innerHTML = '<strong>Display refresh triggered by ' + _pendingLabel.toLowerCase() + '</strong>'
+      + '<p>E-ink displays need ~3 min between refreshes to avoid ghosting.</p>';
+    var timeEl = document.getElementById('cdm-time');
+    var barEl = document.getElementById('cdm-progress-bar');
+    if (timeEl) timeEl.textContent = Math.floor(rem / 60) + ':' + ('0' + (rem % 60)).slice(-2) + ' remaining';
+    if (barEl) barEl.style.width = Math.min(100, ((WINDOW - rem) / WINDOW) * 100) + '%';
+    var modal = document.getElementById('cooldown-modal');
+    if (modal) modal.classList.add('open');
+    _startCountdown();
+  }
+
+  function addToQueue() {
+    _queuedAction = _pendingAction;
+    var label = _pendingLabel;
+    _closeModal();
+    showToast('Queued \u2014 runs when cooldown ends');
+    // Keep countdown running in background to fire queue
+    _countdownInterval = setInterval(function() {
+      var rem = _remaining();
+      if (rem <= 0 && _queuedAction) {
+        var fn = _queuedAction;
+        _queuedAction = null;
+        clearInterval(_countdownInterval);
+        _countdownInterval = null;
+        fn();
+      }
+    }, 500);
+  }
+
+  function forceNow() {
+    var fn = _pendingAction;
+    _queuedAction = null;
+    _closeModal();
+    if (fn) fn();
+  }
+
+  function cancel() {
+    _queuedAction = null;
+    _closeModal();
+  }
+
+  return { check: check, addToQueue: addToQueue, forceNow: forceNow, cancel: cancel };
+})();
 
 function nextCard() {
-  if (!_warnShortDisplay()) return;
-  var btn = document.getElementById('btn-next');
-  btn.disabled = true;
-  fetch(API + '/api/next', {method:'POST'})
-    .then(function() {
-      btn.disabled = false;
-      showToast('Next card...');
-      setOptimisticLoading('Loading next card...');
-      startRapidPoll();
-    })
-    .catch(function() { btn.disabled = false; showToast('Failed'); });
+  _CooldownGate.check(function() {
+    var btn = document.getElementById('btn-next');
+    btn.disabled = true;
+    fetch(API + '/api/next', {method:'POST'})
+      .then(function() {
+        btn.disabled = false;
+        showToast('Next card...');
+        setOptimisticLoading('Loading next card...');
+        startRapidPoll();
+      })
+      .catch(function() { btn.disabled = false; showToast('Failed'); });
+  }, 'Manual advance');
 }
 
 function prevCard() {
-  if (!_warnShortDisplay()) return;
-  var btn = document.getElementById('btn-prev');
-  btn.disabled = true;
-  fetch(API + '/api/prev', {method:'POST'})
-    .then(function() {
-      btn.disabled = false;
-      showToast('Previous card...');
-      setOptimisticLoading('Loading previous card...');
-      startRapidPoll();
-    })
-    .catch(function() { btn.disabled = false; showToast('Failed'); });
+  _CooldownGate.check(function() {
+    var btn = document.getElementById('btn-prev');
+    btn.disabled = true;
+    fetch(API + '/api/prev', {method:'POST'})
+      .then(function() {
+        btn.disabled = false;
+        showToast('Previous card...');
+        setOptimisticLoading('Loading previous card...');
+        startRapidPoll();
+      })
+      .catch(function() { btn.disabled = false; showToast('Failed'); });
+  }, 'Manual advance');
 }
 
 function togglePause() {
@@ -888,40 +971,9 @@ function _doSwitchTCG(tcg) {
 }
 window._doSwitchTCG = _doSwitchTCG;
 
-function _showSwitchCooldownBanner(tcg, remaining) {
-  if (window._mobileQSCooldown) { window._mobileQSCooldown(tcg, remaining); return; }
-  var existing = document.getElementById('switch-cooldown-banner');
-  if (existing) existing.remove();
-  var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
-  var banner = document.createElement('div');
-  banner.id = 'switch-cooldown-banner';
-  banner.className = 'switch-cooldown-banner';
-  banner.innerHTML = '<div class="scb-msg"><span class="warn-badge">!</span><span>Display refreshes in ~' + remaining + 's. Switch to ' + name + ' now anyway?</span></div>'
-    + '<div class="scb-btns">'
-    + '<button class="btn btn-sm btn-secondary scb-cancel">Cancel</button>'
-    + '<button class="btn btn-sm scb-confirm">Switch Anyway</button>'
-    + '</div>';
-  banner.querySelector('.scb-cancel').addEventListener('click', function() { banner.remove(); });
-  banner.querySelector('.scb-confirm').addEventListener('click', function() {
-    banner.remove();
-    _doSwitchTCG(tcg);
-  });
-  // Insert after whichever quick-switch container is visible
-  var sbQs = document.getElementById('sb-quick-switch-btns');
-  var mobQs = document.getElementById('quick-switch-btns');
-  var qs = (sbQs && sbQs.offsetParent) ? sbQs : (mobQs || sbQs);
-  if (qs) qs.parentNode.insertBefore(banner, qs.nextSibling);
-  else document.body.appendChild(banner);
-}
-
 function switchTCG(tcg, activeBtn) {
-  var ds = _lastStatus && (_lastStatus.display_start || _lastStatus.timestamp);
-  var cooldownRemaining = ds ? Math.max(0, 180 - Math.floor(Date.now() / 1000 - ds)) : 0;
-  if (cooldownRemaining > 0) {
-    _showSwitchCooldownBanner(tcg, cooldownRemaining);
-    return;
-  }
-  _doSwitchTCG(tcg);
+  var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
+  _CooldownGate.check(function() { _doSwitchTCG(tcg); }, 'Quick switch \u00B7 ' + name);
 }
 
 // --- Settings ---
@@ -1123,8 +1175,10 @@ function testMetronCreds() {
   });
 }
 
+var _loadedCfg = null;
 function loadSettings() {
   fetch(API + '/api/config').then(r => r.json()).then(c => {
+    _loadedCfg = c;
     document.getElementById('cfg-tcg').value = c.active_tcg;
     document.getElementById('cfg-header-mode').value = c.slab_header_mode || 'normal';
     var fitEl = document.getElementById('cfg-image-fit');
@@ -1175,7 +1229,7 @@ function initPrecacheStatus() {
 }
 
 function saveSettings() {
-  const cfg = {
+  var cfg = {
     active_tcg: document.getElementById('cfg-tcg').value,
     slab_header_mode: document.getElementById('cfg-header-mode').value,
     image_fit: document.getElementById('cfg-image-fit') ? document.getElementById('cfg-image-fit').value : 'contain',
@@ -1188,9 +1242,21 @@ function saveSettings() {
     color_saturation: parseFloat(document.getElementById('cfg-saturation').value) || 2.5,
     thumbnail_cache: document.getElementById('cfg-thumbnails') ? document.getElementById('cfg-thumbnails').checked : true,
   };
-  fetch(API + '/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)})
-    .then(function() { _cache.autoUpdate = null; showToast('Settings saved!'); startRapidPoll(); })
-    .catch(function() { showToast('Failed to save settings'); });
+  function doSave() {
+    fetch(API + '/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)})
+      .then(function() { _loadedCfg = cfg; _cache.autoUpdate = null; showToast('Settings saved!'); startRapidPoll(); })
+      .catch(function() { showToast('Failed to save settings'); });
+  }
+  // Only gate if a display-triggering field actually changed
+  var DISPLAY_FIELDS = ['active_tcg', 'color_saturation', 'slab_header_mode', 'rotation_angle', 'image_fit', 'image_bg'];
+  var willRedraw = _loadedCfg && DISPLAY_FIELDS.some(function(k) {
+    return String(cfg[k]) !== String(_loadedCfg[k]);
+  });
+  if (willRedraw) {
+    _CooldownGate.check(doSave, 'Settings save');
+  } else {
+    doSave();
+  }
 }
 
 function saveCollectionMode() {

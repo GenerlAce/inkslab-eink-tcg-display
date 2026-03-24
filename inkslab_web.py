@@ -2921,7 +2921,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="InkSlab">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
-<link rel="stylesheet" href="/static/style.css?v=19">
+<link rel="stylesheet" href="/static/style.css?v=22">
 <script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
@@ -3464,6 +3464,45 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Cooldown modal -->
+<div class="modal-overlay" id="cooldown-modal">
+  <div class="modal-content cooldown-modal-content" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <div class="cdm-icon">&#x231B;</div>
+      <div>
+        <div class="cdm-title">Display cooling down</div>
+        <div class="cdm-subtitle" id="cdm-subtitle">Action &middot; too soon</div>
+      </div>
+    </div>
+    <div class="cdm-progress-section">
+      <div class="cdm-progress-row">
+        <span class="cdm-progress-label">Cooldown progress</span>
+        <span class="cdm-time" id="cdm-time">3:00 remaining</span>
+      </div>
+      <div class="cdm-progress-track">
+        <div class="cdm-progress-bar" id="cdm-progress-bar"></div>
+      </div>
+    </div>
+    <div class="cdm-message" id="cdm-message">
+      <strong>Display refresh triggered</strong>
+      <p>E-ink displays need ~3 min between refreshes to avoid ghosting.</p>
+    </div>
+    <div class="cdm-actions">
+      <button class="cdm-btn cdm-btn-queue" onclick="_CooldownGate.addToQueue()">
+        <span class="cdm-btn-icon">&#9776;</span>
+        <span><span class="cdm-btn-label">Add to Queue</span><span class="cdm-btn-sub">runs at cooldown end</span></span>
+      </button>
+      <button class="cdm-btn cdm-btn-force" onclick="_CooldownGate.forceNow()">
+        <span class="cdm-btn-icon">&#9654;</span>
+        <span><span class="cdm-btn-label">Force Now</span><span class="cdm-btn-sub">may cause ghosting</span></span>
+      </button>
+    </div>
+    <div class="cdm-cancel-row">
+      <button class="cdm-cancel-btn" onclick="_CooldownGate.cancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" style="display:none;position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:var(--accent);color:#010001;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
 
 <nav class="bottom-nav">
@@ -3510,7 +3549,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=17"></script>
+<script src="/static/app.js?v=18"></script>
 <script src="/static/collection_view.js?v=5"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
