@@ -3422,7 +3422,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
             <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
-              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+              oninput="_dlInputChange(this)" onkeydown="if(event.key==='Enter')lorcanaSearch()" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('lorcana-search-input','lorcana-search-results')" style="display:none">&#10005;</button>
           </div>
           <button onclick="lorcanaSearch()"
@@ -3434,7 +3434,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
             <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
-              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+              oninput="_dlInputChange(this)" onkeydown="if(event.key==='Enter')mtgSetSearch()" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('mtg-set-search-input','mtg-set-search-results')" style="display:none">&#10005;</button>
           </div>
           <button onclick="mtgSetSearch()"
@@ -3458,7 +3458,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
             <input id="manga-search-input" type="text" placeholder="e.g. Naruto, Berserk, Chainsaw Man..."
-              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+              oninput="_dlInputChange(this)" onkeydown="if(event.key==='Enter')mangaSearch()" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('manga-search-input','manga-search-results')" style="display:none">&#10005;</button>
           </div>
           <button onclick="mangaSearch()"
@@ -3470,7 +3470,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
             <input id="comics-search-input" type="text" placeholder="e.g. Batman, Amazing Spider-Man..."
-              oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
+              oninput="_dlInputChange(this)" onkeydown="if(event.key==='Enter')comicSearch()" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('comics-search-input','comics-search-results')" style="display:none">&#10005;</button>
           </div>
           <button onclick="comicSearch()"
