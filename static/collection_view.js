@@ -64,7 +64,7 @@
   };
 
   function updateViewButtons() {
-    var mode = localStorage.getItem('inkslab_collection_view') || 'list';
+    var mode = localStorage.getItem('inkslab_collection_view') || 'grid';
     var lb = document.getElementById('btn-view-list');
     var gb = document.getElementById('btn-view-grid');
     if (lb) lb.style.background = mode === 'list' ? 'var(--accent)' : '';
@@ -217,7 +217,7 @@
     }
     window.toggleSet = function(setId) {
       orig(setId);
-      var mode = localStorage.getItem('inkslab_collection_view') || 'list';
+      var mode = localStorage.getItem('inkslab_collection_view') || 'grid';
       if (mode !== 'grid') return;
       var el = document.getElementById('set-' + setId);
       if (!el || !el.classList.contains('open')) return; // closing

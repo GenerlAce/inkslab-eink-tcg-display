@@ -37,6 +37,13 @@ _thumb_lock = threading.Lock()  # one PIL generation at a time — prevents OOM 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB upload limit
 
+@app.after_request
+def add_static_cache_headers(response):
+    """Cache versioned static assets for 1 year — version bump in URL forces re-fetch."""
+    if request.path.startswith('/static/') and request.args.get('v'):
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    return response
+
 # --- SESSION & SECRET KEY ---
 _SECRET_KEY_FILE = '/home/pi/.inkslab_secret_key'
 
@@ -112,6 +119,10 @@ _download_tcg = None
 _download_log_fh = None
 _download_lock = threading.Lock()
 _run_all_running = threading.Event()
+_login_attempts = {}  # ip -> [timestamp, ...] — brute-force rate limiting
+_login_attempts_lock = threading.Lock()
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW_SECONDS = 60
 
 # --- WIFI SETUP MODE ---
 _wifi_setup_mode = False
@@ -453,6 +464,13 @@ def api_auth_setup():
 @app.route('/api/auth/login', methods=['POST'])
 def api_auth_login():
     """PIN login. No CSRF required (creates the session)."""
+    ip = request.remote_addr or 'unknown'
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = [t for t in _login_attempts.get(ip, []) if now - t < _LOGIN_WINDOW_SECONDS]
+        if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+            retry_after = int(_LOGIN_WINDOW_SECONDS - (now - attempts[0]))
+            return jsonify({'ok': False, 'error': f'Too many attempts. Try again in {retry_after}s.'}), 429
     data = request.get_json(force=True) or {}
     pin = data.get('pin', '').strip()
     cfg = load_config()
@@ -462,7 +480,12 @@ def api_auth_login():
         tok = _get_csrf_token()
         return jsonify({'ok': True, 'csrf_token': tok})
     if not _verify_pin(pin, cfg['pin_hash'], cfg['pin_salt']):
+        with _login_attempts_lock:
+            attempts.append(now)
+            _login_attempts[ip] = attempts
         return jsonify({'ok': False, 'error': 'Incorrect PIN'})
+    with _login_attempts_lock:
+        _login_attempts.pop(ip, None)
     session['authenticated'] = True
     session.permanent = True
     tok = _get_csrf_token()
@@ -3582,7 +3605,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </nav>
 
 <script src="/static/app.js?v=34"></script>
-<script src="/static/collection_view.js?v=6"></script>
+<script src="/static/collection_view.js?v=7"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>
 <script src="/static/delete_library.js"></script>
