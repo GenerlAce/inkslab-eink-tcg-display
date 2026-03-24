@@ -37,3 +37,6 @@ Thumbs.db
 *.swo
 *~
 CLAUDE.md
+
+# Claude Code local config
+.claude/
