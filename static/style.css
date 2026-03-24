@@ -418,7 +418,6 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   border-radius: 10px;
   background: var(--bg-card);
   margin-bottom: 12px;
-  overflow: hidden;
 }
 .dl-section-hd {
   font-size: 10px;
@@ -428,6 +427,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
   color: var(--text-dim);
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
   padding: 7px 14px;
   opacity: 0.85;
 }
@@ -665,7 +665,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 /* Scrollable sets list with bottom fade hint */
 .sets-scroll-wrap { position: relative; }
 .sets-scroll-wrap::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 44px; background: linear-gradient(transparent, var(--bg-card)); pointer-events: none; z-index: 1; }
-#sets-list { max-height: 42vh; overflow-y: auto; }
+#sets-list { max-height: 58vh; overflow-y: auto; }
 /* Download search result panels — cap height so list doesn't fill the screen */
 #lorcana-search-results, #mtg-set-search-results, #pokemon-search-results,
 #manga-search-results, #comics-search-results {
@@ -716,7 +716,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 /* === COLLECTION TOP ROW (mobile: col; desktop: 3-col) === */
 #coll-top-row { display: flex; flex-direction: column; margin-bottom: 12px; }
 .collection-only-card .dl-section-body { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
-.collection-only-card p { display: none; }
+.collection-only-card p { display: block; font-size: 12px; margin: 0; }
 #collection-view-ctrl-wrap { display: none; }
 @media (min-width: 900px) {
   #coll-top-row { flex-direction: row; gap: 8px; align-items: stretch; }
@@ -1012,6 +1012,17 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   .settings-col-right #wifi-info { margin-bottom: 28px !important; }
   /* Software Update: full width below */
   .settings-update-card { margin-bottom: 12px; }
+}
+
+/* Download status row */
+.dl-status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dl-status-btns { display: flex; gap: 6px; align-items: center; }
+
+/* Mobile: Show Log button full-width for easy tapping */
+@media (max-width: 899px) {
+  .dl-status-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .dl-status-btns { flex-direction: column; }
+  #btn-dl-log-toggle { width: 100%; min-height: 48px; }
 }
 
 /* ── Mobile Quick Switch Collection — bottom sheet ───────────────────────── */

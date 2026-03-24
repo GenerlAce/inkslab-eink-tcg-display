@@ -2921,7 +2921,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="InkSlab">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
-<link rel="stylesheet" href="/static/style.css?v=22">
+<link rel="stylesheet" href="/static/style.css?v=28">
 <script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
@@ -3421,9 +3421,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="dl-section" id="dl-status-card">
       <div class="dl-section-hd">Download Status</div>
       <div class="dl-section-body">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="dl-status-row">
           <div id="dl-status" style="color:var(--text-dim);font-size:13px;">Idle</div>
-          <div style="display:flex;gap:6px;align-items:center;">
+          <div class="dl-status-btns">
             <button class="btn btn-sm" id="btn-dl-stop" onclick="stopDownload()" style="display:none;background:var(--danger);color:var(--bg);border:none;">Stop</button>
             <button class="btn btn-sm btn-secondary" id="btn-dl-log-toggle" onclick="toggleDlLog()">Show Log</button>
           </div>
@@ -3549,7 +3549,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=18"></script>
+<script src="/static/app.js?v=19"></script>
 <script src="/static/collection_view.js?v=5"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>

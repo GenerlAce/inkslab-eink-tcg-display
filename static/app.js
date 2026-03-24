@@ -2188,8 +2188,8 @@ function _loadCustomFolderContent(folderId, el) {
   el.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + folderId + '/cards?tcg=custom').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
-    var html = '<div style="padding:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center">';
-    html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer">Upload <input type="file" accept="image/png,image/jpeg" multiple style="display:none" onchange="uploadCustomCards(\'' + esc(folderId) + '\',this.files)"></label>';
+    var html = '<div style="padding:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:center;width:100%">';
+    html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">Upload <input type="file" accept="image/png,image/jpeg" multiple style="display:none" onchange="uploadCustomCards(\'' + esc(folderId) + '\',this.files)"></label>';
     html += '<button class="btn btn-secondary btn-sm" onclick="renameCustomFolder(\'' + esc(folderId) + '\')">Rename</button>';
     html += '<button class="btn btn-danger btn-sm" onclick="deleteCustomFolder(\'' + esc(folderId) + '\')">Delete Set</button>';
     html += '</div>';
