@@ -196,7 +196,7 @@ function showTab(name) {
   if (content) content.scrollTop = 0;
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
-  if (name === 'collection') { loadSets(); loadRarities(); }
+  if (name === 'collection') { loadSets(); loadRarities(); updateCollectionModeButtons(!!((_lastStatus && _lastStatus.collection_only))); }
   if (name === 'settings') { loadSettings(); loadWifiInfo(); loadAutoUpdateStatus(); loadMetronStatus(); initPrecacheStatus(); loadPinStatus(); }
   if (name === 'downloads') { loadStorage(); pollDownload(); loadCustomFolders(); equalizeSearchBtns(); }
   if (name === 'display') refreshStatus();
@@ -681,8 +681,7 @@ function refreshStatus() {
     if (!_browseTcg) updateBrowsePills(d.tcg);
     var collOnly = !!d.collection_only;
     updatePillStyle(collOnly);
-    var collCb = document.getElementById('cfg-collection');
-    if (collCb) collCb.checked = collOnly;
+    updateCollectionModeButtons(collOnly);
     var errRow = document.getElementById('st-error-row');
     var errEl = document.getElementById('st-error');
     if (d.error) {
@@ -1232,7 +1231,7 @@ function loadSettings() {
     document.getElementById('cfg-day-start').value = c.day_start;
     document.getElementById('cfg-day-end').value = c.day_end;
     document.getElementById('cfg-saturation').value = c.color_saturation;
-    document.getElementById('cfg-collection').checked = c.collection_only;
+    updateCollectionModeButtons(!!c.collection_only);
     var themeEl = document.getElementById('cfg-theme');
     if (themeEl) themeEl.value = localStorage.getItem('inkslab_theme') || 'default';
     var thumbEl = document.getElementById('cfg-thumbnails');
@@ -1300,13 +1299,20 @@ function saveSettings() {
   }
 }
 
-function saveCollectionMode() {
-  var checked = document.getElementById('cfg-collection').checked;
-  updatePillStyle(checked);
-  fetch(API + '/api/config', {method:'POST', body: JSON.stringify({collection_only: checked}),
+function updateCollectionModeButtons(collOnly) {
+  var allBtn = document.getElementById('btn-col-all');
+  var ownedBtn = document.getElementById('btn-col-owned');
+  if (allBtn) allBtn.style.background = collOnly ? '' : 'var(--accent)';
+  if (ownedBtn) ownedBtn.style.background = collOnly ? 'var(--accent)' : '';
+}
+
+function saveCollectionMode(collOnly) {
+  updateCollectionModeButtons(collOnly);
+  updatePillStyle(collOnly);
+  fetch(API + '/api/config', {method:'POST', body: JSON.stringify({collection_only: collOnly}),
     headers: {'Content-Type': 'application/json'}})
-    .then(function() { showToast(checked ? 'Collection Only: ON' : 'Collection Only: OFF'); })
-    .catch(function() { showToast('Failed to save'); updatePillStyle(!checked); document.getElementById('cfg-collection').checked = !checked; });
+    .then(function() { showToast(collOnly ? 'Collection Only: ON' : 'Collection Only: OFF'); })
+    .catch(function() { showToast('Failed to save'); updateCollectionModeButtons(!collOnly); updatePillStyle(!collOnly); });
 }
 
 // --- Admin (hidden) ---

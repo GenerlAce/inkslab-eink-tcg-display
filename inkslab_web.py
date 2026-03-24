@@ -3366,25 +3366,26 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="dl-section">
       <div class="dl-section-hd">My Collection</div>
       <div class="dl-section-body">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-          <p style="color:var(--text-dim);font-size:12px;margin:0">Mark cards as owned to build your collection. Enable <strong>Collection Only Mode</strong> to display only your owned cards.</p>
-          <button class="btn btn-secondary btn-sm" onclick="clearCollection()" style="flex-shrink:0">Clear All</button>
-        </div>
+        <p style="color:var(--text-dim);font-size:12px;margin:0">Mark cards as owned to build your collection. Enable <strong>Collection Only Mode</strong> to display only your owned cards.</p>
+        <button class="btn btn-secondary btn-sm" onclick="clearCollection()">Clear All</button>
       </div>
     </div>
     <div class="dl-section collection-only-card">
       <div class="dl-section-hd">Collection Only Mode</div>
       <div class="dl-section-body">
         <p style="color:var(--text-dim);font-size:12px;margin:0">When ON, only cards you have marked as owned will display on the e-ink screen.</p>
-        <label class="switch">
-          <input type="checkbox" id="cfg-collection" onchange="saveCollectionMode()">
-          <span class="switch-slider"></span>
-        </label>
+        <div style="display:flex;gap:6px;">
+          <button id="btn-col-all" class="btn btn-secondary btn-sm" style="flex:1" onclick="saveCollectionMode(false)">All cards</button>
+          <button id="btn-col-owned" class="btn btn-secondary btn-sm" style="flex:1" onclick="saveCollectionMode(true)">Owned only</button>
+        </div>
       </div>
     </div>
     <div class="dl-section" id="collection-view-ctrl-wrap" style="display:none;">
       <div class="dl-section-hd">Collection View</div>
-      <div class="dl-section-body" id="collection-view-ctrl" style="display:flex;justify-content:center;align-items:center;gap:6px;"></div>
+      <div class="dl-section-body">
+        <p style="color:var(--text-dim);font-size:12px;margin:0">Choose how your collection is displayed below.</p>
+        <div id="collection-view-ctrl" style="display:flex;gap:6px;"></div>
+      </div>
     </div>
   </div>
   <div class="dl-section">
