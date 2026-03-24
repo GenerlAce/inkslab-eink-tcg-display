@@ -111,7 +111,7 @@ _download_proc = None
 _download_tcg = None
 _download_log_fh = None
 _download_lock = threading.Lock()
-_run_all_running = False
+_run_all_running = threading.Event()
 
 # --- WIFI SETUP MODE ---
 _wifi_setup_mode = False
@@ -128,7 +128,7 @@ _custom_lock = threading.Lock()
 MIN_FREE_SPACE_MB = 500  # Refuse writes if less than this much free space
 
 
-def _atomic_write_json(path, data, indent=None):
+def _atomic_write_json(path, data, indent=None, ensure_ascii=True):
     """Write JSON atomically: write to temp file, then os.rename().
 
     This prevents corruption from power loss or crash mid-write.
@@ -138,7 +138,7 @@ def _atomic_write_json(path, data, indent=None):
     fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
     try:
         with os.fdopen(fd, 'w') as f:
-            json.dump(data, f, indent=indent)
+            json.dump(data, f, indent=indent, ensure_ascii=ensure_ascii)
             f.flush()
             os.fsync(f.fileno())
         os.rename(tmp_path, path)
@@ -431,7 +431,7 @@ def api_auth_status():
 def api_auth_setup():
     """First-time PIN setup or skip. No auth/CSRF required (bootstrap)."""
     cfg = load_config()
-    if cfg.get('pin_hash'):
+    if cfg.get('pin_setup_done'):
         return jsonify({'ok': False, 'error': 'PIN already configured'}), 400
     data = request.get_json(force=True) or {}
     pin = data.get('pin', '').strip()
@@ -619,7 +619,10 @@ def api_clear_pending_switch():
 
 @app.route('/api/config', methods=['GET'])
 def api_get_config():
-    return jsonify(load_config())
+    cfg = load_config()
+    cfg.pop('pin_hash', None)
+    cfg.pop('pin_salt', None)
+    return jsonify(cfg)
 
 
 @app.route('/api/config', methods=['POST'])
@@ -673,9 +676,27 @@ def api_set_config():
     return jsonify(config)
 
 
+EINK_MIN_INTERVAL = 180  # Waveshare Spectra 6 ACeP minimum refresh interval (seconds)
+
+
+def _display_cooldown_remaining():
+    """Return seconds remaining in display cooldown, or 0 if ready."""
+    try:
+        with open(STATUS_FILE, 'r') as f:
+            status = json.load(f)
+        elapsed = time.time() - status.get('display_start', 0)
+        remaining = EINK_MIN_INTERVAL - elapsed
+        return max(0, int(remaining))
+    except Exception:
+        return 0
+
+
 @app.route('/api/next', methods=['POST'])
 @protected
 def api_next():
+    rem = _display_cooldown_remaining()
+    if rem > 0:
+        return jsonify({"ok": False, "error": "Display cooldown active", "remaining": rem}), 429
     try:
         with open(NEXT_TRIGGER, 'w') as f:
             f.write('1')
@@ -703,6 +724,9 @@ PAUSE_FILE = "/tmp/inkslab_pause"
 @app.route('/api/prev', methods=['POST'])
 @protected
 def api_prev():
+    rem = _display_cooldown_remaining()
+    if rem > 0:
+        return jsonify({"ok": False, "error": "Display cooldown active", "remaining": rem}), 429
     try:
         with open(PREV_TRIGGER, 'w') as f:
             f.write('1')
@@ -750,8 +774,7 @@ def api_pause():
             status['next_change'] = int(time.time()) + status['interval']
         elif paused:
             status['next_change'] = 0
-        with open(STATUS_FILE, 'w') as f:
-            json.dump(status, f)
+        _atomic_write_json(STATUS_FILE, status)
     except Exception:
         pass
     return jsonify({"ok": True, "paused": paused})
@@ -880,26 +903,12 @@ def api_card_thumbnail(tcg, set_id, card_id):
         except Exception:
             pass
 
-    # No cached thumbnail — generate on demand (toggle only controls background pre-cache)
+    # No cached thumbnail — queue background generation and serve full image immediately.
+    # This keeps the Flask thread free; the thumbnail will be ready on the next request.
     if _PIL_OK:
-        with _thumb_lock:  # one PIL op at a time — prevents OOM on Pi Zero
-            try:
-                os.makedirs(os.path.dirname(thumb_path), exist_ok=True)
-                img = _PIL_Image.open(card_path)
-                img.thumbnail(THUMB_SIZE, _PIL_Image.LANCZOS)
-                img = img.convert('RGB')
-                img.save(thumb_path, 'JPEG', quality=72, optimize=True)
-                img.close()
-                del img
-                if os.path.getsize(thumb_path) > 0:
-                    resp = send_file(thumb_path, mimetype='image/jpeg')
-                    resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-                    return resp
-                os.remove(thumb_path)
-            except Exception as e:
-                logging.warning('Thumbnail gen failed for %s: %s', card_path, e)
+        _warm_one_thumb(tcg, safe_set, safe_card)
 
-    # Fallback: full image — no-cache so browser retries next time
+    # Serve full image with no-cache so browser retries thumbnail next time
     ext_lower = card_path.lower()
     if ext_lower.endswith('.png'):
         mime = 'image/png'
@@ -3730,16 +3739,15 @@ def api_auto_update_run_now():
 @protected
 def api_auto_update_run_all():
     """Manually trigger all enabled auto-update sources sequentially in a background thread."""
-    global _run_all_running
-    if _run_all_running:
+    if _run_all_running.is_set():
         return jsonify({'ok': False, 'error': 'Already running'})
     config = load_config()
     sources = config.get('auto_update_sources', [])
     if not sources:
         return jsonify({'ok': False, 'error': 'No sources enabled'})
     def _do_run_all():
-        global _run_all_running, _download_proc, _download_tcg
-        _run_all_running = True
+        global _download_proc, _download_tcg
+        _run_all_running.set()
         try:
             last_times = {}
             if os.path.exists(LAST_UPDATE_FILE):
@@ -3779,7 +3787,7 @@ def api_auto_update_run_all():
                             _download_proc = None
                             _download_tcg = None
         finally:
-            _run_all_running = False
+            _run_all_running.clear()
     threading.Thread(target=_do_run_all, daemon=True).start()
     return jsonify({'ok': True, 'count': len(sources)})
 
