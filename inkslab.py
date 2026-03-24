@@ -1234,7 +1234,7 @@ def main():
                             break
                         time.sleep(5)
                     show_splash_screen(epd, config)
-                    time.sleep(EINK_RENDER_WAIT)
+                    time.sleep(EINK_MIN_INTERVAL)
                     continue
 
                 if action == "unbox":

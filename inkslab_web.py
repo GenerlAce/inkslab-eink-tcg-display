@@ -531,6 +531,8 @@ def _warm_one_thumb(tcg, set_id, card_id):
             break
     if not card_path:
         return
+    if len(_warmed_keys) > 20000:
+        _warmed_keys.clear()
     _warmed_keys.add(key)
     def _gen(cp=card_path, tp=thumb_path):
         with _thumb_lock:
