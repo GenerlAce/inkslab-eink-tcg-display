@@ -54,8 +54,8 @@ TCG_LIBRARIES = {k: v["path"] for k, v in TCG_REGISTRY.items()}
 # Supported image formats
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp')
 
-CONFIG_FILE = "/home/pi/inkslab_config.json"
-COLLECTION_FILE = "/home/pi/inkslab_collection.json"
+CONFIG_FILE = "/home/pi/.inkslab/inkslab_config.json"
+COLLECTION_FILE = "/home/pi/.inkslab/inkslab_collection.json"
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
 PREV_TRIGGER = "/tmp/inkslab_prev"

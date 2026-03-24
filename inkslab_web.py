@@ -73,9 +73,26 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 VERSION = "1.0.0"
 
 # --- PATHS ---
-CONFIG_FILE = "/home/pi/inkslab_config.json"
-COLLECTION_FILE = "/home/pi/inkslab_collection.json"
-LAST_UPDATE_FILE = "/home/pi/inkslab_last_update.json"
+_DATA_DIR = "/home/pi/.inkslab"
+CONFIG_FILE = "/home/pi/.inkslab/inkslab_config.json"
+COLLECTION_FILE = "/home/pi/.inkslab/inkslab_collection.json"
+LAST_UPDATE_FILE = "/home/pi/.inkslab/inkslab_last_update.json"
+
+def _migrate_data_paths():
+    """One-time migration: move config files from /home/pi/ to /home/pi/.inkslab/."""
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    for old, new in [
+        ("/home/pi/inkslab_config.json",      CONFIG_FILE),
+        ("/home/pi/inkslab_collection.json",  COLLECTION_FILE),
+        ("/home/pi/inkslab_last_update.json", LAST_UPDATE_FILE),
+    ]:
+        if os.path.exists(old) and not os.path.exists(new):
+            try:
+                os.rename(old, new)
+            except Exception:
+                pass
+
+_migrate_data_paths()
 STATUS_FILE = "/tmp/inkslab_status.json"
 NEXT_TRIGGER = "/tmp/inkslab_next"
 COLLECTION_TRIGGER = "/tmp/inkslab_collection_changed"
