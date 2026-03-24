@@ -1,11 +1,12 @@
 const API = '';
 
-// --- CSRF: inject token into all POST fetches automatically ---
+// --- CSRF: inject token into all state-changing fetches automatically ---
 (function() {
   var _orig = window.fetch;
   window.fetch = function(url, opts) {
     opts = opts || {};
-    if (opts.method && opts.method.toUpperCase() === 'POST') {
+    var method = (opts.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
       opts.headers = opts.headers || {};
       if (!opts.headers['X-CSRF-Token']) {
         opts.headers['X-CSRF-Token'] = window.CSRF_TOKEN || '';
@@ -759,6 +760,15 @@ function refreshStatus() {
       startMainPoll();
     }
     _lastStatus = d;
+    if (d.pending_switch && !_CooldownGate.hasQueue()) {
+      var ps = d.pending_switch;
+      if (_CooldownGate.remaining() > 0) {
+        _CooldownGate.restoreQueue(function() { _doSwitchTCG(ps.tcg); }, 'Quick switch \u00B7 ' + ps.name, ps);
+      } else {
+        fetch(API + '/api/pending_switch', {method: 'DELETE'}).catch(function(){});
+        try { localStorage.removeItem('inkslab_pending_switch'); } catch(e) {}
+      }
+    }
     var tempWrap = document.getElementById('pill-temp-wrap');
     var tempEl = document.getElementById('pill-temp');
     if (tempEl && tempWrap && d.cpu_temp != null) {
@@ -813,6 +823,7 @@ var _CooldownGate = (function() {
   var WINDOW = 180;
   var _pendingAction = null;
   var _pendingLabel = null;
+  var _pendingMeta = null;
   var _queuedAction = null;
   var _countdownInterval = null;
 
@@ -835,6 +846,9 @@ var _CooldownGate = (function() {
         var fn = _queuedAction;
         _queuedAction = null;
         _closeModal();
+        if (window._qsPendingHide) window._qsPendingHide();
+        fetch(API + '/api/pending_switch', {method: 'DELETE'}).catch(function(){});
+        localStorage.removeItem('inkslab_pending_switch');
         fn();
       }
     }, 500);
@@ -846,13 +860,15 @@ var _CooldownGate = (function() {
     if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
     _pendingAction = null;
     _pendingLabel = null;
+    _pendingMeta = null;
   }
 
-  function check(action, label) {
+  function check(action, label, meta) {
     var rem = _remaining();
     if (rem <= 0) { action(); return; }
     _pendingAction = action;
     _pendingLabel = label || 'Display action';
+    _pendingMeta = meta || null;
     var subtitleEl = document.getElementById('cdm-subtitle');
     var msgEl = document.getElementById('cdm-message');
     if (subtitleEl) subtitleEl.textContent = _pendingLabel + ' \u00B7 too soon';
@@ -867,22 +883,41 @@ var _CooldownGate = (function() {
     _startCountdown();
   }
 
-  function addToQueue() {
-    _queuedAction = _pendingAction;
-    var label = _pendingLabel;
-    _closeModal();
-    showToast('Queued \u2014 runs when cooldown ends');
-    // Keep countdown running in background to fire queue
+  function _startQueue(action, label, meta) {
+    _queuedAction = action;
+    if (window._qsPendingShow) window._qsPendingShow(label, meta);
     _countdownInterval = setInterval(function() {
       var rem = _remaining();
+      if (window._qsPendingUpdate) window._qsPendingUpdate(rem);
       if (rem <= 0 && _queuedAction) {
         var fn = _queuedAction;
         _queuedAction = null;
         clearInterval(_countdownInterval);
         _countdownInterval = null;
+        if (window._qsPendingHide) window._qsPendingHide();
+        fetch(API + '/api/pending_switch', {method: 'DELETE'}).catch(function(){});
+        localStorage.removeItem('inkslab_pending_switch');
         fn();
       }
     }, 500);
+  }
+
+  function addToQueue() {
+    var meta = _pendingMeta;
+    var label = _pendingLabel;
+    var action = _pendingAction;
+    if (meta && meta.tcg) {
+      fetch(API + '/api/pending_switch', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(meta)}).catch(function(){});
+      try { localStorage.setItem('inkslab_pending_switch', JSON.stringify(meta)); } catch(e) {}
+    }
+    _closeModal();
+    showToast('Queued \u2014 runs when cooldown ends');
+    _startQueue(action, label, meta);
+  }
+
+  function restoreQueue(action, label, meta) {
+    if (_queuedAction) return; // already have one queued
+    _startQueue(action, label, meta);
   }
 
   function forceNow() {
@@ -892,12 +927,11 @@ var _CooldownGate = (function() {
     if (fn) fn();
   }
 
-  function cancel() {
-    _queuedAction = null;
-    _closeModal();
-  }
-
-  return { check: check, addToQueue: addToQueue, forceNow: forceNow, cancel: cancel };
+  return {
+    check: check, addToQueue: addToQueue, restoreQueue: restoreQueue,
+    forceNow: forceNow, remaining: _remaining,
+    hasQueue: function() { return !!_queuedAction; }
+  };
 })();
 
 function nextCard() {
@@ -974,8 +1008,10 @@ function _doSwitchTCG(tcg) {
 window._doSwitchTCG = _doSwitchTCG;
 
 function switchTCG(tcg, activeBtn) {
-  var name = (_tcgRegistry[tcg] && _tcgRegistry[tcg].name) || tcg.toUpperCase();
-  _CooldownGate.check(function() { _doSwitchTCG(tcg); }, 'Quick switch \u00B7 ' + name);
+  var info = _tcgRegistry[tcg] || {};
+  var name = info.name || tcg.toUpperCase();
+  var color = info.color || '#36A5CA';
+  _CooldownGate.check(function() { _doSwitchTCG(tcg); }, 'Quick switch \u00B7 ' + name, {tcg: tcg, name: name, color: color});
 }
 
 // --- Settings ---
@@ -2496,6 +2532,20 @@ function initApp() {
     var registry = results[0], status = results[1];
     _lastStatus = status;
     buildDynamicUI(registry);
+    var _initPs = status.pending_switch;
+    if (!_initPs) {
+      // Fall back to localStorage for same-browser refresh resilience
+      try {
+        var _lsVal = localStorage.getItem('inkslab_pending_switch');
+        if (_lsVal) _initPs = JSON.parse(_lsVal);
+      } catch(e) {}
+    }
+    if (_initPs && _initPs.tcg && _CooldownGate.remaining() > 0) {
+      _CooldownGate.restoreQueue(function() { _doSwitchTCG(_initPs.tcg); }, 'Quick switch \u00B7 ' + _initPs.name, _initPs);
+    } else if (_initPs) {
+      // Cooldown already expired — clear stale state
+      try { localStorage.removeItem('inkslab_pending_switch'); } catch(e) {}
+    }
     // Wrap sets-list in a scroll container for max-height + fade hint
     var sl = document.getElementById('sets-list');
     if (sl && !sl.parentElement.classList.contains('sets-scroll-wrap')) {

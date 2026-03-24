@@ -96,6 +96,85 @@ body {
   cursor: pointer;
 }
 
+/* === QS PENDING BANNER === */
+.qs-pending-banner {
+  display: none;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  border-left: 3px solid var(--qs-color, #36A5CA);
+}
+.qs-pending-banner.visible { display: block; }
+/* Only show the right banner for the current viewport */
+#qs-pending-banner-sb { display: none; }
+@media (max-width: 899px) { #qs-pending-banner-mob.visible { display: block; } #qs-pending-banner-sb { display: none !important; } }
+.qs-pb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qs-pb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: qs-pulse 1.2s ease-in-out infinite;
+}
+@keyframes qs-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.qs-pb-text {
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+}
+.qs-pb-cancel {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.qs-pb-cancel:hover { border-color: var(--text); color: var(--text); }
+.qs-pb-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.qs-pb-track {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.qs-pb-bar {
+  height: 100%;
+  background: var(--qs-color, #36A5CA);
+  border-radius: 2px;
+  transition: width 0.5s linear;
+}
+.qs-pending-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: #000;
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
 /* === CONTENT AREA === */
 .content {
   flex: 1;
@@ -957,6 +1036,19 @@ body.auth-pending .bottom-nav { visibility: hidden; }
 
   /* Push Pi stats widget down to just above the bottom section */
   .sb-widget-stats { margin-top: auto; }
+
+  /* Sidebar pending banner — flush strip below the brand header */
+  #qs-pending-banner-sb.visible { display: block; }
+  #qs-pending-banner-mob { display: none !important; }
+  #qs-pending-banner-sb {
+    margin-top: 0;
+    border-radius: 0;
+    border-left-width: 3px;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 14px 10px;
+  }
 
   /* Keep prev/next at 5 columns on desktop */
   #prev-card .q-list,

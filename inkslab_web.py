@@ -118,6 +118,9 @@ _wifi_setup_mode = False
 _wifi_connect_result = {"status": "idle"}
 _wifi_connect_lock = threading.Lock()
 
+# --- PENDING SWITCH (shared across clients) ---
+_pending_switch = None  # dict: {tcg, name, color} or None
+
 # --- FILE SAFETY ---
 _config_lock = threading.Lock()
 _collection_lock = threading.Lock()
@@ -589,7 +592,27 @@ def api_status():
     if _download_proc is None:
         _warm_current_thumb(status)
     status['owned_total'] = len(load_collection())
+    if _pending_switch:
+        status['pending_switch'] = _pending_switch
     return jsonify(status)
+
+
+@app.route('/api/pending_switch', methods=['POST'])
+@protected
+def api_set_pending_switch():
+    global _pending_switch
+    data = request.get_json(force=True) or {}
+    if data.get('tcg'):
+        _pending_switch = {'tcg': data['tcg'], 'name': data.get('name', data['tcg']), 'color': data.get('color', '#36A5CA')}
+    return jsonify({'ok': True})
+
+
+@app.route('/api/pending_switch', methods=['DELETE'])
+@protected
+def api_clear_pending_switch():
+    global _pending_switch
+    _pending_switch = None
+    return jsonify({'ok': True})
 
 
 @app.route('/api/config', methods=['GET'])
@@ -2921,7 +2944,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="InkSlab">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
-<link rel="stylesheet" href="/static/style.css?v=38">
+<link rel="stylesheet" href="/static/style.css?v=41">
 <script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
@@ -3495,9 +3518,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <span><span class="cdm-btn-label">Force Now</span><span class="cdm-btn-sub">may cause ghosting</span></span>
       </button>
     </div>
-    <div class="cdm-cancel-row">
-      <button class="cdm-cancel-btn" onclick="_CooldownGate.cancel()">Cancel</button>
-    </div>
   </div>
 </div>
 
@@ -3547,9 +3567,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=24"></script>
+<script src="/static/app.js?v=30"></script>
 <script src="/static/collection_view.js?v=5"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
+<script src="/static/qs_pending.js?v=3"></script>
 <script src="/static/delete_library.js"></script>
 <script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js?v=2"></script>
