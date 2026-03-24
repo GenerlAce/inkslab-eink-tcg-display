@@ -77,6 +77,7 @@ _DATA_DIR = "/home/pi/.inkslab"
 CONFIG_FILE = "/home/pi/.inkslab/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/.inkslab/inkslab_collection.json"
 LAST_UPDATE_FILE = "/home/pi/.inkslab/inkslab_last_update.json"
+METRON_CREDS_FILE = "/home/pi/.inkslab/.metron_credentials"
 
 def _migrate_data_paths():
     """One-time migration: move config files from /home/pi/ to /home/pi/.inkslab/."""
@@ -85,6 +86,7 @@ def _migrate_data_paths():
         ("/home/pi/inkslab_config.json",      CONFIG_FILE),
         ("/home/pi/inkslab_collection.json",  COLLECTION_FILE),
         ("/home/pi/inkslab_last_update.json", LAST_UPDATE_FILE),
+        ("/home/pi/.metron_credentials",      METRON_CREDS_FILE),
     ]:
         if os.path.exists(old) and not os.path.exists(new):
             try:
@@ -338,7 +340,7 @@ def _decrypt_creds(data):
 
 def _read_metron_creds():
     """Read Metron credentials from file. Returns (username, password) or (None, None)."""
-    creds_file = '/home/pi/.metron_credentials'
+    creds_file = METRON_CREDS_FILE
     if not os.path.exists(creds_file):
         return None, None
     try:
@@ -1767,7 +1769,7 @@ def api_metron_save():
     if not username or not password:
         return jsonify({'ok': False, 'error': 'Username and password required'})
     try:
-        creds_file = '/home/pi/.metron_credentials'
+        creds_file = METRON_CREDS_FILE
         encrypted = _encrypt_creds(username, password)
         with open(creds_file, 'w') as f:
             if encrypted:
@@ -1784,7 +1786,7 @@ def api_metron_save():
 @protected
 def api_metron_clear():
     """Remove Metron credentials."""
-    creds_file = '/home/pi/.metron_credentials'
+    creds_file = METRON_CREDS_FILE
     try:
         if os.path.exists(creds_file):
             os.remove(creds_file)
@@ -2422,7 +2424,7 @@ def api_factory_reset():
             except Exception as e:
                 errors.append(f"Delete {tcg_key}: {e}")
     # 2b. Delete Metron credentials
-    for creds_f in ["/home/pi/.metron_credentials", LAST_UPDATE_FILE]:
+    for creds_f in [METRON_CREDS_FILE, LAST_UPDATE_FILE]:
         if os.path.exists(creds_f):
             try:
                 os.remove(creds_f)
