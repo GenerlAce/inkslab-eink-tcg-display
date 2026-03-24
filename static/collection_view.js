@@ -71,6 +71,10 @@
     if (gb) gb.style.background = mode === 'grid' ? 'var(--accent)' : '';
   }
 
+  window.openPreviewModal = function(src, cardNum, rarity, setName, tcg, year) {
+    openPreviewModal(src, cardNum, rarity, setName, tcg, year);
+  };
+
   function openPreviewModal(src, cardNum, rarity, setName, tcg, year) {
     var previewImg = document.getElementById('preview-img');
     var previewModal = document.getElementById('preview-modal');
@@ -244,7 +248,7 @@
       localStorage.setItem('inkslab_collection_view', 'grid');
     } else if (ctrlEl) {
       // Desktop: populate the pre-placed top-row section
-      ctrlEl.innerHTML = '<button id="btn-view-list" class="btn btn-secondary btn-sm">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm">Grid</button>';
+      ctrlEl.innerHTML = '<button id="btn-view-list" class="btn btn-secondary btn-sm" style="flex:1">List</button><button id="btn-view-grid" class="btn btn-secondary btn-sm" style="flex:1">Grid</button>';
       var wrap = document.getElementById('collection-view-ctrl-wrap');
       if (wrap) wrap.style.display = '';
       document.getElementById('btn-view-list').addEventListener('click', function() { window.setCollectionView('list'); });

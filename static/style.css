@@ -181,6 +181,9 @@ body {
   .card-grid { grid-template-columns: repeat(6, 1fr); }
   /* Settings: 2-col grid for Display Settings on desktop */
   .settings-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .settings-display-grid .form-row { min-height: 56px; }
+  .settings-display-grid .form-row:nth-child(1),
+  .settings-display-grid .form-row:nth-child(2) { align-items: flex-start; padding-top: 14px; }
   .settings-display-grid .form-row:nth-last-child(-n+2) { border-bottom: none; }
   .settings-display-grid hr.settings-divider { margin: 4px 0; }
   .settings-subhead { grid-column: 1 / -1; }
@@ -999,11 +1002,14 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   }
   .settings-col-left .dl-section .dl-section-body > div:last-child { margin-top: auto; }
   .settings-col-right {
-    display: block;
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-width: 0;
   }
+  .settings-col-right .dl-section { flex: 1; display: flex; flex-direction: column; margin-bottom: 16px; }
   .settings-col-right .dl-section:last-child { margin-bottom: 0; }
+  .settings-col-right .dl-section .dl-section-body { flex: 1; }
   /* Reserve space on PIN card so it doesn't jump when form opens */
   .settings-pin-card { min-height: 120px; }
   /* Reserve space for Metron status so card doesn't grow when JS loads */

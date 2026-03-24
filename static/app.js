@@ -1551,6 +1551,22 @@ function toggleSet(setId) {
       </div>
     `).join('');
     liveEl.innerHTML = html;
+    // Desktop list view: click row to open preview modal
+    if (window.innerWidth >= 900 && window.openPreviewModal) {
+      var tcg = getEffectiveBrowseTcg();
+      var setItem = liveEl.closest('.set-item');
+      var setNameText = setItem && setItem.querySelector('.set-name') ? setItem.querySelector('.set-name').textContent.trim() : '';
+      liveEl.querySelectorAll('.card-row').forEach(function(row, i) {
+        var c = cards[i];
+        if (!c) return;
+        var thumbSrc = '/api/card_thumbnail/' + encodeURIComponent(tcg) + '/' + encodeURIComponent(setId) + '/' + encodeURIComponent(c.id);
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function(e) {
+          if (e.target.type === 'checkbox') return;
+          window.openPreviewModal(thumbSrc, c.number, c.rarity, setNameText, tcg, c.year || '');
+        });
+      });
+    }
   });
 }
 
