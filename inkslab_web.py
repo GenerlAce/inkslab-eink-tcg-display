@@ -3031,6 +3031,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         onkeydown="if(event.key==='Enter')submitLogin()">
       <div id="login-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;text-align:center;"></div>
       <button class="btn btn-primary btn-block" onclick="submitLogin()">Unlock</button>
+      <button id="login-cancel-btn" class="btn btn-block" style="display:none;margin-top:8px;background:transparent;color:var(--text-dim);border:1px solid var(--border);" onclick="cancelAdminAuth()">Cancel</button>
     </div>
   </div>
 </div>
@@ -3347,7 +3348,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div><!-- end dl-section-body -->
   </div>
   <div class="card" id="admin-panel" style="display:none;border:1px solid var(--danger)">
-    <h3 style="color:var(--danger)">Prepare for New Owner</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h3 style="color:var(--danger);margin:0">Prepare for New Owner</h3>
+      <button class="btn btn-sm btn-secondary" onclick="closeAdminPanel()" style="font-size:11px;padding:2px 10px">Close</button>
+    </div>
     <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px">This will delete WiFi, Settings, Metron Credentials, and all Card Libraries. Check any libraries below that you want to keep.</p>
     <div style="margin-bottom:12px;font-size:12px;color:var(--text);">Keep these card libraries:<br>
       <label style="display:block;padding:3px 0;"><input type="checkbox" id="keep-pokemon" checked> Pokemon</label>
@@ -3624,7 +3628,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=34"></script>
+<script src="/static/app.js?v=37"></script>
 <script src="/static/collection_view.js?v=7"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>

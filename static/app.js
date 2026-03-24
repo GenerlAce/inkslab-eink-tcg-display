@@ -22,11 +22,18 @@ function showAuthOverlay(setupMode) {
   if (!el) return;
   document.getElementById('auth-setup-section').style.display = setupMode ? 'block' : 'none';
   document.getElementById('auth-login-section').style.display = setupMode ? 'none' : 'block';
+  var cancelBtn = document.getElementById('login-cancel-btn');
+  if (cancelBtn) cancelBtn.style.display = window._pendingAdminAuth ? 'block' : 'none';
   el.style.display = 'flex';
   setTimeout(function() {
     var inp = document.getElementById(setupMode ? 'setup-pin-input' : 'login-pin-input');
     if (inp) inp.focus();
   }, 100);
+}
+
+function cancelAdminAuth() {
+  window._pendingAdminAuth = false;
+  hideAuthOverlay();
 }
 
 function hideAuthOverlay() {
@@ -45,7 +52,13 @@ function submitLogin() {
       if (d.ok) {
         window.CSRF_TOKEN = d.csrf_token || window.CSRF_TOKEN;
         hideAuthOverlay();
-        initApp();
+        if (window._pendingAdminAuth) {
+          window._pendingAdminAuth = false;
+          _adminAuthed = true;
+          _openAdminPanel();
+        } else {
+          initApp();
+        }
       } else {
         errEl.textContent = d.error || 'Incorrect PIN';
         document.getElementById('login-pin-input').value = '';
@@ -1318,16 +1331,52 @@ function saveCollectionMode(collOnly) {
 // --- Admin (hidden) ---
 var _adminTaps = 0;
 var _adminTimer = null;
+function _openAdminPanel() {
+  var panel = document.getElementById('admin-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (panel.style.display === 'block') { showToast('Admin mode'); _resetAdminTimeout(); }
+  else { if (_adminTimeout) { clearTimeout(_adminTimeout); _adminTimeout = null; } }
+}
+var _adminAuthed = false;
+var _adminTimeout = null;
+var ADMIN_TIMEOUT_MS = 60000;
+function closeAdminPanel() {
+  var panel = document.getElementById('admin-panel');
+  if (panel) panel.style.display = 'none';
+  _adminAuthed = false;
+  if (_adminTimeout) { clearTimeout(_adminTimeout); _adminTimeout = null; }
+  var pinInput = document.getElementById('login-pin-input');
+  if (pinInput) { pinInput.value = ''; }
+  var errEl = document.getElementById('login-error');
+  if (errEl) errEl.textContent = '';
+}
+function _resetAdminTimeout() {
+  if (_adminTimeout) clearTimeout(_adminTimeout);
+  _adminTimeout = setTimeout(function() { closeAdminPanel(); showToast('Admin session expired'); }, ADMIN_TIMEOUT_MS);
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    var panel = document.getElementById('admin-panel');
+    if (panel && panel.style.display !== 'none') closeAdminPanel();
+    else _adminAuthed = false;
+  }
+});
+function _openAdminGated() {
+  if (_adminAuthed) { _openAdminPanel(); return; }
+  fetch(API + '/api/auth/status').then(function(r) { return r.json(); }).then(function(d) {
+    if (!d.pin_configured) {
+      _openAdminPanel();
+    } else {
+      window._pendingAdminAuth = true;
+      showAuthOverlay(false);
+    }
+  }).catch(function() { _openAdminPanel(); });
+}
 function adminTap() {
   _adminTaps++;
   if (_adminTimer) clearTimeout(_adminTimer);
   _adminTimer = setTimeout(function() { _adminTaps = 0; }, 2000);
-  if (_adminTaps >= 5) {
-    _adminTaps = 0;
-    var panel = document.getElementById('admin-panel');
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    if (panel.style.display === 'block') showToast('Admin mode');
-  }
+  if (_adminTaps >= 5) { _adminTaps = 0; _openAdminGated(); }
 }
 
 // --- WiFi ---
