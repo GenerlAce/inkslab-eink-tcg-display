@@ -88,8 +88,8 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 | **3D printed frame** | [InkSlab on MakerWorld](https://makerworld.com/en/models/2452200-inkslab-open-source-e-ink-tcg-display) |
 
 **Storage estimates by library:**
-- Pokémon: ~15–25 GB (all sets)
-- MTG: ~60–80 GB (all sets)
+- Pokémon: ~15–20 GB (all sets)
+- MTG: ~15–20 GB (all sets)
 - Lorcana: ~2–4 GB
 - Manga / Comics: varies by series
 
