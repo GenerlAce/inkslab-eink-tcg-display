@@ -72,14 +72,10 @@ cd "$SCRIPT_DIR" || {
 # Fix "dubious ownership" error — service runs as root but repo is owned by pi
 git config --global safe.directory "$SCRIPT_DIR" 2>/dev/null
 
-# Auto-detect the default branch (main or master)
-BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+# Read update branch from config (default: inkslab-4)
+BRANCH=$(python3 -c "import json; d=json.load(open('/home/pi/.inkslab/inkslab_config.json')); print(d.get('update_branch','inkslab-4'))" 2>/dev/null)
 if [ -z "$BRANCH" ]; then
-    if git rev-parse --verify origin/main >/dev/null 2>&1; then
-        BRANCH="main"
-    else
-        BRANCH="master"
-    fi
+    BRANCH="inkslab-4"
 fi
 
 # Save current commit hash for rollback

@@ -130,6 +130,7 @@ DEFAULTS = {
     "image_fit": "contain",
     "image_bg": "black",
     "thumbnail_cache": False,
+    "update_branch": "inkslab-4",
 }
 
 # Track running download process
@@ -2153,12 +2154,12 @@ def api_version():
 def api_update_check():
     """Check if updates are available by comparing local vs remote HEAD."""
     try:
-        # Fetch first so branch detection can see remote refs
-        fetch = subprocess.run(['git', 'fetch', 'origin'], cwd=SCRIPT_DIR,
+        branch = load_config().get('update_branch', 'inkslab-4')
+        # Fetch first so we can compare against remote
+        fetch = subprocess.run(['git', 'fetch', 'origin', branch], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=30)
         if fetch.returncode != 0:
             return jsonify({"ok": False, "error": "Could not reach update server. Check your internet connection."})
-        branch = _git_default_branch()
         local = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=5)
         remote = subprocess.run(['git', 'rev-parse', f'origin/{branch}'], cwd=SCRIPT_DIR,
@@ -2171,7 +2172,8 @@ def api_update_check():
         # Build display version: "1.0.0-abc123" or just "1.0.0"
         local_version = f"{VERSION}-{local_hash}" if local_hash else VERSION
         return jsonify({"ok": True, "local": local_version, "remote": remote_hash,
-                        "behind": commits_behind, "up_to_date": commits_behind == 0})
+                        "behind": commits_behind, "up_to_date": commits_behind == 0,
+                        "branch": branch})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
@@ -3316,6 +3318,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="dl-section-hd">Software Update</div>
     <div class="dl-section-body">
     <div id="update-info" style="margin-bottom:10px;font-size:13px;color:var(--text-dim);cursor:default;-webkit-user-select:none;user-select:none" onclick="adminTap()">Loading version...</div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Update channel: <span id="update-channel-label" style="color:var(--accent)">—</span></div>
     <div class="flex-row" style="margin-bottom:8px">
       <button class="btn btn-secondary btn-block" onclick="checkUpdate()">Check for Updates</button>
       <button class="btn btn-primary btn-block" id="btn-update-now" style="display:none" onclick="startUpdate()">Update Now</button>
@@ -3763,7 +3766,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </nav>
 
 <script src="/static/modal_helpers.js?v=1"></script>
-<script src="/static/app.js?v=40"></script>
+<script src="/static/app.js?v=41"></script>
 <script src="/static/collection_view.js?v=7"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>

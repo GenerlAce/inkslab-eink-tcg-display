@@ -1252,6 +1252,8 @@ function loadSettings() {
     if (themeEl) themeEl.value = localStorage.getItem('inkslab_theme') || 'default';
     var thumbEl = document.getElementById('cfg-thumbnails');
     if (thumbEl) thumbEl.checked = c.thumbnail_cache !== false;
+    var chanLbl = document.getElementById('update-channel-label');
+    if (chanLbl) chanLbl.textContent = c.update_branch || 'inkslab-4';
   });
 }
 
@@ -2250,6 +2252,8 @@ function checkUpdate() {
   el.textContent = 'Checking...';
   fetch(API + '/api/update/check', {method:'POST'}).then(r => r.json()).then(d => {
     if (!d.ok) { el.textContent = 'Error: ' + (d.error || 'unknown'); return; }
+    var lbl = document.getElementById('update-channel-label');
+    if (lbl && d.branch) lbl.textContent = d.branch;
     if (d.up_to_date) {
       el.innerHTML = 'Up to date! <span style="color:var(--text-dim)">Version: ' + esc(d.local) + '</span>';
       document.getElementById('btn-update-now').style.display = 'none';
