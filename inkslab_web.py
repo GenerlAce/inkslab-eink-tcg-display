@@ -2663,11 +2663,14 @@ def api_custom_upload():
     ext = os.path.splitext(f.filename)[1].lower()
     if ext not in IMAGE_EXTENSIONS:
         return jsonify({"error": "Only PNG/JPG images allowed"}), 400
-    # Sanitize filename
-    base = os.path.splitext(f.filename)[0]
+    # Sanitize filename for storage; preserve original name for display
+    base = os.path.basename(os.path.splitext(f.filename)[0])
+    display_name = base.replace('\x00', '').strip()[:200]
     safe_base = "".join(c if c.isalnum() or c in ('-', '_', ' ') else '' for c in base).strip()
     if not safe_base:
         safe_base = f"card_{int(time.time())}"
+    if not display_name:
+        display_name = safe_base
     safe_name = safe_base.replace(' ', '_') + ext
     filepath = os.path.join(folder_path, safe_name)
     # Avoid overwrite
@@ -2698,7 +2701,7 @@ def api_custom_upload():
             except Exception:
                 pass
         data[card_id] = {
-            "name": safe_base.replace('_', ' ').replace('-', ' ').title(),
+            "name": display_name,
             "number": str(len(data) + 1),
             "rarity": "",
         }
@@ -3295,24 +3298,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="dl-section settings-pin-card">
         <div class="dl-section-hd">Dashboard PIN</div>
         <div class="dl-section-body">
-        <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
-        <div id="pin-status" style="font-size:13px;margin-bottom:10px;"></div>
-        <div id="pin-form" style="display:none;">
-          <div class="form-group">
-            <label id="pin-current-label">Current PIN</label>
-            <input type="password" id="pin-current" inputmode="numeric" pattern="[0-9]*" placeholder="current PIN" maxlength="8" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label>New PIN <span style="color:var(--text-dim);font-size:11px;">(leave blank to remove PIN)</span></label>
-            <input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" placeholder="4-8 digits, or blank to remove" maxlength="8" autocomplete="new-password">
-          </div>
-          <div id="pin-error" style="color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" style="flex:1;" onclick="savePinChange()">Save</button>
-            <button class="btn" style="flex:1;background:transparent;border:1px solid var(--border);color:var(--text-dim);" onclick="document.getElementById('pin-form').style.display='none'">Cancel</button>
-          </div>
-        </div>
-        <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
+          <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Protect access to InkSlab with a 4-8 digit PIN. Your browser session stays logged in for 30 days.</p>
+          <div id="pin-status" style="font-size:13px;margin-bottom:12px;"></div>
+          <button id="pin-set-btn" class="btn btn-secondary btn-block" onclick="showPinForm()" style="display:none;"></button>
         </div><!-- end dl-section-body -->
       </div>
       <div class="dl-section">
@@ -3609,6 +3597,37 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <button class="cdm-btn cdm-btn-force" onclick="_wifiConfirmProceed()">
         <span class="cdm-btn-icon">&#x2192;</span>
         <span><span class="cdm-btn-label">Continue</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN change modal -->
+<div class="modal-overlay" id="pin-change-modal" onclick="this.classList.remove('open')">
+  <div class="modal-content cooldown-modal-content" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <div class="cdm-icon">&#x1F512;</div>
+      <div><div class="cdm-title" id="pin-modal-title">Change / Remove PIN</div></div>
+    </div>
+    <div class="cdm-message" style="padding-bottom:4px">
+      <div id="pin-current-group" style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">Current PIN</label>
+        <input type="password" id="pin-current" inputmode="numeric" pattern="[0-9]*" placeholder="current PIN" maxlength="8" autocomplete="off" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')document.getElementById('pin-new').focus();if(event.key==='Escape')_closePinModal()">
+      </div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">New PIN <span style="opacity:0.6">(leave blank to remove PIN)</span></label>
+        <input type="password" id="pin-new" inputmode="numeric" pattern="[0-9]*" placeholder="4-8 digits, or blank to remove" maxlength="8" autocomplete="new-password" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')savePinChange();if(event.key==='Escape')_closePinModal()">
+      </div>
+      <div id="pin-error" style="color:var(--danger);font-size:12px;min-height:16px;"></div>
+    </div>
+    <div class="cdm-actions">
+      <button class="cdm-btn cdm-btn-queue" onclick="_closePinModal()">
+        <span class="cdm-btn-icon">&#x2715;</span>
+        <span><span class="cdm-btn-label">Cancel</span></span>
+      </button>
+      <button class="cdm-btn cdm-btn-force" onclick="savePinChange()">
+        <span class="cdm-btn-icon">&#x1F512;</span>
+        <span><span class="cdm-btn-label">Save PIN</span></span>
       </button>
     </div>
   </div>

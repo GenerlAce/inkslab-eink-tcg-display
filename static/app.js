@@ -1422,16 +1422,34 @@ function loadPinStatus() {
       btn.textContent = 'Set a PIN';
     }
     btn.style.display = 'block';
-    document.getElementById('pin-current-label').style.display = d.pin_configured ? 'block' : 'none';
-    document.getElementById('pin-current').closest('.form-group').style.display = d.pin_configured ? 'block' : 'none';
+    // Store pin_configured state for modal to use
+    btn.dataset.pinConfigured = d.pin_configured ? '1' : '';
   }).catch(function() {});
 }
 
 function showPinForm() {
-  document.getElementById('pin-form').style.display = 'block';
+  var btn = document.getElementById('pin-set-btn');
+  var pinConfigured = btn && btn.dataset.pinConfigured === '1';
+  var currentGroup = document.getElementById('pin-current-group');
+  var titleEl = document.getElementById('pin-modal-title');
+  if (currentGroup) currentGroup.style.display = pinConfigured ? 'block' : 'none';
+  if (titleEl) titleEl.textContent = pinConfigured ? 'Change / Remove PIN' : 'Set a PIN';
   document.getElementById('pin-error').textContent = '';
   document.getElementById('pin-current').value = '';
   document.getElementById('pin-new').value = '';
+  document.getElementById('pin-change-modal').classList.add('open');
+  setTimeout(function() {
+    var focus = pinConfigured ? 'pin-current' : 'pin-new';
+    var el = document.getElementById(focus);
+    if (el) el.focus();
+  }, 60);
+}
+
+function _closePinModal() {
+  document.getElementById('pin-change-modal').classList.remove('open');
+  document.getElementById('pin-current').value = '';
+  document.getElementById('pin-new').value = '';
+  document.getElementById('pin-error').textContent = '';
 }
 
 function savePinChange() {
@@ -1442,7 +1460,7 @@ function savePinChange() {
   fetch(API + '/api/auth/change_pin', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({current_pin: current, new_pin: newPin})})
     .then(r => r.json()).then(function(d) {
       if (d.ok) {
-        document.getElementById('pin-form').style.display = 'none';
+        _closePinModal();
         loadPinStatus();
         showToast(newPin ? 'PIN updated' : 'PIN removed');
       } else {
