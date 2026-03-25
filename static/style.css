@@ -271,7 +271,7 @@ body {
   display: block;
   width: 100%;
   aspect-ratio: 2 / 3;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 8px;
   border: 2px solid var(--border);
 }
@@ -421,7 +421,7 @@ body {
 .q-set-info { display: none; }
 
 /* Previous card: always visible with placeholders */
-#prev-card .q-list { grid-template-columns: repeat(5, 1fr); }
+#prev-card .q-list { grid-template-columns: repeat(4, 1fr); }
 
 /* Quick switch grid */
 .quick-switch-scroll {
@@ -1022,18 +1022,12 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   /* Content area */
   .content { height: 100dvh; }
 
-  /* Card info bubbles below preview (desktop only) */
-  .card-info-inline { display: block; }
-  .card-info-inline .stats-grid { grid-template-columns: repeat(4, 1fr); }
-  .card-info-inline .stat-cell { padding: 5px 8px; }
-  .card-info-inline .stat-cell .stat-label,
-  .card-info-inline .stat-cell .stat-value { text-align: center; }
-  .card-info-inline .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
-  /* Hide the ⓘ tap-hint on desktop since stats are always visible */
+  /* Hide the ⓘ tap-hint on desktop since stats are shown in bottom bar */
   .preview-info-hint { display: none; }
 
-  /* Bigger preview image on desktop */
-  #st-preview-wrap { max-width: 380px; }
+  /* Bigger preview image on desktop — fill left column */
+  #st-preview-wrap { max-width: 100%; width: 100%; }
+  #st-preview { max-height: calc(100vh - 260px); }
 
   /* Hide mobile quick switch card on desktop */
   .mobile-qs-card { display: none; }
@@ -1059,9 +1053,9 @@ body.auth-pending .bottom-nav { visibility: hidden; }
     padding: 8px 14px 10px;
   }
 
-  /* Keep prev/next at 5 columns on desktop */
+  /* Queue: 4 columns on desktop for larger thumbnails */
   #prev-card .q-list,
-  #queue-card .q-list { grid-template-columns: repeat(5, 1fr); }
+  #queue-card .q-list { grid-template-columns: repeat(4, 1fr); }
 
   /* Set name below each queue card thumbnail */
   .q-set-info {
@@ -1091,8 +1085,40 @@ body.auth-pending .bottom-nav { visibility: hidden; }
     align-items: start;
     padding: 16px;
   }
-  .display-col-left { display: block; flex: 5; min-width: 0; }
-  .display-col-right { display: block; flex: 3; min-width: 0; }
+  .display-col-left {
+    display: flex;
+    flex-direction: column;
+    flex: 5;
+    min-width: 0;
+    height: calc(100vh - 96px);
+  }
+  .display-col-right {
+    display: flex;
+    flex-direction: column;
+    flex: 3;
+    min-width: 0;
+    gap: 12px;
+  }
+  /* Right column: Up Next and Previous fill evenly; card info takes natural height */
+  .display-col-right .dl-section { display: flex; flex-direction: column; margin-bottom: 0; }
+  .display-col-right #queue-card,
+  .display-col-right #prev-card { flex: 1; }
+  .display-col-right .dl-section .dl-section-body { flex: 1; display: flex; flex-direction: column; }
+  .display-col-right .dl-section .q-list { flex: 1; align-content: start; }
+  /* Left column: hero fills remaining height, controls sit at bottom */
+  #tab-display .hero-wrap { flex: 1; min-height: 0; justify-content: flex-end; padding: 0 0 4px; }
+  #tab-display #st-preview-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  #tab-display #st-preview { width: auto; height: 100%; max-width: 100%; max-height: none; object-fit: contain; }
+  /* Countdown and controls compact, pinned to bottom of hero */
+  #tab-display .countdown { margin-top: 8px; font-size: 13px; flex-shrink: 0; }
+  #tab-display .player-controls { margin-top: 8px; flex-shrink: 0; }
+  /* Card info in right column — normal panel, no bottom-bar styles */
+  .card-info-inline { display: block; }
+  .card-info-inline .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .card-info-inline .stat-cell { padding: 5px 8px; }
+  .card-info-inline .stat-cell .stat-label,
+  .card-info-inline .stat-cell .stat-value { text-align: center; }
+  .card-info-inline .stat-cell.full-width .stat-value { white-space: normal; word-break: break-word; }
 
   /* Downloads tab: two-panel */
   #tab-downloads.active {
@@ -1108,16 +1134,16 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   #dl-log { height: 400px !important; }
 
   /* Collection tab: flex-fill remaining viewport height on desktop */
-  #tab-collection {
+  #tab-collection.active {
     display: flex;
     flex-direction: column;
     height: calc(100dvh - 32px); /* 32px = panel's 16px top + 16px bottom padding */
     overflow: hidden;
   }
-  #tab-collection #coll-top-row { margin-bottom: 12px; flex-shrink: 0; }
-  #tab-collection > .dl-section { flex-shrink: 0; }
-  #tab-collection .sets-scroll-wrap { flex: 1; overflow: hidden; min-height: 0; }
-  #tab-collection #sets-list { height: 100%; max-height: none; overflow-y: auto; }
+  #tab-collection.active #coll-top-row { margin-bottom: 12px; flex-shrink: 0; }
+  #tab-collection.active > .dl-section { flex-shrink: 0; }
+  #tab-collection.active .sets-scroll-wrap { flex: 1; overflow: hidden; min-height: 0; }
+  #tab-collection.active #sets-list { height: 100%; max-height: none; overflow-y: auto; }
 
   /* Settings tab: mid two-column (Auto-Update | Metron + PIN + WiFi) */
   .settings-mid-cols {

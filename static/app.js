@@ -540,17 +540,15 @@ function renderQueue(d) {
   var isDesktop = window.innerWidth >= 600;
 
   // --- Up Next ---
-  var next = (d.next_cards || []).slice(0, isDesktop ? 5 : 4);
+  var next = (d.next_cards || []).slice(0, 4);
   var queueKey = JSON.stringify(next.map(function(c){return c.card_id}));
   if (queueKey !== _lastQueueKey) {
     _lastQueueKey = queueKey;
     var queueCard = document.getElementById('queue-card');
     queueCard.style.display = 'block';
     var listEl = document.getElementById('q-next-list');
-    var maxNext = isDesktop ? 5 : 4;
-    listEl.style.gridTemplateColumns = 'repeat(' + maxNext + ', 1fr)';
     var html = next.map(function(c) { return _qCardHtml(tcg, c); }).join('');
-    for (var i = next.length; i < maxNext; i++) {
+    for (var i = next.length; i < 4; i++) {
       html += '<div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>';
     }
     listEl.innerHTML = html;
@@ -558,14 +556,14 @@ function renderQueue(d) {
   }
 
   // --- Previous ---
-  var prev = (d.prev_cards || []).slice(0, 5);
+  var prev = (d.prev_cards || []).slice(0, 4);
   var prevKey = JSON.stringify(prev.map(function(c){return c.card_id}));
   if (prevKey !== _lastPrevKey) {
     _lastPrevKey = prevKey;
     var prevListEl = document.getElementById('q-prev-list');
     if (prevListEl) {
       var html = prev.map(function(c) { return _qCardHtml(tcg, c); }).join('');
-      for (var i = prev.length; i < 5; i++) {
+      for (var i = prev.length; i < 4; i++) {
         html += '<div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>';
       }
       prevListEl.innerHTML = html;
