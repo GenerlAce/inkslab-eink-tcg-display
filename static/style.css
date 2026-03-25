@@ -1107,9 +1107,17 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   /* Download log: taller on desktop but still toggle-controlled */
   #dl-log { height: 400px !important; }
 
-  /* Collection tab: sets list taller on desktop */
-  #tab-collection #coll-top-row { margin-bottom: 12px; }
-  #tab-collection #sets-list { max-height: 58vh; }
+  /* Collection tab: flex-fill remaining viewport height on desktop */
+  #tab-collection {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - 32px); /* 32px = panel's 16px top + 16px bottom padding */
+    overflow: hidden;
+  }
+  #tab-collection #coll-top-row { margin-bottom: 12px; flex-shrink: 0; }
+  #tab-collection > .dl-section { flex-shrink: 0; }
+  #tab-collection .sets-scroll-wrap { flex: 1; overflow: hidden; min-height: 0; }
+  #tab-collection #sets-list { height: 100%; max-height: none; overflow-y: auto; }
 
   /* Settings tab: mid two-column (Auto-Update | Metron + PIN + WiFi) */
   .settings-mid-cols {
