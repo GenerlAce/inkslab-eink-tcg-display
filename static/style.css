@@ -383,7 +383,7 @@ body {
   gap: 8px;
   padding-bottom: 2px;
 }
-.q-card {
+.q-card, .q-placeholder {
   text-align: center;
   min-width: 0;
 }

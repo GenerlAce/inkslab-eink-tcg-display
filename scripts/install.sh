@@ -8,6 +8,7 @@ set -e
 INKSLAB_DIR="/home/pi/inkslab"
 COLLECTIONS_DIR="/home/pi/inkslab-collections"
 REPO_URL="https://github.com/GenerlAce/inkslab-eink-tcg-display.git"
+REPO_BRANCH="inkslab-4"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -68,7 +69,7 @@ if [ -d "$INKSLAB_DIR/.git" ]; then
     echo -e "      Found existing install at $INKSLAB_DIR — pulling latest..."
     git -C "$INKSLAB_DIR" pull
 else
-    git clone "$REPO_URL" "$INKSLAB_DIR"
+    git clone -b "$REPO_BRANCH" "$REPO_URL" "$INKSLAB_DIR"
 fi
 mkdir -p "$COLLECTIONS_DIR"
 echo -e "      ${GREEN}✓ InkSlab installed at $INKSLAB_DIR${NC}"

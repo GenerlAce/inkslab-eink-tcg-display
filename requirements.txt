@@ -1,6 +1,9 @@
 # Core dependencies (install via apt on Raspberry Pi OS)
 # sudo apt install python3-pil python3-spidev python3-gpiozero python3-requests python3-flask python3-qrcode python3-cryptography
 #
+# Note: install.sh handles all dependencies directly (apt + pip for waitress).
+# This file is a reference for manual installs or pip-based environments.
+#
 # If you prefer pip:
 Pillow
 requests

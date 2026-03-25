@@ -3116,10 +3116,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="dl-section-hd">Up Next</div>
       <div class="dl-section-body" style="padding:10px 12px 12px;">
       <div class="q-list" id="q-next-list">
-        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
-        <div class="q-card"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
+        <div class="q-placeholder"><div class="q-thumb-placeholder"></div></div>
       </div>
       </div>
     </div>

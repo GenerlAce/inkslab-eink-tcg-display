@@ -44,15 +44,9 @@ if [ "$NEEDS_REPAIR" = true ]; then
 
     # Try to fetch latest and hard reset
     if timeout 30 git fetch origin 2>/dev/null; then
-        # Auto-detect branch
-        BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-        if [ -z "$BRANCH" ]; then
-            if git rev-parse --verify origin/main >/dev/null 2>&1; then
-                BRANCH="main"
-            else
-                BRANCH="master"
-            fi
-        fi
+        # Read branch from config (same source as OTA updater)
+        BRANCH=$(python3 -c "import json; d=json.load(open('/home/pi/.inkslab/inkslab_config.json')); print(d.get('update_branch','inkslab-4'))" 2>/dev/null)
+        if [ -z "$BRANCH" ]; then BRANCH="inkslab-4"; fi
 
         git reset --hard "origin/$BRANCH" 2>/dev/null
         chown -R pi:pi "$SCRIPT_DIR" 2>/dev/null
