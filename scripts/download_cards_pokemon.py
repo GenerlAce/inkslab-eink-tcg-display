@@ -1,0 +1,161 @@
+#!/usr/bin/python3
+"""
+Download all Pokemon card images and metadata from the PokemonTCG GitHub data repository.
+Supports resume - re-run safely to pick up where you left off.
+"""
+
+import os
+import requests
+import json
+import time
+import random
+import sys as _sys; _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); del _sys
+from download_utils import MIN_FREE_SPACE_MB, check_disk_space, download_file, atomic_write_json
+
+# --- CONFIGURATION ---
+BASE_DIR = "/home/pi/inkslab-collections/pokemon"
+
+# Data sources (PokemonTCG open data repo)
+SETS_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/sets/en.json"
+CARDS_BASE_URL = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master/cards/en/"
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124 Safari/537.36'
+}
+
+# Rate limiting
+DOWNLOAD_DELAY_MIN = 1.5  # seconds
+DOWNLOAD_DELAY_MAX = 3.0
+COOLDOWN_EVERY = 50       # downloads
+COOLDOWN_SECONDS = 30
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--set', default=None, help='Download a specific set by ID')
+    args = parser.parse_args()
+
+    os.makedirs(BASE_DIR, exist_ok=True)
+
+    print("   Click 'Stop Download' in the web UI to stop (you can resume later).\n")
+    print("=== Pokemon Card Downloader ===")
+    print("1. Fetching master set list...")
+
+    try:
+        r = requests.get(SETS_URL, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+        sets = r.json()
+    except Exception as e:
+        print(f"Error fetching sets: {e}")
+        return
+
+    # Build master_index.json from ALL sets before filtering
+    master_index = {}
+    for s in sets:
+        master_index[s['id']] = {
+            "name": s['name'],
+            "year": s['releaseDate'][:4]
+        }
+
+    index_path = os.path.join(BASE_DIR, "master_index.json")
+    atomic_write_json(index_path, master_index)
+    print(f"   Saved master_index.json ({len(master_index)} sets)")
+
+    # Apply set filter AFTER master_index is saved
+    if args.set:
+        sets = [s for s in sets if s.get('id') == args.set]
+        if not sets:
+            print(f"Set '{args.set}' not found.")
+            return
+        print(f"Downloading single set: {args.set}\n")
+
+    # Start with newest sets
+    sets.reverse()
+
+    total_sets = len(sets)
+    download_count = 0
+    failed_count = 0
+
+    print(f"\n2. Downloading cards from {total_sets} sets...")
+
+    for i, s in enumerate(sets):
+        set_id = s['id']
+        set_name = s['name']
+        set_dir = os.path.join(BASE_DIR, set_id)
+        os.makedirs(set_dir, exist_ok=True)
+
+        print(f"[{i + 1}/{total_sets}] {set_name}...")
+
+        cards = None
+        for attempt in range(3):
+            try:
+                r = requests.get(f"{CARDS_BASE_URL}{set_id}.json", headers=HEADERS, timeout=30)
+                r.raise_for_status()
+                cards = r.json()
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(5)
+                else:
+                    print(f"  > Error fetching card list: {e}. Skipping.")
+        if cards is None:
+            continue
+
+        # Build _data.json for this set
+        slim_db = {}
+        for card in cards:
+            c_id = card['id']
+            slim_db[c_id] = {
+                "name": card.get('name', 'Unknown'),
+                "number": card.get('number', '00'),
+                "rarity": card.get('rarity', 'Common'),
+            }
+
+        data_file = os.path.join(set_dir, "_data.json")
+        needs_write = True
+        if os.path.exists(data_file):
+            try:
+                with open(data_file, 'r') as f:
+                    needs_write = json.load(f) != slim_db
+            except Exception:
+                pass
+        if needs_write:
+            atomic_write_json(data_file, slim_db)
+
+        # Download card images
+        for card in cards:
+            card_id = card['id']
+            if 'images' not in card:
+                continue
+
+            img_url = card['images'].get('large', card['images'].get('small'))
+            if not img_url:
+                continue
+
+            if not check_disk_space(BASE_DIR):
+                print(f"\n=== STOPPING: Less than {MIN_FREE_SPACE_MB}MB free space remaining. ===")
+                print(f"=== Downloaded {download_count} new cards before stopping. ===")
+                return
+
+            filepath = os.path.join(set_dir, f"{card_id}.png")
+            status = download_file(img_url, filepath, HEADERS)
+
+            if status == "DOWNLOADED":
+                download_count += 1
+                print(f"  > [{download_count}] {card.get('name', card_id)}")
+
+                # Rate limiting
+                time.sleep(random.uniform(DOWNLOAD_DELAY_MIN, DOWNLOAD_DELAY_MAX))
+                if download_count % COOLDOWN_EVERY == 0:
+                    print(f"    [Cooldown {COOLDOWN_SECONDS}s...]")
+                    time.sleep(COOLDOWN_SECONDS)
+            elif status != "EXISTS":
+                failed_count += 1
+                print(f"  > Failed: {card_id} ({status})")
+
+    print(f"\n=== Done! Downloaded: {download_count}, Failed: {failed_count} ===")
+
+
+if __name__ == "__main__":
+    main()
