@@ -1,253 +1,346 @@
 # InkSlab — e-Ink TCG Card Display
 
-A Raspberry Pi-powered e-ink display that shows your Pokemon, Magic: The Gathering, Disney Lorcana, Manga, and Comic Book covers in a graded-slab style layout. Upload your own custom images too. Control everything from your phone or desktop browser — switch between libraries, download content, curate your collection, and more.
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
+![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Display](https://img.shields.io/badge/display-Waveshare%204%22%20Spectra%206-green)
 
-**No command line needed after install.** Pre-flashed units have built-in WiFi setup — just power on, connect to the InkSlab network, and pick your WiFi. Everything else runs through a clean web dashboard — including software updates.
+**InkSlab** is a Raspberry Pi Zero 2 W project that displays your TCG card collection on a 7-color e-ink screen, rotating through cards on a configurable schedule. A full web dashboard lets you browse your collection, manage downloads, and control the display from any device on your network — no app required.
 
-**By [Costa Mesa Tech Solutions](https://github.com/costamesatechsolutions)** (a brand of Pine Heights Ventures LLC)
-**Fork maintained by [GenerlAce](https://github.com/GenerlAce)** with AI-assisted development — extended manga, comics, full UI redesign, and dashboard features.
+Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga covers**, **Comics covers**, and **custom images**.
 
----
-
-## What It Does
-
-- Cycles through TCG cards and cover art on a 7-color e-ink display (black, white, red, yellow, blue, green, orange)
-- Shows card art in a graded-slab frame with set name, year, card number, and rarity
-- **Full-bleed overlay header** for manga and comics — text overlays directly on the cover when no header space is available
-- **Slab Header Modes:** Normal (white bg), Inverted (black bg), or Off (full-screen card art)
-- **Web Dashboard:** Control everything from your phone or browser at `http://<your-pi-ip>`
-- **Left sidebar desktop layout:** On wide screens, navigation moves to a persistent left sidebar with Quick Switch Collection, Pi system stats (CPU temp, RAM, uptime), and version info
-- **Live Player Controls:** Pause, play, skip, or go back, complete with an "Up Next" queue and countdown timer
-- **Collection Mode & Search:** Only display cards you own. Search for a card (e.g., "Pikachu") and instantly add *all* variations across every set to your collection
-- **Rarity Filtering:** Select or deselect all cards of a specific rarity across every set with one tap
-- **Smart Shuffle:** Remembers recently shown cards and pushes them to the back of the deck upon reshuffling
-- **Custom Images:** Upload your own images and organize them into sets with optional metadata
-- **PIN Login:** Optional 4-8 digit PIN to protect your dashboard
-- **Theme System:** 7 themes — default dark, or auto-switches to match your active library (Lorcana purple, Pokemon blue, MTG teal, Manga pink, Comics orange, Custom gold)
-- **Card Info Modal:** Tap the preview card to see set name, year, card number, rarity, and more — shown inline on desktop, modal on mobile
-- **Thumbnail Cache:** Pre-cached smaller images for instant loading in the collection grid and Up Next queue
-- **Boot Splash Screen:** Shows IP address and scannable QR code on the e-ink display at startup so you can find your dashboard without hunting through your router
-- **WiFi Setup Mode:** Automatically creates an "InkSlab-Setup" WiFi network when no connection is found on boot
-- **OTA Updates:** Update InkSlab software directly from the web dashboard
-- **Auto-Update:** Weekly automatic refresh of all enabled content sources
-- Runs 24/7 as a desk display, rotating cards every 10 minutes (configurable for day/night)
-
-### Supported Libraries
-- **Pokemon** — via [PokemonTCG data](https://github.com/PokemonTCG/pokemon-tcg-data)
-- **Magic: The Gathering** — via [Scryfall API](https://scryfall.com/)
-- **Disney Lorcana** — via [Lorcast API](https://lorcast.com/)
-- **Manga** — via [MangaDex API](https://api.mangadex.org) (no login required)
-- **Comics** — via [Metron API](https://metron.cloud) (free account required)
-- **Custom** — upload your own PNG/JPG images
-
-```
-+-----------------------+
-|  2023 OBSIDIAN FLAMES |
-|    #201  *  HOLO      |
-| +-------------------+ |
-| |                   | |
-| |    Card Image     | |
-| |                   | |
-| |                   | |
-| +-------------------+ |
-+-----------------------+
-```
+> **Forked from** [costamesatechsolutions/inkslab-eink-tcg-display](https://github.com/costamesatechsolutions/inkslab-eink-tcg-display) — significantly extended with a full UI redesign, mobile support, security hardening, and new features.
 
 ---
 
-## Screenshots
+## Features
 
-> Screenshots coming soon — captured using Magic: The Gathering cards via Scryfall (used under the [Wizards of the Coast Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy)).
+### Web Dashboard
+- Responsive layout: desktop sidebar + mobile bottom tab bar
+- Display tab with live card preview, Up Next queue (5 cards), and Previous cards panel
+- Collection tab with grid and list views, thumbnails, and hover/tap preview
+- Downloads tab with per-source pill selector and progress log
+- Settings tab with display config, auto-update, PIN protection, and WiFi management
+
+### Display
+- 7-color e-ink (Spectra 6: black, white, green, blue, red, yellow, orange)
+- Slab header with set name, year, card number, and rarity — three modes: Normal, Inverted, Off
+- Full-bleed overlay headers for manga/comics
+- Color saturation boost and dithering (Floyd-Steinberg)
+- Smart shuffle — recently shown cards pushed to back of queue
+- Day/night intervals with configurable hours
+
+### Collection Management
+- **All Cards / Owned Only** — segmented control; Owned Only shows only cards you've marked as owned in the collection
+- Grid view with thumbnails; List view with hover preview and mobile accordion
+- Quick Switch Collection — change active TCG instantly with a pending-queue notification on other clients
+- Search by card name and add all printings at once
+- Rarity-tier select/deselect
+- Per-series delete with two-step confirmation
+- Favorites list per TCG
+
+### Downloads
+- Unified pill selector — one interface for all sources
+- Per-set search and download for all TCGs
+- Pokémon bulk download by name (e.g., search "Charizard" → download all prints)
+- MTG set search via Scryfall API
+- Manga series search via MangaDex (no account required)
+- Comics series search via Metron API (free account required)
+- Download status log with timestamps and color-coded output (blue = Done, red = failures)
+- Storage breakdown by library + free space gauge
+
+### Settings
+- Display interval, rotation, saturation, image fit and background
+- Auto-update scheduler (weekly, per source, configurable day)
+- Metron Comics account (credentials encrypted with device-specific key)
+- PIN protection — 4–8 digit PIN, PBKDF2-SHA256, rate-limited login
+- Admin mode — PIN re-authentication gate, 60-second auto-close, tab-switch reset
+- OTA updates — check and install from GitHub directly from the dashboard
+- WiFi setup and management
+- System info panel (CPU temperature, RAM, uptime, IP address)
+- Factory reset for clean handoff for a new owner
+
+### Custom Images
+- Upload PNG or JPG files organized into named folders
+- Editable card name, number, rarity, and set metadata
+- Treated as a first-class collection alongside TCGs
+
+### Infrastructure
+- Automated installer (`install.sh`)
+- Self-healing on boot (`selfheal.sh`) — verifies files, resets from git on corruption
+- OTA update with rollback safety (`ota_update.sh`)
+- Hardware watchdog and journal size cap
+- Atomic JSON writes (temp file + `os.rename`) throughout
+- Non-blocking thumbnail generation (background thread)
+- Captive portal for WiFi setup on first boot
 
 ---
 
-## What You Need
+## Hardware
 
 | Part | Notes |
 |------|-------|
-| **Raspberry Pi Zero 2 W** | Recommended — 5× faster than the original Zero W. The "WH" variant has pre-soldered headers (required for the display HAT). Original Zero W H also works but is noticeably slower. |
-| **[Waveshare 4" e-Paper HAT+ (E)](https://www.waveshare.com/wiki/4inch_e-Paper_HAT%2B_(E)_Manual)** | Spectra 6 — the 7-color model |
-| **Micro SD card** | 32 GB for one TCG, 64 GB+ for all (Pokemon ~13 GB, MTG ~13 GB, Lorcana ~2 GB, Manga ~2 GB, Comics grows weekly) |
-| **90-degree micro USB cable** | Optional but recommended — keeps the power cable hidden behind the frame |
-| **3D printed frame** | Print files on MakerWorld: **[InkSlab on MakerWorld](https://makerworld.com/en/models/2452200-inkslab-open-source-e-ink-tcg-display)** |
+| **Raspberry Pi Zero 2 W** | Required. Pi Zero W H also works but is noticeably slower |
+| **Waveshare 4" e-Paper HAT+ (E) — Spectra 6** | 400×600, 7-color. Must be this exact model |
+| **MicroSD card** | 8 GB minimum. 32–64 GB recommended for full TCG libraries |
+| **5V micro USB power supply** | Standard Pi power supply |
+| **90-degree micro USB cable** | Optional but recommended — hides the cable behind the frame |
+| **3D printed frame** | [InkSlab on MakerWorld](https://makerworld.com/en/models/2452200-inkslab-open-source-e-ink-tcg-display) |
+
+**Storage estimates by library:**
+- Pokémon: ~15–25 GB (all sets)
+- MTG: ~60–80 GB (all sets)
+- Lorcana: ~2–4 GB
+- Manga / Comics: varies by series
 
 ---
 
-## Setup
+## Setup — Pre-Flashed Units
 
-### Pre-Flashed Units (Easiest)
+If you received a pre-configured InkSlab unit:
 
-If you received a pre-flashed InkSlab, setup takes about 30 seconds:
-
-1. **Power on** the InkSlab — wait about 90 seconds for the e-ink display to show setup instructions
-2. On your phone, go to **Settings > WiFi** and connect to `InkSlab-Setup` (no password needed)
-3. A setup page should appear automatically. If not, open `http://10.42.0.1` in your web browser
-4. **Pick your home WiFi** from the list, enter the password, and tap Connect
-5. The display will show your new dashboard address with a scannable QR code
-6. **Reconnect your phone** to your home WiFi and open that address — you're done!
+1. Power it on — the display shows an **InkSlab Setup** screen with a QR code and network name
+2. Connect your phone or laptop to the **InkSlab-Setup** WiFi network
+3. A setup page will open automatically (or navigate to `http://192.168.4.1`)
+4. Enter your home WiFi credentials and tap **Connect**
+5. The screen updates with your InkSlab's IP address and a QR code — scan it or navigate to that IP from any browser on your network
+6. Open the dashboard and start downloading card sets from the **Downloads** tab
 
 ---
 
-### DIY Setup (Flash Your Own SD Card)
+## Setup — DIY Flash
 
-After flashing and SSH'ing in, you can run the automated installer **or** follow the manual steps below — both do the same thing.
+### 1. Flash Raspberry Pi OS
 
-**Option A — Automated installer (recommended):**
+Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to flash **Raspberry Pi OS Lite (64-bit)** to your SD card. In the imager's advanced settings, configure your hostname, SSH, and optionally your WiFi credentials.
+
+### 2. Enable SPI
+
+SSH into your Pi and run:
 ```bash
-curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/master/scripts/install.sh | bash
+sudo raspi-config
 ```
-The script checks SPI, installs packages, clones InkSlab, sets up systemd services, and starts everything. If SPI isn't enabled yet it will enable it and prompt for a reboot — just re-run after rebooting and it will continue.
+Navigate to **Interface Options → SPI → Enable**. The install script will also check and enable SPI automatically.
 
-**Option B — Manual steps:**
-
-### Step 1 — Flash the SD Card
-
-1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Choose **Raspberry Pi Zero 2 W** > **Raspberry Pi OS (Legacy, 32-bit) Lite**
-3. Click **Next** > **Edit Settings**:
-   - Set hostname to `inkslab`, username to `pi`, pick a password
-   - Enter your Wi-Fi name and password
-   - Under **Services**, enable SSH
-4. Flash, insert the SD card, power on the Pi, and wait ~2 minutes
-
-### Step 2 — SSH In and Install
+### 3. Run the Installer
 
 ```bash
-ssh pi@inkslab.local
-sudo raspi-config nonint do_spi 0
-sudo reboot
+cd /home/pi
+git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git inkslab
+cd inkslab
+chmod +x scripts/install.sh
+sudo bash scripts/install.sh
 ```
 
-After reboot, SSH back in and run:
+The installer will:
+- Check and enable SPI (prompts reboot if needed)
+- Install all system and Python dependencies
+- Install and start both systemd services
+- Verify the services are running
+
+### 4. Install Dependencies Manually (if needed)
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y python3-pip python3-pil python3-numpy python3-spidev python3-gpiozero python3-requests python3-flask python3-qrcode git
-sudo apt-get install -y gpiod libgpiod-dev
+# System packages
+sudo apt update
+sudo apt install -y python3-pip python3-pil python3-numpy python3-spidev \
+  python3-gpiozero python3-requests python3-flask python3-qrcode \
+  git gpiod libgpiod-dev
 
-# Clone InkSlab
-git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git /home/pi/inkslab
-
-# Create card library directory
-mkdir -p /home/pi/inkslab-collections
-
-# Install Gunicorn (production web server)
-sudo pip3 install gunicorn --break-system-packages
+# Python packages
+pip3 install waitress --break-system-packages
+pip3 install cryptography --break-system-packages
 ```
 
-### Step 3 — Start the Services
+### 5. First Boot
+
+Power on the Pi with the display attached. Within 30–60 seconds:
+- The display shows the InkSlab setup screen with the local IP address
+- Open `http://<your-pi-ip>` in a browser
+- If no cards are downloaded yet, the display shows a placeholder
+
+The Waveshare driver is bundled in `lib/waveshare_epd/` — no additional library installation is needed.
+
+---
+
+## Starting and Managing Services
 
 ```bash
-sudo cp /home/pi/inkslab/inkslab.service /etc/systemd/system/
-sudo cp /home/pi/inkslab/inkslab_web.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable inkslab inkslab_web
+# Start
 sudo systemctl start inkslab inkslab_web
+
+# Stop
+sudo systemctl stop inkslab inkslab_web
+
+# Restart
+sudo systemctl restart inkslab inkslab_web
+
+# Enable on boot
+sudo systemctl enable inkslab inkslab_web
+
+# View logs
+sudo journalctl -u inkslab -f
+sudo journalctl -u inkslab_web -f
 ```
 
-### Step 4 — First Launch
+### selfheal.sh
 
-Open `http://inkslab.local` (or the IP shown on the e-ink display) in your browser. You'll be prompted to set an optional PIN to protect your dashboard. You can skip this and set it later in **Settings**.
+`selfheal.sh` runs automatically before the display daemon starts (via `ExecStartPre=` in the service file). It:
+- Syntax-checks all Python files
+- Resets corrupted files from git if needed (with rollback on failure)
+- Removes stale lock/temp files from crashed sessions
+- Enables the hardware watchdog (auto-reboots if the daemon hangs for 10+ minutes)
+- Caps the systemd journal at 50 MB to protect the SD card
 
 ---
 
-## Migrating from an Older Installation?
+## File Reference
 
-If you have an existing InkSlab installation at the old path (`~/4inch_e-Paper_E/.../inkslab-eink-tcg-display/`), run the migration script to move your card libraries and config to the new layout:
+### Static Files (`static/`)
 
-```bash
-git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git /home/pi/inkslab
-bash /home/pi/inkslab/scripts/migrate_paths.sh
+| File | Purpose |
+|------|---------|
+| `app.js` | Main dashboard JS — display tab, polling, auth overlay, collection browser, downloads, settings, state management |
+| `style.css` | Full dashboard stylesheet — dark theme, responsive layout, sidebar, modals, cards, animations |
+| `collection_view.js` | Grid/list view toggle, thumbnail lazy loading, checkbox state, badge updates |
+| `collection_list_preview.js` | Series list with set preview on hover |
+| `dl_picker.js` | Downloads tab pill selector — TCG switching, action buttons |
+| `mobile_qs.js` | Quick Switch Collection bottom sheet for mobile |
+| `mtg_sets.js` | MTG set search UI (Scryfall), download button per result |
+| `pokemon_bulk.js` | Pokémon bulk download by name — search and download all prints |
+| `qs_pending.js` | Pending collection switch banner with cross-client sync |
+| `apple-touch-icon.png` | iOS bookmark/home screen icon |
+| `inkslab_qr_bg.png` | Background image for QR code screens |
+
+### Scripts (`scripts/`)
+
+| File | Purpose | When to Run |
+|------|---------|-------------|
+| `install.sh` | Full automated installer — SPI, packages, services | Once, on fresh Pi |
+| `selfheal.sh` | Pre-boot health check and auto-repair | Automatically via systemd |
+| `ota_update.sh` | Over-the-air update with rollback safety | Via dashboard or manually |
+| `download_cards_pokemon.py` | Download Pokémon card images (PokemonTCG GitHub) | Via dashboard Downloads tab |
+| `download_cards_mtg.py` | Download MTG card images (Scryfall API) | Via dashboard Downloads tab |
+| `download_cards_lorcana.py` | Download Lorcana card images (Lorcast API) | Via dashboard Downloads tab |
+| `download_covers_manga.py` | Download manga volume covers (MangaDex API) | Via dashboard Downloads tab |
+| `download_manga_series.py` | Search and download a specific manga series | Via dashboard Downloads tab |
+| `download_covers_comics.py` | Download comic cover images (Metron API) | Via dashboard Downloads tab |
+| `download_comic_series.py` | Search and download a specific comics series | Via dashboard Downloads tab |
+| `download_pokemon_bulk.py` | Bulk download Pokémon cards by name | Via dashboard Downloads tab |
+| `download_utils.py` | Shared utilities — disk space check, file download helper | Internal (imported by other scripts) |
+
+---
+
+## Configuration
+
+All settings are stored in `/home/pi/.inkslab/inkslab_config.json` and managed through the Settings tab. You can also edit the file directly while the services are stopped.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `active_tcg` | string | `"pokemon"` | Active library: `pokemon`, `mtg`, `lorcana`, `manga`, `comics`, `custom` |
+| `rotation_angle` | int | `270` | Display rotation in degrees: `0`, `90`, `180`, `270` |
+| `day_interval` | int | `600` | Seconds between cards during day hours |
+| `night_interval` | int | `3600` | Seconds between cards during night hours |
+| `day_start` | int | `7` | Hour that day mode begins (24h, 0–23) |
+| `day_end` | int | `23` | Hour that night mode begins (24h, 0–23) |
+| `color_saturation` | float | `2.5` | Color boost applied before rendering (1.0 = none, 4.0 = vivid) |
+| `collection_only` | bool | `false` | Only display cards marked as owned |
+| `slab_header_mode` | string | `"normal"` | Header style: `"normal"` (white bg), `"inverted"` (black bg), `"off"` (full-bleed) |
+| `image_fit` | string | `"contain"` | Image scaling: `"contain"` (letterbox) or `"cover"` (crop to fill) |
+| `image_bg` | string | `"black"` | Background color when letterboxing: `"black"` or `"white"` |
+| `thumbnail_cache` | bool | `false` | Pre-generate thumbnails for faster collection browsing |
+| `auto_update_sources` | list | `[]` | Libraries included in weekly auto-update: `["pokemon", "mtg", ...]` |
+| `auto_update_day` | int | `0` | Day of week for auto-update: `0` = Sunday, `6` = Saturday |
+| `pin_hash` | string | — | PBKDF2-SHA256 hash of PIN (set automatically when PIN is configured) |
+| `pin_salt` | string | — | Random salt for PIN hash (set automatically) |
+| `pin_setup_done` | bool | — | Tracks whether the first-boot PIN prompt has been completed |
+
+### Data Files
+
+| File | Location | Description |
+|------|----------|-------------|
+| `inkslab_config.json` | `/home/pi/.inkslab/` | Main configuration |
+| `inkslab_collection.json` | `/home/pi/.inkslab/` | Owned card state per TCG |
+| `inkslab_last_update.json` | `/home/pi/.inkslab/` | Auto-update timestamps per source |
+| `.metron_credentials` | `/home/pi/.inkslab/` | Encrypted Metron API credentials |
+| `.inkslab_secret_key` | `/home/pi/` | Flask session secret (generated on first boot) |
+
+---
+
+## API Sources
+
+| Source | API | Auth Required | Notes |
+|--------|-----|---------------|-------|
+| Pokémon | PokemonTCG (GitHub JSON) | No | Images only; no rate limit |
+| Magic: The Gathering | Scryfall API | No | 10 req/s rate limit respected |
+| Disney Lorcana | Lorcast API | No | — |
+| Manga | MangaDex API | No | Volume cover images; English preferred, Japanese fallback |
+| Comics | Metron API | Yes (free account) | Configure credentials in Settings → Metron Comics Account |
+
+---
+
+## Project Structure
+
+```
+inkslab/
+├── inkslab.py                  # Display daemon — main loop, e-ink rendering
+├── inkslab_web.py              # Flask web server — all API routes and dashboard HTML
+├── wifi_manager.py             # WiFi hotspot and nmcli wrapper
+├── inkslab.service             # systemd unit for display daemon
+├── inkslab_web.service         # systemd unit for web server
+├── requirements.txt            # Python dependencies
+│
+├── static/
+│   ├── app.js                  # Main dashboard JavaScript
+│   ├── style.css               # Dashboard stylesheet
+│   ├── collection_view.js      # Grid/list view
+│   ├── collection_list_preview.js
+│   ├── dl_picker.js            # Downloads pill selector
+│   ├── mobile_qs.js            # Mobile Quick Switch
+│   ├── mtg_sets.js             # MTG set search
+│   ├── pokemon_bulk.js         # Pokémon bulk download
+│   ├── qs_pending.js           # Pending switch banner
+│   ├── apple-touch-icon.png
+│   └── inkslab_qr_bg.png
+│
+├── scripts/
+│   ├── install.sh              # Automated installer
+│   ├── selfheal.sh             # Pre-boot repair
+│   ├── ota_update.sh           # OTA update with rollback
+│   ├── download_cards_pokemon.py
+│   ├── download_cards_mtg.py
+│   ├── download_cards_lorcana.py
+│   ├── download_covers_manga.py
+│   ├── download_manga_series.py
+│   ├── download_covers_comics.py
+│   ├── download_comic_series.py
+│   ├── download_pokemon_bulk.py
+│   └── download_utils.py
+│
+└── lib/
+    └── waveshare_epd/          # Bundled Waveshare e-paper driver (vendor snapshot)
 ```
 
-The script safely moves your existing card libraries (Pokemon, MTG, etc.) to `/home/pi/inkslab-collections/`, installs the new service files, and restarts everything. Your old program directory (`~/4inch_e-Paper_E/`) is left in place — delete it manually once you've verified the new setup is working.
-
----
-
-## Manga Setup
-
-Manga downloads from MangaDex — no account needed.
-
-- **Bulk download** (top 500 popular): Run `scripts/download_covers_manga.py`
-- **Series search**: Use the Downloads tab in the web dashboard to search and download all covers for a specific manga
-
----
-
-## Comics Setup
-
-Comics download from [Metron](https://metron.cloud) — a free account is required.
-
-1. [Sign up at metron.cloud](https://metron.cloud/accounts/signup/)
-2. In the InkSlab web dashboard, go to **Settings** > **Metron Comics Account** and enter your credentials
-3. Credentials are stored securely on the Pi at `/home/pi/.metron_credentials` — never committed to git
-
-- **Weekly new releases**: Run `scripts/download_covers_comics.py` (auto-runs weekly if enabled)
-- **Series search**: Use the Downloads tab to search and download all covers for a specific series
-
----
-
-## Web Dashboard
-
-### Display Tab
-- Live preview of the current card on the e-ink display
-- Player controls: pause, play, skip forward/back, countdown timer
-- **Up Next** (5 cards) and **Previous** (3 cards) queue — always visible on desktop
-- Tap/click the preview card to see inline stat bubbles (set, year, rarity, card number)
-- Quick Switch Collection: change active library without leaving the tab (bottom sheet on mobile)
-
-### Collection Tab
-- Browse sets in **List** or **Grid** (thumbnail) view
-- Hover over any card or thumbnail for an instant preview
-- **Search Collection:** Find cards by name and add all versions across every set at once
-- **Browse any library** without changing your active display library
-- **Add to Collection by Rarity:** Toggle entire rarity tiers on/off across all sets
-- **Per-series delete:** Two-step confirm delete on every set
-- Alphabetical sorting across all libraries
-
-### Downloads Tab
-- **Storage:** Visual breakdown of SD card usage by library with color-coded bar
-- **Download Cards:** One-click download for each library, with per-set search for MTG, Lorcana, Pokemon, Manga, and Comics
-- **Custom Images:** Upload your own PNG/JPG images and organize them into named folders
-- **Download Status:** Live progress log — auto-expands when a download starts, always visible on desktop
-- **Delete Entire Library:** Two-step confirm to wipe a full library
-
-### Settings Tab
-- Active library, slab header mode, rotation, day/night intervals, color saturation
-- **PIN Login:** Set, change, or remove your dashboard PIN
-- **Theme:** Choose default dark, or auto-switch per active library
-- **Thumbnail Pre-Cache:** Pre-generate thumbnails for faster collection browsing
-- **Metron Comics Account:** Connect your Metron account for comics downloads
-- **Auto-Update Sources:** Choose which libraries refresh automatically each week
-- **Software Update:** OTA updates pulled directly from GitHub
-
----
-
-## Auto-Update
-
-Enable weekly automatic updates in **Settings > Auto-Update Sources**:
-
-| Source | What it downloads |
-|--------|------------------|
-| Pokemon | Full card list from PokéAPI |
-| Magic: The Gathering | Full card list from Scryfall |
-| Disney Lorcana | Full card list from Lorcast |
-| Manga  | Top 500 popular titles from MangaDex |
-| Comics | Weekly new releases from Metron |
-
-- Runs automatically once per week per enabled source
-- Skips download if less than 500MB free disk space
-- Last updated date shown per source
+**Runtime directories (created automatically):**
+```
+/home/pi/.inkslab/              # Config, collection, credentials
+/home/pi/inkslab-collections/   # Card image libraries
+    pokemon/  mtg/  lorcana/
+    manga/    comics/  custom/
+    .thumbcache/                # Thumbnail cache (shared)
+/tmp/inkslab_*                  # Trigger files and status (volatile)
+```
 
 ---
 
 ## Updating
 
-### From the Web Dashboard (Recommended)
-1. Go to **Settings** tab
-2. Click **Check for Updates**
-3. If updates are available, click **Update Now**
+### From the Dashboard
+
+Go to **Settings → OTA Updates → Check for Updates**. If an update is available, click **Install**. The update runs in the background with rollback safety — if the new version fails to start, the previous version is automatically restored.
 
 ### Via SSH
+
 ```bash
 cd /home/pi/inkslab
 git pull
@@ -256,139 +349,36 @@ sudo systemctl restart inkslab inkslab_web
 
 ---
 
-## Project Structure
-
-```
-/home/pi/inkslab/               ← Program files
-  inkslab.py                    # Display daemon
-  inkslab_web.py                # Web dashboard (Flask + Gunicorn)
-  wifi_manager.py               # WiFi setup mode (nmcli wrapper)
-  inkslab.service               # systemd service for display
-  inkslab_web.service           # systemd service for web dashboard
-  requirements.txt              # Python dependencies
-  lib/
-    waveshare_epd/              # Bundled display driver (see note below)
-  static/
-    app.js                      # Main web dashboard JS
-    style.css                   # Web dashboard styles
-    collection_view.js          # Grid/list view toggle and thumbnails
-    delete_library.js           # Two-step library delete
-    dl_picker.js                # Downloads tab pill selector
-    mobile_qs.js                # Mobile Quick Switch Collection bottom sheet
-    mtg_sets.js                 # MTG set search and download
-    pokemon_bulk.js             # Pokémon bulk download by name
-    search_fix.js               # Search input UX helpers
-  scripts/
-    download_cards_pokemon.py   # Pokemon card downloader
-    download_cards_mtg.py       # MTG card downloader (Scryfall API)
-    download_cards_lorcana.py   # Lorcana card downloader (Lorcast API)
-    download_covers_manga.py    # Manga bulk downloader (MangaDex API)
-    download_manga_series.py    # Manga series downloader (MangaDex API)
-    download_covers_comics.py   # Comics weekly downloader (Metron API)
-    download_comic_series.py    # Comics series downloader (Metron API)
-    ota_update.sh               # OTA update script
-    selfheal.sh                 # Service health monitor
-    migrate_paths.sh            # One-time migration from old path layout
-    install.sh                  # Automated installer (SPI, packages, services)
-
-/home/pi/inkslab-collections/   ← Card library data (separate from program)
-  pokemon/
-  mtg/
-  lorcana/
-  manga/
-  comics/
-  custom/
-  .thumbcache/                  # Thumbnail cache (shared across all libraries)
-
-/home/pi/                       ← Config and credentials
-  inkslab_config.json           # All settings (managed via web dashboard)
-  inkslab_collection.json       # Your owned card collection
-  inkslab_last_update.json      # Auto-update timestamps
-  .metron_credentials           # Metron API credentials (never committed to git)
-```
-
----
-
-## Bundled Display Driver
-
-InkSlab ships with a **snapshot** of the Waveshare e-Paper display driver (`lib/waveshare_epd/`), version **V1.2 (2022-10-29)**. This is included for install simplicity — no separate driver download is required.
-
-**Full credit to Waveshare Electronics** for developing and maintaining this driver. The driver is licensed under the MIT License and is reproduced here with attribution as permitted.
-
-| Resource | Link |
-|----------|------|
-| Waveshare official driver repo | [waveshare/e-Paper on GitHub](https://github.com/waveshare/e-Paper) |
-| 4" e-Paper HAT+ (E) product page | [Waveshare Wiki](https://www.waveshare.com/wiki/4inch_e-Paper_HAT%2B_(E)_Manual) |
-| Driver download (latest) | [4inch_e-Paper_E.zip](https://files.waveshare.com/wiki/4inch-e-Paper-HAT%2B-(E)/4inch_e-Paper_E.zip) |
-
-**Want the latest driver?** The bundled version works with the Waveshare 4" HAT+ (E) and has been stable since 2022. If Waveshare releases a new driver and you need it, replace the contents of `lib/waveshare_epd/` with the files from:
-```
-4inch_e-Paper_E.zip → RaspberryPi_JetsonNano/python/lib/waveshare_epd/
-```
-
-InkSlab does not modify the Waveshare driver in any way — it is used as-is.
-
----
-
-## Configuration
-
-All settings are managed from the web dashboard. Stored in `/home/pi/inkslab_config.json`.
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `active_tcg` | `"pokemon"` | Active library (`pokemon`, `mtg`, `lorcana`, `manga`, `comics`, `custom`) |
-| `slab_header_mode` | `"normal"` | Slab header style: `"normal"`, `"inverted"`, or `"off"` |
-| `rotation_angle` | `270` | Display rotation (0/90/180/270) |
-| `day_interval` | `600` | Seconds between cards during the day |
-| `night_interval` | `3600` | Seconds between cards at night |
-| `day_start` / `day_end` | `7` / `23` | Day mode hours (24h format) |
-| `color_saturation` | `2.5` | Color boost for e-paper |
-| `collection_only` | `false` | Only show cards marked as owned |
-| `auto_update_sources` | `[]` | List of libraries to auto-update weekly |
-
----
-
 ## Troubleshooting
 
-| Problem | Fix |
+| Symptom | Fix |
 |---------|-----|
-| Can't find the dashboard | The IP is shown on the e-ink display at boot. Run `hostname -I` on the Pi or check your router. |
-| Display not updating | Check SPI is enabled: `ls /dev/spi*`. Check logs: `journalctl -u inkslab -f` |
-| First card takes 3 minutes after boot | This is intentional — Waveshare ACeP (7-color) panels require a minimum 180 seconds between full refreshes. The IP/QR screen counts as one refresh, so the first card is deliberately delayed to protect the panel. |
-| Display flickers or shows ghost images | The ACeP panel needs 180s between refreshes. Do not lower the card interval below 3 minutes (default is 10 minutes). |
-| Washed-out colors | Increase **Color Saturation** in Settings (default 2.5, try 3.0–4.0) |
-| Web dashboard not loading | Run `journalctl -u inkslab_web -f` |
-| Collection mode shows nothing | Mark some cards as owned in the Collection tab first |
-| Download fails or stalls | Click Stop Download then restart — it resumes safely from where it left off |
-| Comics search returns no results | Check your Metron credentials in Settings > Metron Comics Account |
-| Manga covers showing multiple per volume | Re-run `download_manga_series.py` — it now deduplicates to one cover per volume (Japanese preferred) |
-| Auto-update not running | Check Settings > Auto-Update Sources has sources checked. Check logs: `journalctl -u inkslab_web | grep auto` |
-| Low disk space warning | Free up space by deleting unused libraries in the Downloads tab |
-| WiFi not connecting after change | The old WiFi profile is automatically deleted before connecting to the new one |
+| Display shows nothing after boot | Wait 60–90 seconds — first render is slow. Check `sudo journalctl -u inkslab -n 50` |
+| "No cards available" on screen | No card images downloaded yet. Go to Downloads tab and download a set |
+| Owned Only mode shows no cards | Switch to **All Cards**, browse a set, and mark cards as owned first |
+| Queue switch not firing immediately | The switch fires at the next card interval, not instantly |
+| Admin mode requires PIN entry | Enter your dashboard PIN to access admin features — resets on page refresh |
+| Collection list thumbnails missing | Thumbnails generate from downloaded images. Download content first, then enable thumbnail cache in Settings |
+| Cooldown timer won't let me skip | The Waveshare Spectra 6 requires 3 minutes between full refreshes to prevent display damage. Queue the skip or wait |
+| Downloads fail with permission error | The download scripts run as root via systemd. Check that `/home/pi/inkslab-collections/` is writable by root |
+| Comics search returns no results | Metron API credentials required. Set them in Settings → Metron Comics Account |
+| WiFi setup page doesn't appear | Connect to the **InkSlab-Setup** network, then navigate to `http://192.168.4.1` manually |
+| Display colors look washed out | Increase **Color Saturation** in Settings (default 2.5, try 3.0–3.5) |
+| Service fails to start | Run `sudo bash /home/pi/inkslab/scripts/selfheal.sh` manually to check and repair |
+| OTA update failed | The previous version is automatically restored. Check `sudo journalctl -u inkslab_web -n 50` |
 
 ---
 
 ## Credits
 
-- Pokemon card data: [PokemonTCG/pokemon-tcg-data](https://github.com/PokemonTCG/pokemon-tcg-data) (open data)
-- MTG card data: [Scryfall](https://scryfall.com/) (free API)
-- Lorcana card data: [Lorcast](https://lorcast.com/) (free API)
-- Manga data: [MangaDex](https://mangadex.org/) (free API, no login required)
-- Comics data: [Metron](https://metron.cloud/) (free account required)
-- Display driver: [Waveshare e-Paper](https://github.com/waveshare/e-Paper) (MIT License) — bundled as a vendor snapshot, unmodified
-- Extended features developed with [Claude Sonnet 4.6](https://anthropic.com) by Anthropic
+- Original project: [costamesatechsolutions/inkslab-eink-tcg-display](https://github.com/costamesatechsolutions/inkslab-eink-tcg-display)
+- Waveshare e-Paper library: [waveshare/e-Paper](https://github.com/waveshare/e-Paper)
+- Card data: [PokemonTCG](https://github.com/PokemonTCG/pokemon-tcg-data), [Scryfall](https://scryfall.com/docs/api), [Lorcast](https://lorcast.com), [MangaDex](https://api.mangadex.org), [Metron](https://metron.cloud)
+- 3D printed frame: [InkSlab on MakerWorld](https://makerworld.com/en/models/2452200-inkslab-open-source-e-ink-tcg-display)
+- v4.0 development assisted by [Claude Sonnet 4.6](https://anthropic.com/claude)
+
+---
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE)
-
-
-## Star History
-
-<a href="https://www.star-history.com/?repos=GenerlAce%2Finkslab-eink-tcg-display&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=GenerlAce/inkslab-eink-tcg-display&type=date&theme=dark&legend=bottom-right" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=GenerlAce/inkslab-eink-tcg-display&type=date&legend=bottom-right" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=GenerlAce/inkslab-eink-tcg-display&type=date&legend=bottom-right" />
- </picture>
-</a>
+[AGPL-3.0](LICENSE)

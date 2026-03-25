@@ -1514,7 +1514,10 @@ function factoryReset(btn) {
 }
 
 function changeWifi() {
-  if (!confirm('This will disconnect WiFi and start the setup hotspot.\\n\\nAfter this:\\n1. On your phone, go to Settings > WiFi\\n2. Connect to "InkSlab-Setup"\\n3. Open 10.42.0.1 in your web browser (Safari, Chrome, etc.)\\n\\nContinue?')) return;
+  document.getElementById('wifi-confirm-modal').classList.add('open');
+}
+function _wifiConfirmProceed() {
+  document.getElementById('wifi-confirm-modal').classList.remove('open');
   var el = document.getElementById('wifi-info');
   fetch(API + '/api/wifi/disconnect', {method:'POST'}).then(function() {
     el.innerHTML = '<strong>Setup mode active</strong><br>1. On your phone, go to WiFi settings and connect to <strong>InkSlab-Setup</strong><br>2. Open <strong>http://10.42.0.1</strong> in your web browser';
@@ -2668,6 +2671,117 @@ function initApp() {
 (function() {
   checkAuth(initApp);
 })();
+
+// Delete library: two-step confirm buttons
+(function() {
+  var _confirmTcg = null;
+  var _confirmTimer = null;
+
+  function resetBtn(tcg) {
+    var btn = document.getElementById('delLib-' + tcg);
+    if (!btn) return;
+    var name = (window._tcgRegistry && window._tcgRegistry[tcg]) ? window._tcgRegistry[tcg].name : tcg;
+    btn.textContent = 'Delete ' + name;
+    btn.style.background = 'transparent';
+    btn.style.color = 'var(--danger)';
+    _confirmTcg = null;
+  }
+
+  window.deleteLibraryStep = function(tcg) {
+    if (_confirmTimer) clearTimeout(_confirmTimer);
+    if (_confirmTcg && _confirmTcg !== tcg) resetBtn(_confirmTcg);
+    var btn = document.getElementById('delLib-' + tcg);
+    if (!btn) return;
+    if (_confirmTcg === tcg) {
+      btn.textContent = 'Deleting...';
+      btn.disabled = true;
+      _confirmTcg = null;
+      fetch('/api/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tcg: tcg})
+      }).then(function(r) { return r.json(); }).then(function(d) {
+        btn.disabled = false;
+        resetBtn(tcg);
+        if (d.ok) {
+          if (typeof showToast === 'function') showToast('Library deleted', 2000);
+          if (typeof loadStorage === 'function') loadStorage();
+        } else {
+          if (typeof showToast === 'function') showToast(d.error || 'Delete failed', 3000);
+        }
+      }).catch(function() { btn.disabled = false; resetBtn(tcg); });
+    } else {
+      _confirmTcg = tcg;
+      btn.style.background = 'var(--danger)';
+      btn.style.color = 'var(--bg)';
+      btn.style.border = '1px solid var(--danger)';
+      btn.textContent = 'Confirm Delete?';
+      _confirmTimer = setTimeout(function() { resetBtn(tcg); }, 4000);
+    }
+  };
+
+  function upgradeBtns() {
+    var el = document.getElementById('delete-buttons');
+    if (!el || !window._tcgRegistry) return;
+    el.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
+    el.innerHTML = '';
+    Object.entries(window._tcgRegistry).sort(function(a, b) {
+      if (a[0] === 'custom') return -1;
+      if (b[0] === 'custom') return 1;
+      return a[1].name.localeCompare(b[1].name);
+    }).forEach(function(e) {
+      var tcg = e[0], info = e[1];
+      var b = document.createElement('button');
+      b.id = 'delLib-' + tcg;
+      b.className = 'btn btn-sm btn-block';
+      b.style.cssText = 'background:transparent;color:var(--danger);border:1px solid var(--danger);';
+      b.textContent = 'Delete ' + info.name;
+      b.addEventListener('mouseover', function() { if (_confirmTcg !== tcg) { b.style.background = 'var(--danger)'; b.style.color = 'var(--bg)'; } });
+      b.addEventListener('mouseout', function() { if (_confirmTcg !== tcg) { b.style.background = 'transparent'; b.style.color = 'var(--danger)'; } });
+      b.addEventListener('click', function() { deleteLibraryStep(tcg); });
+      el.appendChild(b);
+    });
+  }
+
+  var _upgradeTimer = setInterval(function() {
+    if (window._tcgRegistry && document.getElementById('delete-buttons')) {
+      upgradeBtns();
+      clearInterval(_upgradeTimer);
+    }
+  }, 300);
+})();
+
+// Search group click delegation and queue card hover/touch preview
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.search-group-btn');
+  if (!btn) return;
+  var name = btn.dataset.name;
+  var owned = btn.dataset.owned === 'true';
+  if (typeof window.toggleSearchGroup === 'function') window.toggleSearchGroup(btn, name, owned);
+});
+
+document.addEventListener('mouseover', function(e) {
+  var img = e.target.closest('.q-thumb');
+  if (!img || !img.src) return;
+  if (typeof window.showThumbHover === 'function') window.showThumbHover(e, img.src);
+});
+
+document.addEventListener('mouseout', function(e) {
+  if (!e.target.closest('.q-thumb')) return;
+  if (typeof window.hideThumbHover === 'function') window.hideThumbHover();
+});
+
+document.addEventListener('touchend', function(e) {
+  var img = e.target.closest('.q-thumb');
+  if (!img) return;
+  e.preventDefault();
+  var el = document.getElementById('thumb-hover-preview');
+  if (el && el.style.display !== 'none') {
+    if (typeof window.hideThumbHover === 'function') window.hideThumbHover();
+  } else {
+    if (img.src && typeof window.showThumbHover === 'function') window.showThumbHover(e.changedTouches[0], img.src);
+  }
+}, {passive: false});
 
 // Reload if browser restores this page from bfcache (back-forward cache).
 // bfcache freezes JS state, so buttons can silently lose their handlers

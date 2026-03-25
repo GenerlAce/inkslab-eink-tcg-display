@@ -107,11 +107,16 @@ except ImportError:
 
 def load_config():
     """Load config from file, falling back to defaults for missing keys."""
+    import fcntl
     config = dict(DEFAULTS)
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
-                saved = json.load(f)
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    saved = json.load(f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
             config.update(saved)
         except Exception as e:
             logger.warning(f"Error reading config: {e}, using defaults")
@@ -120,10 +125,15 @@ def load_config():
 
 def load_collection(tcg):
     """Load the collection list for a given TCG. Returns a set of card IDs."""
+    import fcntl
     if os.path.exists(COLLECTION_FILE):
         try:
             with open(COLLECTION_FILE, 'r') as f:
-                data = json.load(f)
+                fcntl.flock(f, fcntl.LOCK_SH)
+                try:
+                    data = json.load(f)
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
             return set(data.get(tcg, []))
         except Exception:
             pass
@@ -887,10 +897,10 @@ def wait_with_polling(seconds, config_check_interval=5):
             config = new_config
             last_config_check = time.time()
 
-        time.sleep(1)
+        time.sleep(2)
         # Only count elapsed time when not paused
         if not os.path.exists(PAUSE_FILE):
-            elapsed += 1
+            elapsed += 2
 
     return config, None
 

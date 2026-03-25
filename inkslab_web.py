@@ -516,6 +516,8 @@ def api_auth_logout():
     tok = request.headers.get('X-CSRF-Token', '')
     if session.get('csrf_token') and not secrets.compare_digest(tok, session.get('csrf_token', '')):
         return jsonify({'error': 'Invalid CSRF token'}), 403
+    if not session.get('authenticated'):
+        return jsonify({'ok': True})
     session.clear()
     return jsonify({'ok': True})
 
@@ -3582,6 +3584,36 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<div class="modal-overlay" id="wifi-confirm-modal" onclick="this.classList.remove('open')">
+  <div class="modal-content cooldown-modal-content" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <div class="cdm-icon">&#x1F4F6;</div>
+      <div>
+        <div class="cdm-title">Change WiFi Network</div>
+        <div class="cdm-subtitle">This will disconnect WiFi and start the InkSlab-Setup hotspot.</div>
+      </div>
+    </div>
+    <div class="cdm-message">
+      <p>After tapping Continue:</p>
+      <ol style="margin:8px 0 0 18px;padding:0;line-height:1.8">
+        <li>On your phone, go to <strong>Settings &rsaquo; WiFi</strong></li>
+        <li>Connect to <strong>InkSlab-Setup</strong></li>
+        <li>Open <strong>10.42.0.1</strong> in your browser</li>
+      </ol>
+    </div>
+    <div class="cdm-actions">
+      <button class="cdm-btn cdm-btn-queue" onclick="document.getElementById('wifi-confirm-modal').classList.remove('open')">
+        <span class="cdm-btn-icon">&#x2715;</span>
+        <span><span class="cdm-btn-label">Cancel</span></span>
+      </button>
+      <button class="cdm-btn cdm-btn-force" onclick="_wifiConfirmProceed()">
+        <span class="cdm-btn-icon">&#x2192;</span>
+        <span><span class="cdm-btn-label">Continue</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" style="display:none;position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:var(--accent);color:#010001;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
 
 <nav class="bottom-nav">
@@ -3628,12 +3660,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=37"></script>
+<script src="/static/app.js?v=38"></script>
 <script src="/static/collection_view.js?v=7"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>
-<script src="/static/delete_library.js"></script>
-<script src="/static/search_fix.js"></script>
 <script src="/static/pokemon_bulk.js?v=2"></script>
 <script src="/static/mtg_sets.js?v=2"></script>
 <script src="/static/dl_picker.js?v=4"></script>
