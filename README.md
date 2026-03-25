@@ -27,6 +27,10 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
   <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="100%"/>
 </p>
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/560cbaf3-73e3-4a56-8c7a-e98599a34923" alt="InkSlab themes" width="100%"/>
+</p>
+
 ---
 
 ## Features
