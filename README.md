@@ -90,7 +90,7 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="560"/>
+  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="100%"/>
 </p>
 
 ---
