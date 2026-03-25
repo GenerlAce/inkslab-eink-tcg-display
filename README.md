@@ -100,18 +100,14 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
   <tr>
     <td align="center"><b>Desktop — Collection Tab</b></td>
     <td align="center"><b>Mobile — Collection Tab</b></td>
+    <td align="center"><b>Mobile — Card Detail View</b></td>
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/a4d457cf-012e-4919-ba60-1907d644ea0e" alt="Desktop collection tab" width="460"/></td>
     <td align="center"><img src="https://github.com/user-attachments/assets/23df5b94-b3d8-4d11-847d-1d71b9b6c4ec" alt="Mobile collection tab" width="200"/></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/0ce4fe25-87f1-43e9-8cfd-05ffa9bce8db" alt="Mobile card detail view" width="200"/></td>
   </tr>
 </table>
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/0ce4fe25-87f1-43e9-8cfd-05ffa9bce8db" alt="Mobile card detail view" width="260"/>
-  <br/>
-  <em>Mobile — card detail view</em>
-</p>
 
 ---
 
@@ -299,7 +295,7 @@ All settings are stored in `/home/pi/.inkslab/inkslab_config.json` and managed t
 
 | Source | API | Auth Required | Notes |
 |--------|-----|---------------|-------|
-| Pokémon | PokemonTCG (GitHub JSON) | No | Images served from GitHub; 1.5–3s delay per image, 30s cooldown every 50 downloads |
+| Pokémon | PokemonTCG | No | 1.5–3s delay per image, 30s cooldown every 50 downloads |
 | Magic: The Gathering | Scryfall API | No | 10 req/s respected (100ms between API calls); 0.1–0.3s delay per image |
 | Disney Lorcana | Lorcast API | No | 150ms between API calls; 0.1–0.3s delay per image, exponential backoff on 429 |
 | Manga | MangaDex API | No | 1.5s between API calls; 0.5s delay per image; 60s backoff on rate limit; English preferred, Japanese fallback |
