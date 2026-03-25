@@ -1,7 +1,7 @@
 #!/bin/bash
 # InkSlab Install Script
 # Usage: bash install.sh
-# Or one-liner: curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/master/scripts/install.sh | bash
+# Or one-liner: curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/inkslab-4/scripts/install.sh | bash
 
 set -e
 
@@ -52,15 +52,15 @@ fi
 echo -e "${YELLOW}[2/6] Installing system packages...${NC}"
 sudo apt-get update -qq
 sudo apt-get install -y \
-    python3-pip python3-pil python3-numpy python3-spidev \
+    python3-pip python3-pil python3-spidev \
     python3-gpiozero python3-requests python3-flask python3-qrcode \
-    git gpiod libgpiod-dev
+    python3-cryptography git gpiod libgpiod-dev
 echo -e "      ${GREEN}✓ Packages installed${NC}"
 
-# ── Step 3: Gunicorn ──────────────────────────────────────────────────────────
-echo -e "${YELLOW}[3/6] Installing Gunicorn...${NC}"
-sudo pip3 install gunicorn --break-system-packages -q
-echo -e "      ${GREEN}✓ Gunicorn installed${NC}"
+# ── Step 3: Waitress ──────────────────────────────────────────────────────────
+echo -e "${YELLOW}[3/6] Installing Waitress...${NC}"
+sudo pip3 install waitress --break-system-packages -q
+echo -e "      ${GREEN}✓ Waitress installed${NC}"
 
 # ── Step 4: Clone or update InkSlab ───────────────────────────────────────────
 echo -e "${YELLOW}[4/6] Installing InkSlab...${NC}"
