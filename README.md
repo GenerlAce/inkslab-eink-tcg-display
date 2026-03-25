@@ -129,7 +129,7 @@ cd /home/pi
 git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git inkslab
 cd inkslab
 chmod +x scripts/install.sh
-sudo bash scripts/install.sh
+bash scripts/install.sh
 ```
 
 The installer will:
@@ -143,9 +143,9 @@ The installer will:
 ```bash
 # System packages
 sudo apt update
-sudo apt install -y python3-pip python3-pil python3-numpy python3-spidev \
+sudo apt install -y python3-pip python3-pil python3-spidev \
   python3-gpiozero python3-requests python3-flask python3-qrcode \
-  git gpiod libgpiod-dev
+  python3-cryptography git gpiod libgpiod-dev
 
 # Python packages
 pip3 install waitress --break-system-packages
@@ -209,6 +209,7 @@ sudo journalctl -u inkslab_web -f
 | `mtg_sets.js` | MTG set search UI (Scryfall), download button per result |
 | `pokemon_bulk.js` | Pokémon bulk download by name — search and download all prints |
 | `qs_pending.js` | Pending collection switch banner with cross-client sync |
+| `modal_helpers.js` | Reusable modal objects — generic confirm, prompt, and card metadata editor |
 | `apple-touch-icon.png` | iOS bookmark/home screen icon |
 | `inkslab_qr_bg.png` | Background image for QR code screens |
 
@@ -300,6 +301,7 @@ inkslab/
 │   ├── mtg_sets.js             # MTG set search
 │   ├── pokemon_bulk.js         # Pokémon bulk download
 │   ├── qs_pending.js           # Pending switch banner
+│   ├── modal_helpers.js        # Reusable confirm/prompt/card-meta modals
 │   ├── apple-touch-icon.png
 │   └── inkslab_qr_bg.png
 │
