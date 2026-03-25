@@ -85,29 +85,13 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center"><b>Desktop — Display Tab</b></td>
-    <td align="center"><b>Mobile — Display Tab</b></td>
-  </tr>
-  <tr>
-    <td><img src="https://github.com/user-attachments/assets/1b9a7a1a-ad69-4502-b518-f6f97bb1f9e0" alt="Desktop display tab" width="460"/></td>
-    <td align="center"><img src="https://github.com/user-attachments/assets/11a14318-87a9-49ed-8ceb-3e008d37e3cf" alt="Mobile display tab" width="200"/></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1320e2fe-e625-4ec2-b95c-909ccfdf07a4" alt="InkSlab desktop dashboard" width="100%"/>
+</p>
 
-<table>
-  <tr>
-    <td align="center"><b>Desktop — Collection Tab</b></td>
-    <td align="center"><b>Mobile — Collection Tab</b></td>
-    <td align="center"><b>Mobile — Card Detail View</b></td>
-  </tr>
-  <tr>
-    <td><img src="https://github.com/user-attachments/assets/a4d457cf-012e-4919-ba60-1907d644ea0e" alt="Desktop collection tab" width="460"/></td>
-    <td align="center"><img src="https://github.com/user-attachments/assets/23df5b94-b3d8-4d11-847d-1d71b9b6c4ec" alt="Mobile collection tab" width="200"/></td>
-    <td align="center"><img src="https://github.com/user-attachments/assets/0ce4fe25-87f1-43e9-8cfd-05ffa9bce8db" alt="Mobile card detail view" width="200"/></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="360"/>
+</p>
 
 ---
 
