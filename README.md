@@ -9,7 +9,15 @@
 
 Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga covers**, **Comics covers**, and **custom images**.
 
-> **Forked from** [costamesatechsolutions/inkslab-eink-tcg-display](https://github.com/costamesatechsolutions/inkslab-eink-tcg-display) — significantly extended with a full UI redesign, mobile support, security hardening, and new features.
+> **Forked from** [costamesatechsolutions/inkslab-eink-tcg-display](https://github.com/costamesatechsolutions/inkslab-eink-tcg-display) — significantly extended with a full UI redesign, security hardening, and new features.
+
+---
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/61a80074-ac1a-4ff9-abcd-ad413f29da64" alt="InkSlab e-ink display showing a card in graded slab layout" width="600"/>
+  <br/>
+  <em>InkSlab running on a Waveshare 4" Spectra 6 — 7-color e-ink display</em>
+</p>
 
 ---
 
@@ -17,9 +25,9 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 
 ### Web Dashboard
 - Responsive layout: desktop sidebar + mobile bottom tab bar
-- Display tab with live card preview, Up Next queue (5 cards), and Previous cards panel
+- Display tab with live card preview, Up Next queue (5 cards), and Previous cards panel (5 cards)
 - Collection tab with grid and list views, thumbnails, and hover/tap preview
-- Downloads tab with per-source pill selector and progress log
+- Downloads tab with per-source selector and progress log
 - Settings tab with display config, auto-update, PIN protection, and WiFi management
 
 ### Display
@@ -35,12 +43,11 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 - Grid view with thumbnails; List view with hover preview and mobile accordion
 - Quick Switch Collection — change active TCG instantly with a pending-queue notification on other clients
 - Search by card name and add all printings at once
-- Rarity-tier select/deselect
 - Per-series delete with two-step confirmation
 - Favorites list per TCG
 
 ### Downloads
-- Unified pill selector — one interface for all sources
+- Unified collection selector — one interface for all sources
 - Per-set search and download for all TCGs
 - Pokémon bulk download by name (e.g., search "Charizard" → download all prints)
 - MTG set search via Scryfall API
@@ -54,7 +61,7 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 - Auto-update scheduler (weekly, per source, configurable day)
 - Metron Comics account (credentials encrypted with device-specific key)
 - PIN protection — 4–8 digit PIN, PBKDF2-SHA256, rate-limited login
-- Admin mode — PIN re-authentication gate, 60-second auto-close, tab-switch reset
+- Admin mode — PIN re-authentication gate, 60-second auto-close
 - OTA updates — check and install from GitHub directly from the dashboard
 - WiFi setup and management
 - System info panel (CPU temperature, RAM, uptime, IP address)
@@ -76,6 +83,38 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><b>Desktop — Display Tab</b></td>
+    <td align="center"><b>Mobile — Display Tab</b></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/1b9a7a1a-ad69-4502-b518-f6f97bb1f9e0" alt="Desktop display tab" width="460"/></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/11a14318-87a9-49ed-8ceb-3e008d37e3cf" alt="Mobile display tab" width="200"/></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td align="center"><b>Desktop — Collection Tab</b></td>
+    <td align="center"><b>Mobile — Collection Tab</b></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/a4d457cf-012e-4919-ba60-1907d644ea0e" alt="Desktop collection tab" width="460"/></td>
+    <td align="center"><img src="https://github.com/user-attachments/assets/23df5b94-b3d8-4d11-847d-1d71b9b6c4ec" alt="Mobile collection tab" width="200"/></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/0ce4fe25-87f1-43e9-8cfd-05ffa9bce8db" alt="Mobile card detail view" width="260"/>
+  <br/>
+  <em>Mobile — card detail view</em>
+</p>
+
+---
+
 ## Hardware
 
 | Part | Notes |
@@ -92,19 +131,6 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 - MTG: ~15–20 GB (all sets)
 - Lorcana: ~2–4 GB
 - Manga / Comics: varies by series
-
----
-
-## Setup — Pre-Flashed Units
-
-If you received a pre-configured InkSlab unit:
-
-1. Power it on — the display shows an **InkSlab Setup** screen with a QR code and network name
-2. Connect your phone or laptop to the **InkSlab-Setup** WiFi network
-3. A setup page will open automatically (or navigate to `http://192.168.4.1`)
-4. Enter your home WiFi credentials and tap **Connect**
-5. The screen updates with your InkSlab's IP address and a QR code — scan it or navigate to that IP from any browser on your network
-6. Open the dashboard and start downloading card sets from the **Downloads** tab
 
 ---
 
@@ -221,13 +247,13 @@ sudo journalctl -u inkslab_web -f
 | `selfheal.sh` | Pre-boot health check and auto-repair | Automatically via systemd |
 | `ota_update.sh` | Over-the-air update with rollback safety | Via dashboard or manually |
 | `download_cards_pokemon.py` | Download Pokémon card images (PokemonTCG GitHub) | Via dashboard Downloads tab |
+| `download_pokemon_bulk.py` | Bulk download Pokémon cards by name | Via dashboard Downloads tab |
 | `download_cards_mtg.py` | Download MTG card images (Scryfall API) | Via dashboard Downloads tab |
 | `download_cards_lorcana.py` | Download Lorcana card images (Lorcast API) | Via dashboard Downloads tab |
 | `download_covers_manga.py` | Download manga volume covers (MangaDex API) | Via dashboard Downloads tab |
 | `download_manga_series.py` | Search and download a specific manga series | Via dashboard Downloads tab |
 | `download_covers_comics.py` | Download comic cover images (Metron API) | Via dashboard Downloads tab |
 | `download_comic_series.py` | Search and download a specific comics series | Via dashboard Downloads tab |
-| `download_pokemon_bulk.py` | Bulk download Pokémon cards by name | Via dashboard Downloads tab |
 | `download_utils.py` | Shared utilities — disk space check, file download helper | Internal (imported by other scripts) |
 
 ---
@@ -252,6 +278,7 @@ All settings are stored in `/home/pi/.inkslab/inkslab_config.json` and managed t
 | `thumbnail_cache` | bool | `false` | Pre-generate thumbnails for faster collection browsing |
 | `auto_update_sources` | list | `[]` | Libraries included in weekly auto-update: `["pokemon", "mtg", ...]` |
 | `auto_update_day` | int | `0` | Day of week for auto-update: `0` = Sunday, `6` = Saturday |
+| `update_branch` | string | `"master"` | GitHub branch used for OTA update checks and installs |
 | `pin_hash` | string | — | PBKDF2-SHA256 hash of PIN (set automatically when PIN is configured) |
 | `pin_salt` | string | — | Random salt for PIN hash (set automatically) |
 | `pin_setup_done` | bool | — | Tracks whether the first-boot PIN prompt has been completed |
@@ -272,11 +299,11 @@ All settings are stored in `/home/pi/.inkslab/inkslab_config.json` and managed t
 
 | Source | API | Auth Required | Notes |
 |--------|-----|---------------|-------|
-| Pokémon | PokemonTCG (GitHub JSON) | No | Images only; no rate limit |
-| Magic: The Gathering | Scryfall API | No | 10 req/s rate limit respected |
-| Disney Lorcana | Lorcast API | No | — |
-| Manga | MangaDex API | No | Volume cover images; English preferred, Japanese fallback |
-| Comics | Metron API | Yes (free account) | Configure credentials in Settings → Metron Comics Account |
+| Pokémon | PokemonTCG (GitHub JSON) | No | Images served from GitHub; 1.5–3s delay per image, 30s cooldown every 50 downloads |
+| Magic: The Gathering | Scryfall API | No | 10 req/s respected (100ms between API calls); 0.1–0.3s delay per image |
+| Disney Lorcana | Lorcast API | No | 150ms between API calls; 0.1–0.3s delay per image, exponential backoff on 429 |
+| Manga | MangaDex API | No | 1.5s between API calls; 0.5s delay per image; 60s backoff on rate limit; English preferred, Japanese fallback |
+| Comics | Metron API | Yes (free account) | 4s between API calls; 0.5s delay per image; 60s backoff on rate limit. Configure credentials in Settings → Metron Comics Account |
 
 ---
 
@@ -368,6 +395,7 @@ sudo systemctl restart inkslab inkslab_web
 | Display colors look washed out | Increase **Color Saturation** in Settings (default 2.5, try 3.0–3.5) |
 | Service fails to start | Run `sudo bash /home/pi/inkslab/scripts/selfheal.sh` manually to check and repair |
 | OTA update failed | The previous version is automatically restored. Check `sudo journalctl -u inkslab_web -n 50` |
+| Update checker shows updates on dev branch | Expected — set `update_branch` in Settings to match your active branch |
 
 ---
 
