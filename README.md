@@ -14,7 +14,7 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 ---
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/61a80074-ac1a-4ff9-abcd-ad413f29da64" alt="InkSlab e-ink display showing a card in graded slab layout" width="600"/>
+  <img src="https://github.com/user-attachments/assets/46a55bb4-11ae-4b68-ab9b-53ce9e76e3d2" alt="InkSlab e-ink display showing a card in graded slab layout" width="600"/>
   <br/>
   <em>InkSlab running on a Waveshare 4" Spectra 6 — 7-color e-ink display</em>
 </p>
@@ -90,7 +90,7 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="360"/>
+  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="560"/>
 </p>
 
 ---
