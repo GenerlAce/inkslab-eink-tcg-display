@@ -19,6 +19,14 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
   <em>InkSlab running on a Waveshare 4" Spectra 6 — 7-color e-ink display</em>
 </p>
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1320e2fe-e625-4ec2-b95c-909ccfdf07a4" alt="InkSlab desktop dashboard" width="100%"/>
+</p>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="100%"/>
+</p>
+
 ---
 
 ## Features
@@ -80,18 +88,6 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 - Atomic JSON writes (temp file + `os.rename`) throughout
 - Non-blocking thumbnail generation (background thread)
 - Captive portal for WiFi setup on first boot
-
----
-
-## Screenshots
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/1320e2fe-e625-4ec2-b95c-909ccfdf07a4" alt="InkSlab desktop dashboard" width="100%"/>
-</p>
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/f1ad18b3-6ee8-4423-916d-763a30ed8475" alt="InkSlab mobile dashboard" width="100%"/>
-</p>
 
 ---
 
