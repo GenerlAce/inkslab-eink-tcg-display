@@ -747,7 +747,7 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .search-wrap input:focus { outline: none; border-color: var(--accent); }
 .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 14px; pointer-events: none; }
 .search-results { max-height: 400px; overflow-y: auto; }
-#custom-folders { max-height: 200px; overflow-y: auto; }
+#custom-folders { max-height: 320px; overflow-y: auto; }
 .tcg-browse-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .tcg-browse-pill { padding: 9px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid; transition: background 0.15s, color 0.15s; white-space: nowrap; text-align: center; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 @media (max-width: 599px) {
@@ -1095,9 +1095,8 @@ body.auth-pending .bottom-nav { visibility: hidden; }
   .dl-col-left { display: block; flex: 1; min-width: 0; }
   .dl-col-right { display: block; flex: 1; min-width: 0; }
 
-  /* Keep download log always visible and taller on desktop */
-  #dl-log { display: block !important; height: 400px !important; }
-  #btn-dl-log-toggle { display: none !important; }
+  /* Download log: taller on desktop but still toggle-controlled */
+  #dl-log { height: 400px !important; }
 
   /* Collection tab: sets list taller on desktop */
   #tab-collection #coll-top-row { margin-bottom: 12px; }

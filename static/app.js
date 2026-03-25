@@ -1150,6 +1150,7 @@ function runUpdateNow(tcg, btn) {
       if (d.ok) {
         showToast(tcg.toUpperCase() + ' update started!', 2000);
         showTab('downloads');
+        openDlLog();
       } else {
         showToast('Error: ' + (d.error || 'Unknown'), 3000);
       }
