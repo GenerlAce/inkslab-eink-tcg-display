@@ -1137,25 +1137,26 @@ function saveAutoUpdate() {
 }
 
 function runUpdateNow(tcg, btn) {
-  if (!confirm('Run update for ' + tcg.toUpperCase() + ' now? This will start a download.')) return;
-  btn.disabled = true;
-  btn.textContent = 'Starting...';
-  fetch(API + '/api/auto_update/run_now', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({tcg: tcg})
-  }).then(r => r.json()).then(function(d) {
-    btn.disabled = false;
-    btn.textContent = 'Run Now';
-    if (d.ok) {
-      showToast(tcg.toUpperCase() + ' update started!', 2000);
-      showTab('downloads');
-    } else {
-      showToast('Error: ' + (d.error || 'Unknown'), 3000);
-    }
-  }).catch(function() {
-    btn.disabled = false;
-    btn.textContent = 'Run Now';
+  showConfirm('Run Update', 'Start a download update for <strong>' + tcg.toUpperCase() + '</strong> now?', 'Run Now', function() {
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    fetch(API + '/api/auto_update/run_now', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tcg: tcg})
+    }).then(r => r.json()).then(function(d) {
+      btn.disabled = false;
+      btn.textContent = 'Run Now';
+      if (d.ok) {
+        showToast(tcg.toUpperCase() + ' update started!', 2000);
+        showTab('downloads');
+      } else {
+        showToast('Error: ' + (d.error || 'Unknown'), 3000);
+      }
+    }).catch(function() {
+      btn.disabled = false;
+      btn.textContent = 'Run Now';
+    });
   });
 }
 
@@ -1199,9 +1200,10 @@ function saveMetronCreds() {
 }
 
 function clearMetronCreds() {
-  if (!confirm('Disconnect Metron account? Comic downloads will stop working.')) return;
-  fetch(API + '/api/metron/clear', {method: 'POST'}).then(r => r.json()).then(function(d) {
-    if (d.ok) { showToast('Metron account disconnected', 2000); loadMetronStatus(); }
+  showConfirm('Disconnect Metron?', 'Comic downloads will stop working until you reconnect.', 'Disconnect', function() {
+    fetch(API + '/api/metron/clear', {method: 'POST'}).then(r => r.json()).then(function(d) {
+      if (d.ok) { showToast('Metron account disconnected', 2000); loadMetronStatus(); }
+    });
   });
 }
 
@@ -1493,24 +1495,35 @@ function factoryReset(btn) {
     var cb = document.getElementById('keep-' + t);
     if (cb && cb.checked) keepList.push(t);
   });
-  if (!confirm('PREPARE FOR NEW OWNER\\n\\nThis will:\\n- Forget WiFi credentials\\n- Delete ALL unchecked card libraries\\n- Reset all settings\\n- Show a welcome screen on the display\\n\\nAfter it finishes, wait ~30 seconds for the display to update, then unplug. The unit is ready to ship.\\n\\nAre you sure?')) return;
-  if (!confirm('This cannot be undone. Continue?')) return;
-  btn.disabled = true;
-  btn.textContent = 'Resetting...';
-  fetch(API + '/api/factory_reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({keep_cards: keepList})}).then(r => r.json()).then(function(d) {
-    if (d.ok) {
-      showToast('Done! Wait ~30s for the display to update, then unplug to ship.', 8000);
-      document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Ready to ship</strong> — Wait for the display to update, then unplug.';
-      btn.textContent = 'Done — unplug when display updates';
-    } else {
-      showToast('Reset failed: ' + (d.error || 'unknown'));
-      btn.disabled = false;
-      btn.textContent = 'Prepare for New Owner';
+  showConfirm(
+    'Prepare for New Owner',
+    '<ul style="margin:6px 0 0 18px;padding:0;line-height:1.9">' +
+      '<li>Forget WiFi credentials</li>' +
+      '<li>Delete ALL unchecked card libraries</li>' +
+      '<li>Reset all settings</li>' +
+      '<li>Show a welcome screen on the display</li>' +
+    '</ul>' +
+    '<p style="margin:10px 0 0;color:var(--accent)">This cannot be undone. After it finishes, wait ~30s for the display to update, then unplug.</p>',
+    'Continue',
+    function() {
+      btn.disabled = true;
+      btn.textContent = 'Resetting...';
+      fetch(API + '/api/factory_reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({keep_cards: keepList})}).then(r => r.json()).then(function(d) {
+        if (d.ok) {
+          showToast('Done! Wait ~30s for the display to update, then unplug to ship.', 8000);
+          document.getElementById('wifi-info').innerHTML = '<strong style="color:#ff6b6b">Ready to ship</strong> — Wait for the display to update, then unplug.';
+          btn.textContent = 'Done — unplug when display updates';
+        } else {
+          showToast('Reset failed: ' + (d.error || 'unknown'));
+          btn.disabled = false;
+          btn.textContent = 'Prepare for New Owner';
+        }
+      }).catch(function() {
+        showToast('Reset in progress — connection lost because WiFi was disconnected. Wait ~30s for display to update, then unplug.');
+        btn.textContent = 'Done — unplug when display updates';
+      });
     }
-  }).catch(function() {
-    showToast('Reset in progress — connection lost because WiFi was disconnected. Wait ~30s for display to update, then unplug.');
-    btn.textContent = 'Done — unplug when display updates';
-  });
+  );
 }
 
 function changeWifi() {
@@ -2194,21 +2207,22 @@ function checkDownload() {
 }
 
 function deleteData(tcg, btn) {
-  if (!confirm('Delete ALL ' + tcg.toUpperCase() + ' card images? This cannot be undone.')) return;
-  var origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Deleting...';
-  fetch(API + '/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg})})
-    .then(r => r.json()).then(d => {
-      btn.disabled = false;
-      btn.textContent = origText;
-      if (d.ok) { showToast(tcg.toUpperCase() + ' data deleted'); loadStorage(); }
-      else showToast(d.error || 'Delete failed');
-    }).catch(function() {
-      btn.disabled = false;
-      btn.textContent = origText;
-      showToast('Delete failed');
-    });
+  showConfirm('Delete Library', 'Delete ALL <strong>' + tcg.toUpperCase() + '</strong> card images? This cannot be undone.', 'Delete', function() {
+    var origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+    fetch(API + '/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({tcg: tcg})})
+      .then(r => r.json()).then(d => {
+        btn.disabled = false;
+        btn.textContent = origText;
+        if (d.ok) { showToast(tcg.toUpperCase() + ' data deleted'); loadStorage(); }
+        else showToast(d.error || 'Delete failed');
+      }).catch(function() {
+        btn.disabled = false;
+        btn.textContent = origText;
+        showToast('Delete failed');
+      });
+  });
 }
 
 // --- OTA Update ---
@@ -2228,15 +2242,16 @@ function checkUpdate() {
 }
 
 function startUpdate() {
-  if (!confirm('Update InkSlab? The display and web dashboard will restart.')) return;
-  document.getElementById('update-progress').style.display = 'block';
-  document.getElementById('update-stage').textContent = 'Starting update...';
-  document.getElementById('update-bar').style.width = '10%';
-  document.getElementById('btn-update-now').style.display = 'none';
-  fetch(API + '/api/update/start', {method:'POST'}).then(r => r.json()).then(d => {
-    if (d.ok) { pollUpdate(); }
-    else { document.getElementById('update-stage').textContent = 'Error: ' + (d.error || 'unknown'); }
-  }).catch(function() { document.getElementById('update-stage').textContent = 'Failed to start update'; });
+  showConfirm('Update InkSlab', 'The display and web dashboard will restart during the update.', 'Update Now', function() {
+    document.getElementById('update-progress').style.display = 'block';
+    document.getElementById('update-stage').textContent = 'Starting update...';
+    document.getElementById('update-bar').style.width = '10%';
+    document.getElementById('btn-update-now').style.display = 'none';
+    fetch(API + '/api/update/start', {method:'POST'}).then(r => r.json()).then(d => {
+      if (d.ok) { pollUpdate(); }
+      else { document.getElementById('update-stage').textContent = 'Error: ' + (d.error || 'unknown'); }
+    }).catch(function() { document.getElementById('update-stage').textContent = 'Failed to start update'; });
+  });
 }
 
 var _updatePoll = null;
@@ -2302,20 +2317,21 @@ function _loadCustomFolderContent(folderId, el) {
   el.innerHTML = '<div style="padding:8px;color:var(--text-dim);font-size:12px">Loading...</div>';
   fetch(API + '/api/sets/' + folderId + '/cards?tcg=custom').then(r => r.json()).then(cards => {
     el.dataset.loaded = '1';
-    var html = '<div style="padding:6px 0;display:flex;gap:4px;flex-wrap:wrap;align-items:center;justify-content:center;width:100%">';
+    var html = '<div style="padding:8px 0 8px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
     html += '<label class="btn btn-secondary btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">Upload <input type="file" accept="image/png,image/jpeg" multiple style="display:none" onchange="uploadCustomCards(\'' + esc(folderId) + '\',this.files)"></label>';
     html += '<button class="btn btn-secondary btn-sm" onclick="renameCustomFolder(\'' + esc(folderId) + '\')">Rename</button>';
     html += '<button class="btn btn-danger btn-sm" onclick="deleteCustomFolder(\'' + esc(folderId) + '\')">Delete Set</button>';
     html += '</div>';
     if (cards.length) {
       cards.forEach(c => {
-        html += '<div class="card-row"><label style="flex:1;cursor:pointer">';
-        html += '<span class="card-preview-btn">#' + esc(c.number) + ' ' + esc(c.name) + '</span>';
+        var thumb = '/api/card_thumbnail/custom/' + encodeURIComponent(folderId) + '/' + encodeURIComponent(c.id);
+        html += '<div class="card-row" data-thumb="' + thumb + '"><label style="flex:1;cursor:pointer">';
+        html += '<span class="card-preview-btn"><span class="card-num">#' + esc(c.number) + '</span> ' + esc(c.name) + '</span>';
         html += '</label>';
-        html += '<span style="display:flex;gap:4px;align-items:center">';
+        html += '<span style="display:flex;gap:8px;align-items:center;padding-right:12px">';
         html += '<span class="card-rarity">' + esc(c.rarity || '') + '</span>';
-        html += '<span style="cursor:pointer;color:var(--text-dim);font-size:11px" onclick="editCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\',\'' + esc(c.name||'') + '\',\'' + esc(c.number) + '\',\'' + esc(c.rarity||'') + '\')">edit</span>';
-        html += '<span style="cursor:pointer;color:#ff6b6b;font-size:11px" onclick="deleteCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\')">x</span>';
+        html += '<button class="btn btn-secondary btn-xs" style="min-width:48px" onclick="editCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\',\'' + esc(c.name||'') + '\',\'' + esc(c.number) + '\',\'' + esc(c.rarity||'') + '\')">&#x270E; Edit</button>';
+        html += '<button class="btn btn-danger btn-xs" style="min-width:36px" onclick="deleteCustomCard(\'' + esc(folderId) + '\',\'' + esc(c.id) + '\')">&#x2715;</button>';
         html += '</span></div>';
       });
     } else {
@@ -2354,42 +2370,41 @@ function uploadCustomCards(folderId, files) {
 }
 
 function renameCustomFolder(folderId) {
-  var newName = prompt('New name for this set:');
-  if (!newName) return;
-  fetch(API + '/api/custom/rename_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: folderId, name: newName})})
-    .then(r => r.json()).then(d => { if (d.ok) { loadCustomFolders(); showToast('Renamed'); } else showToast(d.error || 'Rename failed'); })
-    .catch(function() { showToast('Rename failed'); });
+  showPrompt('Rename Set', null, 'New name for this set', '', function(newName) {
+    fetch(API + '/api/custom/rename_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: folderId, name: newName})})
+      .then(r => r.json()).then(d => { if (d.ok) { loadCustomFolders(); showToast('Renamed'); } else showToast(d.error || 'Rename failed'); })
+      .catch(function() { showToast('Rename failed'); });
+  });
 }
 
 function deleteCustomFolder(folderId) {
-  if (!confirm('Delete this entire custom set and all its images?')) return;
-  fetch(API + '/api/custom/folder/' + folderId, {method:'DELETE'}).then(r => r.json()).then(d => {
-    if (d.ok) { loadCustomFolders(); loadStorage(); showToast('Deleted'); }
-    else showToast(d.error || 'Delete failed');
-  }).catch(function() { showToast('Delete failed'); });
+  showConfirm('Delete Set', 'Delete this entire custom set and all its images?', 'Delete', function() {
+    fetch(API + '/api/custom/folder/' + folderId, {method:'DELETE'}).then(r => r.json()).then(d => {
+      if (d.ok) { loadCustomFolders(); loadStorage(); showToast('Deleted'); }
+      else showToast(d.error || 'Delete failed');
+    }).catch(function() { showToast('Delete failed'); });
+  });
 }
 
 function deleteCustomCard(folderId, cardId) {
-  if (!confirm('Delete this image?')) return;
-  fetch(API + '/api/custom/card/' + folderId + '/' + cardId, {method:'DELETE'}).then(r => r.json()).then(d => {
-    if (d.ok) { refreshCustomFolder(folderId); loadCustomFolders(); showToast('Deleted'); }
-    else showToast(d.error || 'Delete failed');
-  }).catch(function() { showToast('Delete failed'); });
+  showConfirm('Delete Image', 'Remove this image from the set?', 'Delete', function() {
+    fetch(API + '/api/custom/card/' + folderId + '/' + cardId, {method:'DELETE'}).then(r => r.json()).then(d => {
+      if (d.ok) { refreshCustomFolder(folderId); loadCustomFolders(); showToast('Deleted'); }
+      else showToast(d.error || 'Delete failed');
+    }).catch(function() { showToast('Delete failed'); });
+  });
 }
 
 function editCustomCard(folderId, cardId, name, number, rarity) {
-  var newName = prompt('Card name:', name);
-  if (newName === null) return;
-  var newNum = prompt('Card number:', number);
-  if (newNum === null) return;
-  var newRarity = prompt('Rarity (optional):', rarity);
-  if (newRarity === null) return;
-  fetch(API + '/api/custom/card_metadata', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({folder: folderId, card_id: cardId, name: newName, number: newNum, rarity: newRarity})})
-    .then(r => r.json()).then(d => {
-      if (d.ok) { refreshCustomFolder(folderId); showToast('Updated'); }
-      else showToast(d.error || 'Update failed');
-    }).catch(function() { showToast('Update failed'); });
+  var thumb = '/api/card_thumbnail/custom/' + encodeURIComponent(folderId) + '/' + encodeURIComponent(cardId);
+  _CMM.show(name, number, rarity, thumb, function(newName, newNum, newRarity) {
+    fetch(API + '/api/custom/card_metadata', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({folder: folderId, card_id: cardId, name: newName, number: newNum, rarity: newRarity})})
+      .then(r => r.json()).then(d => {
+        if (d.ok) { refreshCustomFolder(folderId); showToast('Updated'); }
+        else showToast(d.error || 'Update failed');
+      }).catch(function() { showToast('Update failed'); });
+  });
 }
 
 // --- Dynamic TCG UI ---

@@ -3614,6 +3614,89 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </div>
 
+<!-- Generic reusable confirm modal -->
+<div class="modal-overlay" id="generic-confirm-modal" onclick="this.classList.remove('open')">
+  <div class="modal-content cooldown-modal-content" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <div class="cdm-icon" id="gcm-icon">&#x26A0;</div>
+      <div>
+        <div class="cdm-title" id="gcm-title">Confirm</div>
+      </div>
+    </div>
+    <div class="cdm-message" id="gcm-body"></div>
+    <div class="cdm-actions">
+      <button class="cdm-btn cdm-btn-queue" onclick="_GCM.cancel()">
+        <span class="cdm-btn-icon">&#x2715;</span>
+        <span><span class="cdm-btn-label">Cancel</span></span>
+      </button>
+      <button class="cdm-btn cdm-btn-force" id="gcm-confirm-btn" onclick="_GCM.confirm()">
+        <span class="cdm-btn-icon">&#x2713;</span>
+        <span><span class="cdm-btn-label" id="gcm-confirm-label">Confirm</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic reusable prompt modal -->
+<div class="modal-overlay" id="generic-prompt-modal" onclick="this.classList.remove('open')">
+  <div class="modal-content cooldown-modal-content" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <div class="cdm-icon">&#x270E;</div>
+      <div>
+        <div class="cdm-title" id="gpm-title">Enter value</div>
+        <div class="cdm-subtitle" id="gpm-desc" style="display:none"></div>
+      </div>
+    </div>
+    <div class="cdm-message" style="padding-bottom:4px">
+      <input type="text" id="gpm-input" style="width:100%;box-sizing:border-box;margin-top:4px" onkeydown="if(event.key==='Enter')_GPM.confirm();if(event.key==='Escape')_GPM.cancel()">
+    </div>
+    <div class="cdm-actions">
+      <button class="cdm-btn cdm-btn-queue" onclick="_GPM.cancel()">
+        <span class="cdm-btn-icon">&#x2715;</span>
+        <span><span class="cdm-btn-label">Cancel</span></span>
+      </button>
+      <button class="cdm-btn cdm-btn-force" onclick="_GPM.confirm()">
+        <span class="cdm-btn-icon">&#x2713;</span>
+        <span><span class="cdm-btn-label">Save</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Card metadata edit modal (3 fields) -->
+<div class="modal-overlay" id="card-meta-modal" onclick="this.classList.remove('open')">
+  <div class="modal-content cooldown-modal-content" onclick="event.stopPropagation()">
+    <div class="cdm-header">
+      <img id="cmm-preview" src="" alt="" style="width:80px;height:110px;object-fit:cover;border-radius:6px;flex-shrink:0;display:none;background:var(--bg-input);">
+      <div><div class="cdm-title">Edit Card Info</div><div class="cdm-subtitle" id="cmm-subtitle" style="display:none"></div></div>
+    </div>
+    <div class="cdm-message" style="padding-bottom:4px">
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">Card Name</label>
+        <input type="text" id="cmm-name" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')document.getElementById('cmm-number').focus()">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">Card Number</label>
+        <input type="text" id="cmm-number" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')document.getElementById('cmm-rarity').focus()">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:3px">Rarity (optional)</label>
+        <input type="text" id="cmm-rarity" style="width:100%;box-sizing:border-box" onkeydown="if(event.key==='Enter')_CMM.confirm();if(event.key==='Escape')_CMM.cancel()">
+      </div>
+    </div>
+    <div class="cdm-actions">
+      <button class="cdm-btn cdm-btn-queue" onclick="_CMM.cancel()">
+        <span class="cdm-btn-icon">&#x2715;</span>
+        <span><span class="cdm-btn-label">Cancel</span></span>
+      </button>
+      <button class="cdm-btn cdm-btn-force" onclick="_CMM.confirm()">
+        <span class="cdm-btn-icon">&#x2713;</span>
+        <span><span class="cdm-btn-label">Save</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" style="display:none;position:fixed;bottom:74px;left:50%;transform:translateX(-50%);background:var(--accent);color:#010001;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
 
 <nav class="bottom-nav">
@@ -3660,7 +3743,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </div>
 </nav>
 
-<script src="/static/app.js?v=38"></script>
+<script src="/static/modal_helpers.js?v=1"></script>
+<script src="/static/app.js?v=39"></script>
 <script src="/static/collection_view.js?v=7"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>

@@ -111,10 +111,7 @@
   // =========================================================
   // Event delegation on #sets-list
   // =========================================================
-  function init() {
-    var list = document.getElementById('sets-list');
-    if (!list) { setTimeout(init, 300); return; }
-
+  function attachTo(list) {
     // Desktop: mouseover/mouseout for hover panel
     list.addEventListener('mouseover', function(e) {
       if (window.innerWidth < 900) return;
@@ -148,6 +145,15 @@
       if (!e.target.closest('.card-rarity')) return;
       toggleAccordion(row);
     });
+  }
+
+  function init() {
+    var list = document.getElementById('sets-list');
+    if (!list) { setTimeout(init, 300); return; }
+    attachTo(list);
+    // Also attach to custom folders container
+    var custom = document.getElementById('custom-folders');
+    if (custom) attachTo(custom);
   }
 
   if (document.readyState === 'loading') {
