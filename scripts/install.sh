@@ -1,14 +1,14 @@
 #!/bin/bash
 # InkSlab Install Script
 # Usage: bash install.sh
-# Or one-liner: curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/inkslab-4/scripts/install.sh | bash
+# Or one-liner: curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/main/scripts/install.sh | bash
 
 set -e
 
 INKSLAB_DIR="/home/pi/inkslab"
 COLLECTIONS_DIR="/home/pi/inkslab-collections"
 REPO_URL="https://github.com/GenerlAce/inkslab-eink-tcg-display.git"
-REPO_BRANCH="inkslab-4"
+REPO_BRANCH="main"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

@@ -258,7 +258,7 @@ All settings are stored in `/home/pi/.inkslab/inkslab_config.json` and managed t
 | `thumbnail_cache` | bool | `false` | Pre-generate thumbnails for faster collection browsing |
 | `auto_update_sources` | list | `[]` | Libraries included in weekly auto-update: `["pokemon", "mtg", ...]` |
 | `auto_update_day` | int | `0` | Day of week for auto-update: `0` = Sunday, `6` = Saturday |
-| `update_branch` | string | `"inkslab-4"` | GitHub branch used for OTA update checks and installs |
+| `update_branch` | string | `"main"` | GitHub branch used for OTA update checks and installs |
 | `pin_hash` | string | — | PBKDF2-SHA256 hash of PIN (set automatically when PIN is configured) |
 | `pin_salt` | string | — | Random salt for PIN hash (set automatically) |
 | `pin_setup_done` | bool | — | Tracks whether the first-boot PIN prompt has been completed |
@@ -375,7 +375,7 @@ sudo systemctl restart inkslab inkslab_web
 | Display colors look washed out | Increase **Color Saturation** in Settings (default 2.5, try 3.0–3.5) |
 | Service fails to start | Run `sudo bash /home/pi/inkslab/scripts/selfheal.sh` manually to check and repair |
 | OTA update failed | The previous version is automatically restored. Check `sudo journalctl -u inkslab_web -n 50` |
-| Update checker shows updates on wrong branch | Expected on fresh installs — `update_branch` defaults to `inkslab-4`. Change it in Settings if you're tracking a different branch |
+| Update checker shows updates on wrong branch | Expected on fresh installs — `update_branch` defaults to `main`. Change it in Settings if you're tracking a different branch |
 
 ---
 

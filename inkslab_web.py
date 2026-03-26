@@ -130,7 +130,7 @@ DEFAULTS = {
     "image_fit": "contain",
     "image_bg": "black",
     "thumbnail_cache": False,
-    "update_branch": "inkslab-4",
+    "update_branch": "main",
 }
 
 # Track running download process

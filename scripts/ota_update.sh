@@ -72,10 +72,10 @@ cd "$SCRIPT_DIR" || {
 # Fix "dubious ownership" error — service runs as root but repo is owned by pi
 git config --global safe.directory "$SCRIPT_DIR" 2>/dev/null
 
-# Read update branch from config (default: inkslab-4)
-BRANCH=$(python3 -c "import json; d=json.load(open('/home/pi/.inkslab/inkslab_config.json')); print(d.get('update_branch','inkslab-4'))" 2>/dev/null)
+# Read update branch from config (default: main)
+BRANCH=$(python3 -c "import json; d=json.load(open('/home/pi/.inkslab/inkslab_config.json')); print(d.get('update_branch','main'))" 2>/dev/null)
 if [ -z "$BRANCH" ]; then
-    BRANCH="inkslab-4"
+    BRANCH="main"
 fi
 
 # Save current commit hash for rollback
