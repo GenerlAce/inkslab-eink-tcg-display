@@ -35,7 +35,7 @@ DEFAULTS = {
     "day_end": 23,
     "color_saturation": 2.5,
     "collection_only": False,
-    "slab_header_mode": "normal",
+    "slab_header_mode": "off",
     "image_fit": "contain",
     "image_bg": "black",
     "screen": "4in0e",

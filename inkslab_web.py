@@ -126,7 +126,7 @@ DEFAULTS = {
     "collection_only": False,
     "auto_update_sources": [],
     "auto_update_day": 0,
-    "slab_header_mode": "normal",
+    "slab_header_mode": "off",
     "image_fit": "contain",
     "image_bg": "black",
     "thumbnail_cache": False,
