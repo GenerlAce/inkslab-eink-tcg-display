@@ -1,7 +1,6 @@
 function mtgSetSearch() {
   var q = document.getElementById('mtg-set-search-input').value.trim();
   var resultsEl = document.getElementById('mtg-set-search-results');
-  if (!q) return;
   resultsEl.style.display = 'block';
   resultsEl.innerHTML = '<div style="padding:10px;color:var(--text-dim);">Searching...</div>';
   fetch(API + '/api/mtg/sets?q=' + encodeURIComponent(q))
@@ -15,13 +14,18 @@ function mtgSetSearch() {
       }
       var html = '';
       results.forEach(function(s) {
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);">'
-          + '<div>'
-          + '<div style="font-weight:600;"><a href="https://scryfall.com/sets/' + esc(s.code) + '" target="_blank" style="color:var(--text-dim);text-decoration:none;">' + esc(s.name) + '</a></div>'
-          + '<div style="color:var(--text-dim);font-size:12px;opacity:0.7;">' + esc(s.code.toUpperCase()) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.card_count + ' cards</div>'
-          + '</div>'
+        var imgHtml = s.icon
+          ? '<img src="' + esc(s.icon) + '" style="width:28px;height:28px;object-fit:contain;flex-shrink:0;filter:invert(1) sepia(1) saturate(2) hue-rotate(150deg) brightness(1.2);" onerror="this.style.display=\'none\'">'
+          : '<div style="width:28px;flex-shrink:0;"></div>';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:8px;">'
+          + '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+          + imgHtml
+          + '<div style="min-width:0;">'
+          + '<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.name) + '</div>'
+          + '<div style="color:var(--text-dim);font-size:12px;">' + esc(s.code.toUpperCase()) + ' &middot; ' + esc(s.released) + ' &middot; ' + s.card_count + ' cards</div>'
+          + '</div></div>'
           + '<button onclick="mtgSetDownload(this)" data-set-code="' + esc(s.code) + '" data-set-name="' + esc(s.name) + '"'
-          + ' style="padding:6px 14px;background:var(--accent2);color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download All</button>'
+          + ' style="padding:6px 14px;background:var(--accent2);color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;flex-shrink:0;">Download</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;

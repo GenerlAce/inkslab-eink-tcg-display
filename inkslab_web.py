@@ -126,11 +126,12 @@ DEFAULTS = {
     "collection_only": False,
     "auto_update_sources": [],
     "auto_update_day": 0,
-    "slab_header_mode": "normal",
+    "slab_header_mode": "off",
     "image_fit": "contain",
     "image_bg": "black",
     "thumbnail_cache": False,
-    "update_branch": "inkslab-4",
+    "update_branch": "main",
+    "screen": "4in0e",
 }
 
 # Track running download process
@@ -702,6 +703,12 @@ def api_set_config():
             with open(NEXT_TRIGGER, 'w') as f:
                 f.write('1')
         except OSError:
+            pass
+    elif 'screen' in changed:
+        # Screen type change requires full inkslab service restart to reinitialize hardware
+        try:
+            subprocess.Popen(['systemctl', 'restart', 'inkslab'])
+        except Exception:
             pass
     elif changed & {'color_saturation', 'slab_header_mode', 'rotation_angle', 'image_fit', 'image_bg'}:
         # Re-render the current card with new display settings, no advance
@@ -1853,6 +1860,7 @@ def api_mtg_sets():
                 "name": name,
                 "released": s.get("released_at", ""),
                 "card_count": s.get("card_count", 0),
+                "icon": s.get("icon_svg_uri", ""),
             })
         results.sort(key=lambda x: x["released"], reverse=True)
         return jsonify({"results": results[:50]})
@@ -1881,6 +1889,7 @@ def api_pokemon_sets():
                 "name": name,
                 "total": s.get("total", 0),
                 "released": s.get("releaseDate", ""),
+                "symbol": s.get("images", {}).get("symbol", ""),
             })
         results.sort(key=lambda x: x["released"], reverse=True)
         return jsonify({"results": results[:50]})
@@ -1904,6 +1913,7 @@ def api_lorcana_sets():
                 "name": s.get("name", ""),
                 "released": s.get("released_at", s.get("released", "")),
                 "card_count": s.get("card_count", s.get("total_cards", 0)),
+                "image": s.get("image", s.get("image_uri", "")),
             })
         results.sort(key=lambda x: x["released"], reverse=True)
         return jsonify({"results": results})
@@ -2154,7 +2164,7 @@ def api_version():
 def api_update_check():
     """Check if updates are available by comparing local vs remote HEAD."""
     try:
-        branch = load_config().get('update_branch', 'inkslab-4')
+        branch = load_config().get('update_branch', 'main')
         # Fetch first so we can compare against remote
         fetch = subprocess.run(['git', 'fetch', 'origin', branch], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=30)
@@ -3004,7 +3014,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="InkSlab">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>InkSlab</title>
-<link rel="stylesheet" href="/static/style.css?v=47">
+<link rel="stylesheet" href="/static/style.css?v=49">
 <script>window.CSRF_TOKEN = '__CSRF_TOKEN__';</script>
 <script>(function(){var T={'default':{'--bg-card':'#16303E','--bg-panel':'#132E3E','--bg-input':'#1F333F','--border':'#1F333F','--text':'#D8E6E4','--text-dim':'#6BCCBD','--text-hi':'#FCFDF0','--accent':'#36A5CA','--accent2':'#6BCCBD','--border-hi':'#36A5CA44'},'lorcana':{'--bg-card':'#1A0B2E','--bg-panel':'#130823','--bg-input':'#211040','--border':'#2D1554','--text':'#E8D0F8','--text-dim':'#C084FC','--text-hi':'#F5EEFF','--accent':'#C084FC','--accent2':'#A855F7','--border-hi':'#C084FC44'},'pokemon':{'--bg-card':'#0D1E2E','--bg-panel':'#091629','--bg-input':'#122035','--border':'#1A3550','--text':'#C8E8F8','--text-dim':'#36A5CA','--text-hi':'#E8F4FA','--accent':'#36A5CA','--accent2':'#5bbfe0','--border-hi':'#36A5CA44'},'mtg':{'--bg-card':'#0E1E1C','--bg-panel':'#091816','--bg-input':'#132220','--border':'#1C3330','--text':'#C8E8E4','--text-dim':'#6BCCBD','--text-hi':'#E8F8F5','--accent':'#6BCCBD','--accent2':'#4db8a8','--border-hi':'#6BCCBD44'},'manga':{'--bg-card':'#2A0F20','--bg-panel':'#200B18','--bg-input':'#33102A','--border':'#401535','--text':'#F8D0E8','--text-dim':'#F472B6','--text-hi':'#FFF0F8','--accent':'#F472B6','--accent2':'#EC4899','--border-hi':'#F472B644'},'comics':{'--bg-card':'#2A1000','--bg-panel':'#200C00','--bg-input':'#301500','--border':'#3D1800','--text':'#F8DCC0','--text-dim':'#F97316','--text-hi':'#FFF4EC','--accent':'#F97316','--accent2':'#EA580C','--border-hi':'#F9731644'},'custom':{'--bg-card':'#241600','--bg-panel':'#1B1000','--bg-input':'#2E1C00','--border':'#392200','--text':'#F8E8C0','--text-dim':'#F59E0B','--text-hi':'#FFF8E8','--accent':'#F59E0B','--accent2':'#D97706','--border-hi':'#F59E0B44'}};var t=localStorage.getItem('inkslab_theme')||'default';var k=t==='auto'?(localStorage.getItem('inkslab_last_tcg')||'default'):t;var p=T[k]||T['default'];var r=document.documentElement;Object.keys(p).forEach(function(k){r.style.setProperty(k,p[k]);});}());</script>
 </head>
@@ -3182,6 +3192,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       </label>
     </div>
     <div id="precache-status" style="font-size:11px;color:var(--text-dim);display:none;text-align:right;grid-column:2;padding-bottom:6px;"></div>
+    <div class="settings-subhead">Hardware</div>
+    <div class="form-row">
+      <span class="row-label">Screen Type</span>
+      <select id="cfg-screen">
+        <option value="4in0e">Waveshare 4&quot; Spectra 6</option>
+        <option value="7in3f">Inky Impression 7.3&quot; Spectra 6</option>
+      </select>
+    </div>
     <div class="settings-subhead">Appearance</div>
     <div class="form-row">
       <span class="row-label">Slab Header</span>
@@ -3410,7 +3428,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div id="dl-lorcana-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
-            <input id="lorcana-search-input" type="text" placeholder="e.g. D23 Collection, Reign of Jafar... (or leave blank for all)"
+            <input id="lorcana-search-input" type="text" placeholder="Search sets, or leave blank to browse all..."
               oninput="_dlInputChange(this)" onkeydown="if(event.key==='Enter')lorcanaSearch()" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('lorcana-search-input','lorcana-search-results')" style="display:none">&#10005;</button>
           </div>
@@ -3422,7 +3440,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div id="dl-mtg-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
-            <input id="mtg-set-search-input" type="text" placeholder="e.g. Modern Horizons, Bloomburrow, Foundations..."
+            <input id="mtg-set-search-input" type="text" placeholder="Search sets, or leave blank to browse all..."
               oninput="_dlInputChange(this)" onkeydown="if(event.key==='Enter')mtgSetSearch()" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('mtg-set-search-input','mtg-set-search-results')" style="display:none">&#10005;</button>
           </div>
@@ -3434,7 +3452,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div id="dl-pokemon-search" style="display:none;margin-top:4px;padding-top:8px;border-top:1px solid var(--border);">
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <div style="position:relative;flex:1">
-            <input id="pokemon-search-input" type="text" placeholder="e.g. Base Set, Scarlet & Violet, Prismatic Evolutions..."
+            <input id="pokemon-search-input" type="text" placeholder="Search sets, or leave blank to browse all..."
               oninput="_dlInputChange(this)" style="width:100%;padding:8px;padding-right:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-hi);font-size:14px;box-sizing:border-box;">
             <button class="search-clear-btn" onclick="_dlClearInput('pokemon-search-input','pokemon-search-results')" style="display:none">&#10005;</button>
           </div>
@@ -3758,12 +3776,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </nav>
 
 <script src="/static/modal_helpers.js?v=1"></script>
-<script src="/static/app.js?v=43"></script>
+<script src="/static/app.js?v=47"></script>
 <script src="/static/collection_view.js?v=7"></script>
 <script src="/static/collection_list_preview.js?v=1"></script>
 <script src="/static/qs_pending.js?v=4"></script>
-<script src="/static/pokemon_bulk.js?v=2"></script>
-<script src="/static/mtg_sets.js?v=2"></script>
+<script src="/static/pokemon_bulk.js?v=5"></script>
+<script src="/static/mtg_sets.js?v=5"></script>
 <script src="/static/dl_picker.js?v=4"></script>
 <script src="/static/mobile_qs.js?v=2"></script>
 </body>

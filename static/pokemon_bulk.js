@@ -1,7 +1,6 @@
 function pokemonSearch() {
   var q = document.getElementById('pokemon-search-input').value.trim();
   var resultsEl = document.getElementById('pokemon-search-results');
-  if (!q) return;
   resultsEl.style.display = 'block';
   resultsEl.innerHTML = '<div style="padding:10px;color:var(--text-dim);">Searching...</div>';
   fetch(API + '/api/pokemon/sets?q=' + encodeURIComponent(q))
@@ -15,13 +14,18 @@ function pokemonSearch() {
       }
       var html = '';
       results.forEach(function(s) {
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);">'
-          + '<div>'
-          + '<div style="font-weight:600;">' + esc(s.name) + '</div>'
-          + '<div style="color:var(--text-dim);font-size:12px;">' + esc(s.id) + ' &mdash; ' + esc(s.released) + ' &mdash; ' + s.total + ' cards</div>'
-          + '</div>'
+        var imgHtml = s.symbol
+          ? '<img src="' + esc(s.symbol) + '" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;" onerror="this.style.display=\'none\'">'
+          : '<div style="width:36px;flex-shrink:0;"></div>';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:8px;">'
+          + '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+          + imgHtml
+          + '<div style="min-width:0;">'
+          + '<div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.name) + '</div>'
+          + '<div style="color:var(--text-dim);font-size:12px;">' + esc(s.id.toUpperCase()) + ' &middot; ' + esc(s.released) + ' &middot; ' + s.total + ' cards</div>'
+          + '</div></div>'
           + '<button onclick="pokemonSetDownload(this)" data-set-id="' + esc(s.id) + '" data-set-name="' + esc(s.name) + '"'
-          + ' style="padding:6px 14px;background:#22d3ee;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download</button>'
+          + ' style="padding:6px 14px;background:#22d3ee;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;flex-shrink:0;">Download</button>'
           + '</div>';
       });
       resultsEl.innerHTML = html;
