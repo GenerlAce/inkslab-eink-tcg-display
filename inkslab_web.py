@@ -2164,7 +2164,7 @@ def api_version():
 def api_update_check():
     """Check if updates are available by comparing local vs remote HEAD."""
     try:
-        branch = load_config().get('update_branch', 'inkslab-4')
+        branch = load_config().get('update_branch', 'main')
         # Fetch first so we can compare against remote
         fetch = subprocess.run(['git', 'fetch', 'origin', branch], cwd=SCRIPT_DIR,
                                capture_output=True, text=True, timeout=30)

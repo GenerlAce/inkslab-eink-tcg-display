@@ -1259,7 +1259,7 @@ function loadSettings() {
     var thumbEl = document.getElementById('cfg-thumbnails');
     if (thumbEl) thumbEl.checked = c.thumbnail_cache !== false;
     var chanLbl = document.getElementById('update-channel-label');
-    if (chanLbl) chanLbl.textContent = c.update_branch || 'inkslab-4';
+    if (chanLbl) chanLbl.textContent = c.update_branch || 'main';
   });
 }
 
