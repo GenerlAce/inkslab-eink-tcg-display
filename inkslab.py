@@ -38,6 +38,7 @@ DEFAULTS = {
     "slab_header_mode": "normal",
     "image_fit": "contain",
     "image_bg": "black",
+    "screen": "4in0e",
 }
 
 # --- DYNAMIC TCG REGISTRY ---
@@ -97,12 +98,45 @@ if os.path.exists(_sdk_libdir):
 if os.path.exists(_local_libdir):
     sys.path.insert(0, _local_libdir)
 
-try:
-    from waveshare_epd import epd4in0e
-except ImportError:
-    logger.error(f"Cannot import waveshare_epd. Checked: {_sdk_libdir}, {_local_libdir}")
-    logger.error("Make sure the Waveshare e-Paper library is installed.")
-    sys.exit(1)
+
+class DisplayWrapper:
+    """Unified display interface for Waveshare 4in0e and Inky Impression 7.3".
+    All callers use init() / display(img) / sleep() regardless of screen type."""
+
+    _DIMS = {'4in0e': (400, 600), '7in3f': (480, 800)}
+
+    def __init__(self, screen_type='4in0e'):
+        self.screen_type = screen_type
+        self.width, self.height = self._DIMS.get(screen_type, (400, 600))
+        if screen_type == '7in3f':
+            try:
+                from inky.auto import auto
+                self._dev = auto()
+            except Exception as e:
+                logger.error(f"Failed to init Inky 7.3\" display: {e}")
+                raise
+        else:
+            try:
+                from waveshare_epd import epd4in0e
+                self._dev = epd4in0e.EPD()
+            except ImportError:
+                logger.error(f"Cannot import waveshare_epd. Checked: {_sdk_libdir}, {_local_libdir}")
+                raise
+
+    def init(self):
+        if self.screen_type != '7in3f':
+            self._dev.init()
+
+    def display(self, img):
+        if self.screen_type == '7in3f':
+            self._dev.set_image(img.convert('RGB'))
+            self._dev.show()
+        else:
+            self._dev.display(self._dev.getbuffer(img))
+
+    def sleep(self):
+        if self.screen_type != '7in3f':
+            self._dev.sleep()
 
 
 def load_config():
@@ -299,7 +333,7 @@ def show_splash_screen(epd, config):
         img_rgb.close()
 
         epd.init()
-        epd.display(epd.getbuffer(final))
+        epd.display(final)
         epd.sleep()
         final.close()
         logger.info(f"Splash screen shown: dashboard at {url_text}")
@@ -377,7 +411,7 @@ def show_setup_screen(epd, config):
         img_rgb.close()
 
         epd.init()
-        epd.display(epd.getbuffer(final))
+        epd.display(final)
         epd.sleep()
         final.close()
         logger.info("Setup screen shown: connect to InkSlab-Setup WiFi")
@@ -442,7 +476,7 @@ def show_no_cards_screen(epd, config, ip=None):
         img_rgb.close()
 
         epd.init()
-        epd.display(epd.getbuffer(final))
+        epd.display(final)
         epd.sleep()
         final.close()
         logger.info("No-cards welcome screen shown")
@@ -499,7 +533,7 @@ def show_unbox_screen(epd, config):
         img_rgb.close()
 
         epd.init()
-        epd.display(epd.getbuffer(final))
+        epd.display(final)
         epd.sleep()
         final.close()
         logger.info("Unbox/shipping screen shown")
@@ -573,6 +607,9 @@ def get_card_metadata(img_path, master_index):
     return info
 
 
+_SLAB_HEADER_H = 52  # pixels reserved at top for the slab header bar
+
+
 def create_slab_layout(img_path, master_index, header_mode="normal", image_fit="contain", image_bg="black"):
     """Create a PSA-slab-style layout with card info header above the card image.
     header_mode: 'normal' (white bg, black text), 'inverted' (black bg, white text), 'off' (full card)
@@ -584,118 +621,115 @@ def create_slab_layout(img_path, master_index, header_mode="normal", image_fit="
     with Image.open(img_path) as card_raw:
         card = card_raw.convert("RGB")
 
+        if header_mode == "off":
+            # Full canvas — card fills entire display
+            if image_fit == "stretch":
+                card_fitted = card.resize((DISPLAY_WIDTH, DISPLAY_HEIGHT), Image.Resampling.LANCZOS)
+                card.close()
+                canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
+                canvas.paste(card_fitted, (0, 0))
+                card_fitted.close()
+            elif image_fit == "fill":
+                aspect = card.width / card.height
+                display_aspect = DISPLAY_WIDTH / DISPLAY_HEIGHT
+                if aspect > display_aspect:
+                    new_h = DISPLAY_HEIGHT
+                    new_w = int(new_h * aspect)
+                else:
+                    new_w = DISPLAY_WIDTH
+                    new_h = int(new_w / aspect)
+                card_resized = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                card.close()
+                left = (new_w - DISPLAY_WIDTH) // 2
+                top = (new_h - DISPLAY_HEIGHT) // 2
+                card_fitted = card_resized.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
+                card_resized.close()
+                canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
+                canvas.paste(card_fitted, (0, 0))
+                card_fitted.close()
+            else:  # contain
+                scale = min(DISPLAY_WIDTH / card.width, DISPLAY_HEIGHT / card.height)
+                new_w = int(card.width * scale)
+                new_h = int(card.height * scale)
+                card_resized = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                card.close()
+                canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
+                canvas.paste(card_resized, ((DISPLAY_WIDTH - new_w) // 2, (DISPLAY_HEIGHT - new_h) // 2))
+                card_resized.close()
+            return canvas, info
+
+        # Normal or inverted: reserve header bar at top, fit card in remaining space
+        bg_color = (0, 0, 0) if header_mode == "inverted" else (255, 255, 255)
+        text_color = (255, 255, 255) if header_mode == "inverted" else (0, 0, 0)
+        card_area_h = DISPLAY_HEIGHT - _SLAB_HEADER_H
+
         if image_fit == "stretch":
-            card_fitted = card.resize((DISPLAY_WIDTH, DISPLAY_HEIGHT), Image.Resampling.LANCZOS)
+            card_resized = card.resize((DISPLAY_WIDTH, card_area_h), Image.Resampling.LANCZOS)
             card.close()
+            card_x, card_y = 0, _SLAB_HEADER_H
         elif image_fit == "fill":
-            # Scale to cover, center-crop
             aspect = card.width / card.height
-            display_aspect = DISPLAY_WIDTH / DISPLAY_HEIGHT
-            if aspect > display_aspect:
-                new_h = DISPLAY_HEIGHT
+            card_area_aspect = DISPLAY_WIDTH / card_area_h
+            if aspect > card_area_aspect:
+                new_h = card_area_h
                 new_w = int(new_h * aspect)
             else:
                 new_w = DISPLAY_WIDTH
                 new_h = int(new_w / aspect)
-            card_resized = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            tmp = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
             card.close()
             left = (new_w - DISPLAY_WIDTH) // 2
-            top = (new_h - DISPLAY_HEIGHT) // 2
-            card_fitted = card_resized.crop((left, top, left + DISPLAY_WIDTH, top + DISPLAY_HEIGHT))
-            card_resized.close()
-        else:  # contain (letterbox)
-            scale = min(DISPLAY_WIDTH / card.width, DISPLAY_HEIGHT / card.height)
+            top = (new_h - card_area_h) // 2
+            card_resized = tmp.crop((left, top, left + DISPLAY_WIDTH, top + card_area_h))
+            tmp.close()
+            card_x, card_y = 0, _SLAB_HEADER_H
+        else:  # contain — letterbox within card area
+            scale = min(DISPLAY_WIDTH / card.width, card_area_h / card.height)
             new_w = int(card.width * scale)
             new_h = int(card.height * scale)
             card_resized = card.resize((new_w, new_h), Image.Resampling.LANCZOS)
             card.close()
-            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
-            x_pos = (DISPLAY_WIDTH - new_w) // 2
-            y_pos = (DISPLAY_HEIGHT - new_h) // 2
-            canvas.paste(card_resized, (x_pos, y_pos))
-            card_resized.close()
-            if header_mode == "off":
-                return canvas, info
-            card_fitted = canvas
+            card_x = (DISPLAY_WIDTH - new_w) // 2
+            card_y = _SLAB_HEADER_H + (card_area_h - new_h) // 2
 
-        if header_mode == "off":
-            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
-            canvas.paste(card_fitted, (0, 0))
-            card_fitted.close()
-            return canvas, info
+        # Build canvas: header bar at top, bg_fill below for letterbox margins
+        canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_fill)
+        header_bar = Image.new("RGB", (DISPLAY_WIDTH, _SLAB_HEADER_H), bg_color)
+        canvas.paste(header_bar, (0, 0))
+        header_bar.close()
+        canvas.paste(card_resized, (card_x, card_y))
+        card_resized.close()
 
-        # Normal or inverted: place card and draw header overlay
-        bg_color = (0, 0, 0) if header_mode == "inverted" else (255, 255, 255)
-        text_color = (255, 255, 255) if header_mode == "inverted" else (0, 0, 0)
+        # Draw header text centered in the header bar
+        draw = ImageDraw.Draw(canvas)
+        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        try:
+            font_set   = ImageFont.truetype(font_path, 14)
+            font_stats = ImageFont.truetype(font_path, 18)
+        except IOError:
+            font_set   = ImageFont.load_default()
+            font_stats = ImageFont.load_default()
 
-        if image_fit == "contain":
-            # card_fitted is already a full canvas — draw header on top
-            canvas = card_fitted
-            draw = ImageDraw.Draw(canvas)
-            y_pos = (DISPLAY_HEIGHT - new_h) // 2  # top of the card in canvas
-        else:
-            canvas = Image.new("RGB", (DISPLAY_WIDTH, DISPLAY_HEIGHT), bg_color)
-            draw = ImageDraw.Draw(canvas)
-            canvas.paste(card_fitted, (0, 0))
-            card_fitted.close()
-            y_pos = 0  # card fills from top; overlay bar drawn at top
+        line1 = info["set_info"]
+        line2 = info["stats"]
+        w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
+        w2 = draw.textbbox((0, 0), line2, font=font_stats)[2]
 
-        # Draw header text in the space above the card
-        if y_pos > 30:
+        if w1 > DISPLAY_WIDTH - 20:
             try:
-                font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 14)
-                font_stats = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+                font_set = ImageFont.truetype(font_path, 11)
+                w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
             except IOError:
-                font_set = ImageFont.load_default()
-                font_stats = ImageFont.load_default()
+                pass
 
-            line1 = info["set_info"]
-            line2 = info["stats"]
+        h1 = draw.textbbox((0, 0), line1, font=font_set)[3]
+        h2 = draw.textbbox((0, 0), line2, font=font_stats)[3]
+        gap = 3
+        start_y = (_SLAB_HEADER_H - h1 - gap - h2) // 2
 
-            # Measure text width
-            w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
-            w2 = draw.textbbox((0, 0), line2, font=font_stats)[2]
+        draw.text(((DISPLAY_WIDTH - w1) / 2, start_y), line1, font=font_set, fill=text_color)
+        draw.text(((DISPLAY_WIDTH - w2) / 2, start_y + h1 + gap), line2, font=font_stats, fill=text_color)
 
-            # Auto-shrink set name if it overflows
-            if w1 > 380:
-                try:
-                    font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
-                    w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
-                except IOError:
-                    pass
-
-            # Center text vertically in header area
-            h1, h2, gap = 14, 18, 4
-            total_h = h1 + h2 + gap
-            start_y = (y_pos - total_h) // 2
-
-            draw.text(((DISPLAY_WIDTH - w1) / 2, start_y), line1, font=font_set, fill=text_color)
-            draw.text(((DISPLAY_WIDTH - w2) / 2, start_y + h1 + gap), line2, font=font_stats, fill=text_color)
-
-        # If no header space, draw overlay bar at top of image
-        if y_pos <= 30:
-            try:
-                font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 13)
-                font_stats = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
-            except IOError:
-                font_set = ImageFont.load_default()
-                font_stats = ImageFont.load_default()
-            line1 = info["set_info"]
-            line2 = info["stats"]
-            bar_h = 48
-            bar = Image.new("RGB", (DISPLAY_WIDTH, bar_h), bg_color)
-            canvas.paste(bar, (0, 0))
-            bar.close()
-            w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
-            w2 = draw.textbbox((0, 0), line2, font=font_stats)[2]
-            if w1 > 380:
-                try:
-                    font_set = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
-                    w1 = draw.textbbox((0, 0), line1, font=font_set)[2]
-                except IOError:
-                    pass
-            draw.text(((DISPLAY_WIDTH - w1) / 2, 4), line1, font=font_set, fill=text_color)
-            draw.text(((DISPLAY_WIDTH - w2) / 2, 22), line2, font=font_stats, fill=text_color)
         return canvas, info
 
 
@@ -931,16 +965,21 @@ def main():
     deck = ShuffleDeck(library_dir, collection)
     _deck_collection_only = config["collection_only"]
 
+    # Set display dimensions based on screen type
+    screen_type = config.get("screen", "4in0e")
+    global DISPLAY_WIDTH, DISPLAY_HEIGHT
+    DISPLAY_WIDTH, DISPLAY_HEIGHT = DisplayWrapper._DIMS.get(screen_type, (400, 600))
+
     # Initialize the e-paper display (retry up to 5 times with increasing delays)
     # Note: we skip Clear() here — the first screen (setup/splash/no-cards) will
     # overwrite the display anyway, saving one unnecessary e-ink refresh flash.
     epd = None
     for attempt in range(1, 6):
         try:
-            epd = epd4in0e.EPD()
+            epd = DisplayWrapper(screen_type)
             epd.init()
             epd.sleep()
-            logger.info("Display initialized successfully")
+            logger.info(f"Display initialized successfully ({screen_type}, {DISPLAY_WIDTH}x{DISPLAY_HEIGHT})")
             break
         except Exception as e:
             logger.error(f"Display init attempt {attempt}/5 failed: {e}")
@@ -1190,7 +1229,7 @@ def main():
 
                 try:
                     epd.init()
-                    epd.display(epd.getbuffer(final_img))
+                    epd.display(final_img)
                 except Exception as e:
                     logger.error(f"Display error: {e}")
                 finally:

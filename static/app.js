@@ -296,11 +296,17 @@ function lorcanaSearch() {
         return;
       }
       resultsEl.innerHTML = sets.map(function(s) {
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #222;">'
-          + '<div><div style="font-weight:600;">' + esc(s.name) + '</div>'
-          + '<div style="color:#888;font-size:12px;">' + esc(s.released) + (s.card_count ? ' &middot; ' + s.card_count + ' cards' : '') + '</div></div>'
+        var imgHtml = s.image
+          ? '<img src="' + esc(s.image) + '" style="width:36px;height:36px;object-fit:contain;flex-shrink:0;" onerror="this.style.display=\'none\'">'
+          : '<div style="width:36px;flex-shrink:0;"></div>';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:8px;">'
+          + '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+          + imgHtml
+          + '<div style="min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.name) + '</div>'
+          + '<div style="color:var(--text-dim);font-size:12px;">' + esc(s.released) + (s.card_count ? ' &middot; ' + s.card_count + ' cards' : '') + '</div>'
+          + '</div></div>'
           + '<button data-code="' + esc(s.code) + '" data-name="' + esc(s.name) + '" onclick="lorcanaDownloadSet(this)"'
-          + ' style="padding:6px 14px;background:#C084FC;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;">Download</button>'
+          + ' style="padding:6px 14px;background:#C084FC;color:#010001;border:none;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap;flex-shrink:0;">Download</button>'
           + '</div>';
       }).join('');
     })
@@ -1235,6 +1241,8 @@ function loadSettings() {
     _loadedCfg = c;
     document.getElementById('cfg-tcg').value = c.active_tcg;
     document.getElementById('cfg-header-mode').value = c.slab_header_mode || 'normal';
+    var screenEl = document.getElementById('cfg-screen');
+    if (screenEl) screenEl.value = c.screen || '4in0e';
     var fitEl = document.getElementById('cfg-image-fit');
     if (fitEl) fitEl.value = c.image_fit || 'contain';
     var bgEl = document.getElementById('cfg-image-bg');
@@ -1288,6 +1296,7 @@ function saveSettings() {
   var cfg = {
     active_tcg: document.getElementById('cfg-tcg').value,
     slab_header_mode: document.getElementById('cfg-header-mode').value,
+    screen: document.getElementById('cfg-screen') ? document.getElementById('cfg-screen').value : '4in0e',
     image_fit: document.getElementById('cfg-image-fit') ? document.getElementById('cfg-image-fit').value : 'contain',
     image_bg: document.getElementById('cfg-image-bg') ? document.getElementById('cfg-image-bg').value : 'black',
     rotation_angle: parseInt(document.getElementById('cfg-rotation').value) || 270,

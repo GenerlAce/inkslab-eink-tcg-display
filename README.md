@@ -3,13 +3,13 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-red)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![Display](https://img.shields.io/badge/display-Waveshare%204%22%20Spectra%206-green)
+![Display](https://img.shields.io/badge/display-Spectra%206%207--color-green)
 
-**InkSlab** is a Raspberry Pi Zero 2 W project that displays your TCG card collection on a 7-color e-ink screen, rotating through cards on a configurable schedule. A full web dashboard lets you browse your collection, manage downloads, and control the display from any device on your network — no app required.
+**InkSlab** is a Raspberry Pi project that displays your TCG card collection on a 7-color e-ink screen, rotating through cards on a configurable schedule. A full web dashboard lets you browse your collection, manage downloads, and control the display from any device on your network — no app required. Supports the Waveshare 4" Spectra 6 and Pimoroni Inky Impression 7.3" Spectra 6.
 
 Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga covers**, **Comics covers**, and **custom images**.
 
-> **Forked from** [costamesatechsolutions/inkslab-eink-tcg-display](https://github.com/costamesatechsolutions/inkslab-eink-tcg-display) — significantly extended with a full UI redesign, security hardening, and new features.
+> **Forked from** [costamesatechsolutions/inkslab-eink-tcg-display](https://github.com/costamesatechsolutions/inkslab-eink-tcg-display) — significantly extended with a full UI redesign, security hardening, and new features. If you're building a new InkSlab, **use this fork** — it is the most actively maintained version and the one we recommend.
 
 ---
 
@@ -99,12 +99,19 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 
 | Part | Notes |
 |------|-------|
-| **Raspberry Pi Zero 2 W** | Required. Pi Zero W H also works but is noticeably slower |
-| **Waveshare 4" e-Paper HAT+ (E) — Spectra 6** | 400×600, 7-color. Must be this exact model |
+| **Raspberry Pi Zero 2 W** | Recommended. Pi 3B/3B+ also supported and runs cooler under load |
+| **Display (choose one)** | See screen options below |
 | **MicroSD card** | 8 GB minimum. 32–64 GB recommended for full TCG libraries |
-| **5V micro USB power supply** | Standard Pi power supply |
-| **90-degree micro USB cable** | Optional but recommended — hides the cable behind the frame |
+| **5V power supply** | Micro USB (Zero 2W) or USB-C (Pi 4/5) |
+| **90-degree cable** | Optional but recommended — hides the cable behind the frame |
 | **3D printed frame** | [InkSlab on MakerWorld](https://makerworld.com/en/models/2452200-inkslab-open-source-e-ink-tcg-display) |
+
+### Supported Screens
+
+| Screen | Resolution | HAT connector | Notes |
+|--------|-----------|---------------|-------|
+| **Waveshare 4" e-Paper HAT+ (E) — Spectra 6** | 400×600 | 40-pin GPIO HAT | Must be the Spectra 6 (E) model |
+| **Pimoroni Inky Impression 7.3" — Spectra 6** | 480×800 | 40-pin GPIO HAT | Requires I2C enabled — installer handles this |
 
 **Storage estimates by library:**
 - Pokémon: ~15–20 GB (all sets)
@@ -116,56 +123,55 @@ Supports **Pokémon**, **Magic: The Gathering**, **Disney Lorcana**, **Manga cov
 
 ## Setup — DIY Flash
 
-### 1. Flash Raspberry Pi OS
+### Step 1 — Flash the SD Card
 
-Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) to flash **Raspberry Pi OS Lite (64-bit)** to your SD card. In the imager's advanced settings, configure your hostname, SSH, and optionally your WiFi credentials.
+- Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+- Select your Pi model, then choose **Raspberry Pi OS Lite (64-bit)** — no desktop environment needed
+- Click **Next → Edit Settings:**
+  - Set hostname to `inkslab`, username to `pi`, and choose a password
+  - Enter your Wi-Fi name and password
+  - Under **Services**, enable SSH
+- Flash the card, insert it into the Pi, and power on. Wait 2–3 minutes for the first boot.
 
-### 2. Enable SPI
+### Step 2 — SSH In and Run the Installer
 
-SSH into your Pi and run:
+Find your Pi's IP on your router's admin page, or use the hostname if mDNS is available:
+
 ```bash
-sudo raspi-config
+ssh pi@inkslab.local
 ```
-Navigate to **Interface Options → SPI → Enable**. The install script will also check and enable SPI automatically.
 
-### 3. Run the Installer
+Then download and run the installer:
 
 ```bash
-cd /home/pi
-git clone https://github.com/GenerlAce/inkslab-eink-tcg-display.git inkslab
-cd inkslab
-chmod +x scripts/install.sh
-bash scripts/install.sh
+curl -sSL https://raw.githubusercontent.com/GenerlAce/inkslab-eink-tcg-display/main/scripts/install.sh -o install.sh
+bash install.sh
 ```
 
 The installer will:
-- Check and enable SPI (prompts reboot if needed)
-- Install all system and Python dependencies
-- Install and start both systemd services
-- Verify the services are running
 
-### 4. Install Dependencies Manually (if needed)
+1. **Ask which screen you have** — Waveshare 4" Spectra 6 or Inky Impression 7.3" Spectra 6
+2. **Configure hardware** — enables SPI (required for both screens); for the 7.3" screen, also enables I2C and adds the required SPI overlay. If any settings changed, it will prompt to reboot — SSH back in and re-run `bash install.sh` after reboot.
+3. **Install packages** — system dependencies and Python packages; Inky drivers are installed automatically for the 7.3" screen
+4. **Clone InkSlab** and save your screen choice to the config file
+5. **Install and start both services** — the display service and the web dashboard
+6. **Verify** both services are running
 
-```bash
-# System packages
-sudo apt update
-sudo apt install -y python3-pip python3-pil python3-spidev \
-  python3-gpiozero python3-requests python3-flask python3-qrcode \
-  python3-cryptography git gpiod libgpiod-dev
+### Step 3 — First Boot
 
-# Python packages
-pip3 install waitress --break-system-packages
-pip3 install cryptography --break-system-packages
-```
+Once the installer finishes, InkSlab starts automatically. Within 30–60 seconds:
 
-### 5. First Boot
+- The display shows the setup screen with your local IP address and a QR code
+- Open **http://inkslab.local** in a browser (or the IP address shown on the display)
+- Go to the **Downloads** tab and grab your first card library
 
-Power on the Pi with the display attached. Within 30–60 seconds:
-- The display shows the InkSlab setup screen with the local IP address
-- Open `http://<your-pi-ip>` in a browser
-- If no cards are downloaded yet, the display shows a placeholder
+> **Note:** The Pi Zero 2W takes 2–3 minutes to fully boot and show the first screen. The display will look blank or frozen during this time — this is normal. Don't unplug it.
 
-The Waveshare driver is bundled in `lib/waveshare_epd/` — no additional library installation is needed.
+> **Tip:** If buttons or controls on the dashboard stop responding, first close any extra tabs — having multiple dashboard tabs open is the most common cause. Then try opening a fresh tab or using **Ctrl+Shift+R** (Windows/Linux) / **Cmd+Shift+R** (Mac) to force-clear the browser cache.
+
+### Changing Screen Type After Install
+
+Go to **Settings → Hardware → Screen Type**, select the new screen, and click **Save**. The display service restarts automatically. Power down the Pi before physically swapping the screen.
 
 ---
 
