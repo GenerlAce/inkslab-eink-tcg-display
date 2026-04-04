@@ -1486,7 +1486,7 @@ function loadWifiInfo() {
       var safeSSID = (d.ssid||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       el.innerHTML = 'Connected to <strong>' + safeSSID + '</strong>' + (d.ip ? ' &mdash; IP: ' + d.ip : '');
     } else if (d.hotspot_active) {
-      el.textContent = 'Setup mode — broadcasting ' + (d.hotspot_ssid || 'InkSlab-Setup');
+      el.innerHTML = 'Hotspot active &mdash; connect to <strong>' + (d.hotspot_ssid || 'InkSlab-Setup') + '</strong>';
     } else {
       el.innerHTML = 'Not connected &mdash; <button class="btn btn-secondary btn-sm" onclick="retryWifi(this)" style="margin-left:4px">Retry</button>';
     }
@@ -2575,7 +2575,7 @@ function buildDynamicUI(registry) {
     return '<option value="' + e[0] + '">' + e[1].name + '</option>';
   }).join('');
   // Download picker (pill selector + action buttons) — built by dl_picker.js
-  if (window.initDlPicker) initDlPicker(sorted, _lastStatus.tcg || '');
+  if (window.initDlPicker) initDlPicker(sorted, _lastStatus.tcg || _lastStatus.active_tcg || '');
   // Mobile Quick Switch bottom sheet — built by mobile_qs.js
   if (window.initMobileQS) { initMobileQS(sorted); if (window._mobileQSHook) _mobileQSHook(_lastStatus.tcg || ''); }
   // Delete Entire Library buttons — 2-col grid, two-step confirm

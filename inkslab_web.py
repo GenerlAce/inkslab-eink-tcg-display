@@ -624,7 +624,9 @@ def api_status():
         status.pop('pending', None)
     if status.get('display_updating') and time.time() - status.get('timestamp', 0) > 60:
         status.pop('display_updating', None)
-    status['collection_only'] = load_config().get('collection_only', False)
+    cfg = load_config()
+    status['collection_only'] = cfg.get('collection_only', False)
+    status['active_tcg'] = cfg.get('active_tcg', 'pokemon')
     try:
         with open('/sys/class/thermal/thermal_zone0/temp') as f:
             status['cpu_temp'] = round(int(f.read().strip()) / 1000)
@@ -3320,6 +3322,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div class="dl-section-body">
         <div id="wifi-info" style="font-size:13px;color:var(--text-dim);margin-bottom:10px">Checking WiFi...</div>
         <button class="btn btn-secondary btn-block" onclick="changeWifi()">Change WiFi Network</button>
+        <p style="color:var(--text-dim);font-size:12px;margin:8px 0 0">If changing networks, connect your phone to <strong>InkSlab-Setup</strong> and open <strong>http://10.42.0.1</strong></p>
         </div><!-- end dl-section-body -->
       </div>
     </div>
@@ -4015,7 +4018,7 @@ def _app_startup():
     # Pre-warm storage cache so Downloads tab loads instantly on first visit
     _trigger_storage_recompute()
 
-    # Enter setup mode if WiFi is not connected AND no saved profile exists.
+    # Enter setup mode if WiFi is not connected.
     try:
         if not wifi_manager.is_wifi_connected():
             _wifi_setup_mode = True
