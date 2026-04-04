@@ -37,9 +37,18 @@ Thumbs.db
 *.swo
 *~
 CLAUDE.md
+HANDOFF.md
 
 # Claude Code local config
 .claude/
 
 # Working notes
 *_commit_message.txt
+
+# Continue.dev
+.continue/
+
+# Environment files
+.env
+.env.local
+*.env

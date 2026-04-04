@@ -19,7 +19,6 @@ PORTAL_DNS_DIR = "/etc/NetworkManager/dnsmasq-shared.d"
 PORTAL_DNS_CONF = os.path.join(PORTAL_DNS_DIR, "inkslab-portal.conf")
 PORTAL_DNS_CONTENT = "address=/#/10.42.0.1\n"
 
-
 def _run_nmcli(args, timeout=30):
     """Run an nmcli command and return (returncode, stdout, stderr)."""
     cmd = ["nmcli"] + args
@@ -194,7 +193,6 @@ def ensure_portal_dns():
 def start_hotspot():
     """Create and activate the setup hotspot (open network, no password).
     Returns True on success."""
-    # Install captive portal DNS config
     ensure_portal_dns()
 
     # Clean up any existing hotspot profile first
@@ -204,7 +202,6 @@ def start_hotspot():
         _run_nmcli(["con", "delete", HOTSPOT_CON_NAME])
         time.sleep(1)
 
-    # Create an open AP directly (no password dance needed)
     rc, _, err = _run_nmcli([
         "con", "add", "type", "wifi",
         "ifname", "wlan0",
