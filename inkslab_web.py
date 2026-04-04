@@ -14,6 +14,8 @@ import re
 import json
 import shutil
 import signal
+import socket
+import ssl
 import subprocess
 import tempfile
 import time
@@ -78,6 +80,7 @@ CONFIG_FILE = "/home/pi/.inkslab/inkslab_config.json"
 COLLECTION_FILE = "/home/pi/.inkslab/inkslab_collection.json"
 LAST_UPDATE_FILE = "/home/pi/.inkslab/inkslab_last_update.json"
 METRON_CREDS_FILE = "/home/pi/.inkslab/.metron_credentials"
+EXTENDED_SETUP_FLAG = "/home/pi/.inkslab/inkslab_extended_setup"
 
 def _migrate_data_paths():
     """One-time migration: move config files from /home/pi/ to /home/pi/.inkslab/."""
@@ -2454,7 +2457,8 @@ def api_factory_reset():
         except Exception as e:
             errors.append(f"Reset {f}: {e}")
 
-    # 4. Enter setup mode
+    # 4. Enter setup mode; write extended-setup flag so next boot keeps the
+    #    hotspot up for 10 minutes, giving the new owner time to connect.
     with _wifi_connect_lock:
         _wifi_connect_result = {"status": "idle"}
     _wifi_setup_mode = True
@@ -2462,6 +2466,11 @@ def api_factory_reset():
         wifi_manager.start_hotspot()
     except Exception as e:
         errors.append(f"Hotspot: {e}")
+    try:
+        with open(EXTENDED_SETUP_FLAG, "w") as _f:
+            _f.write("1")
+    except OSError:
+        pass
 
     # 5. Clean up temp files, logs, and user traces
     _close_download_log()
@@ -2518,6 +2527,15 @@ def captive_portal_detect():
     if _wifi_setup_mode:
         return redirect("http://10.42.0.1/", code=302)
     return "Success", 200
+
+
+@app.errorhandler(404)
+def _captive_catch_all(e):
+    """Catch any unhandled URL in setup mode — covers vendor-specific captive
+    portal probe paths not in the explicit list above."""
+    if _wifi_setup_mode:
+        return redirect("http://10.42.0.1/", code=302)
+    return "Not found", 404
 
 
 # --- CUSTOM IMAGE MANAGEMENT ---
@@ -3995,6 +4013,89 @@ _startup_done = False
 _startup_lock = threading.Lock()
 
 
+def _start_https_captive_portal():
+    """Start a background HTTPS server on port 443 for captive portal detection.
+    Modern iOS and Android probe HTTPS first — without this they never show the
+    'sign in to network' popup. Always running; redirects when _wifi_setup_mode
+    is True, returns Success otherwise (so devices know there's no captive portal
+    on normal WiFi use)."""
+
+    def _serve():
+        cert = '/tmp/inkslab_captive.pem'
+        try:
+            if not os.path.exists(cert):
+                subprocess.run([
+                    'openssl', 'req', '-x509', '-newkey', 'rsa:2048',
+                    '-keyout', cert, '-out', cert, '-days', '3650',
+                    '-nodes', '-subj', '/CN=inkslab.local',
+                ], capture_output=True, timeout=20)
+        except Exception as e:
+            _logger.warning("HTTPS captive: cert gen failed: %s", e)
+            return
+
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.check_hostname = False
+        try:
+            ctx.load_cert_chain(cert)
+        except Exception as e:
+            _logger.warning("HTTPS captive: cert load failed: %s", e)
+            return
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+            srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                srv.bind(('0.0.0.0', 443))
+            except OSError as e:
+                _logger.warning("HTTPS captive: bind :443 failed: %s", e)
+                return
+            srv.listen(10)
+            srv.settimeout(5)
+            _logger.info("HTTPS captive portal server started on :443")
+
+            while True:
+                try:
+                    conn, _ = srv.accept()
+                except socket.timeout:
+                    continue
+                except Exception:
+                    break
+
+                def _handle(c):
+                    try:
+                        with ctx.wrap_socket(c, server_side=True) as s:
+                            s.settimeout(5)
+                            try:
+                                s.recv(4096)
+                            except Exception:
+                                pass
+                            if _wifi_setup_mode:
+                                s.sendall(
+                                    b'HTTP/1.1 302 Found\r\n'
+                                    b'Location: http://10.42.0.1/\r\n'
+                                    b'Content-Length: 0\r\n'
+                                    b'Connection: close\r\n\r\n'
+                                )
+                            else:
+                                body = b'<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>'
+                                s.sendall(
+                                    b'HTTP/1.1 200 OK\r\n'
+                                    b'Content-Type: text/html\r\n'
+                                    b'Content-Length: ' + str(len(body)).encode() + b'\r\n'
+                                    b'Connection: close\r\n\r\n' + body
+                                )
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            c.close()
+                        except Exception:
+                            pass
+
+                threading.Thread(target=_handle, args=(conn,), daemon=True).start()
+
+    threading.Thread(target=_serve, daemon=True).start()
+
+
 def _app_startup():
     """One-time startup: background threads, WiFi check. Safe to call from Gunicorn workers."""
     global _startup_done, _wifi_setup_mode
@@ -4007,6 +4108,9 @@ def _app_startup():
 
     _logger.info("InkSlab Web Dashboard starting...")
 
+    # HTTPS captive portal server — handles iOS/Android HTTPS probes on port 443
+    _start_https_captive_portal()
+
     # Start auto-update background thread
     _auto_update_thread = threading.Thread(target=_run_auto_updates, daemon=True)
     _auto_update_thread.start()
@@ -4018,16 +4122,46 @@ def _app_startup():
     # Pre-warm storage cache so Downloads tab loads instantly on first visit
     _trigger_storage_recompute()
 
-    # Enter setup mode if WiFi is not connected.
-    try:
-        if not wifi_manager.is_wifi_connected():
+    # Extended setup mode: written by factory reset so the new owner gets a
+    # guaranteed 10-minute hotspot window on first boot before cards display.
+    if os.path.exists(EXTENDED_SETUP_FLAG):
+        try:
             _wifi_setup_mode = True
-            _logger.info("No WiFi connection on boot — entering setup mode")
+            _logger.info("Extended setup flag found — hotspot on for 10 minutes")
             wifi_manager.start_hotspot()
-        else:
-            _logger.info("WiFi configured — serving dashboard")
-    except Exception as e:
-        _logger.warning("WiFi check failed, skipping setup mode: %s", e)
+
+            def _extended_setup_timer():
+                global _wifi_setup_mode
+                time.sleep(600)
+                try:
+                    os.remove(EXTENDED_SETUP_FLAG)
+                except OSError:
+                    pass
+                try:
+                    if wifi_manager.is_wifi_connected():
+                        _logger.info("Extended setup window expired — WiFi connected, stopping hotspot")
+                        wifi_manager.stop_hotspot()
+                        _wifi_setup_mode = False
+                    else:
+                        _logger.info("Extended setup window expired — no WiFi, keeping hotspot running")
+                except Exception as exc:
+                    _logger.warning("Extended setup timer error: %s", exc)
+
+            threading.Thread(target=_extended_setup_timer, daemon=True).start()
+        except Exception as e:
+            _logger.warning("Extended setup hotspot failed: %s", e)
+
+    # Enter setup mode if WiFi is not connected (normal boot).
+    else:
+        try:
+            if not wifi_manager.is_wifi_connected():
+                _wifi_setup_mode = True
+                _logger.info("No WiFi connection on boot — entering setup mode")
+                wifi_manager.start_hotspot()
+            else:
+                _logger.info("WiFi configured — serving dashboard")
+        except Exception as e:
+            _logger.warning("WiFi check failed, skipping setup mode: %s", e)
 
 
 @app.before_request
